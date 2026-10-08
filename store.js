@@ -21,7 +21,7 @@ window.QZ_SITE = true;
     const r = await fetch(url, { credentials: "same-origin", headers: { "content-type": "application/json" }, ...opt });
     if (r.status === 401) { goLogin(); throw { code: "unauthenticated" }; }
     if (!r.ok) {
-      let b = {}; try { b = await r.json(); } catch {}
+      let b = {}; try { b = await r.json(); } catch { }
       if (b.code === "trocar_senha") { location.href = "/"; throw { code: "unauthenticated" }; }
       throw { code: b.code || (r.status === 404 ? "invalid_argument" : "unavailable"), status: r.status };
     }
@@ -49,10 +49,10 @@ window.QZ_SITE = true;
       try { await pull(); failing = 0; }
       catch (e) { if (++failing === 3) listeners.forEach(l => l.err && l.err(e)); }
       schedule();
-    }, document.hidden ? 20000 : 4000);
+    }, document.hidden ? 20000 : 12000);
   }
   function start() { if (!ready) ready = pull().then(schedule); return ready; }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && ready) { pull().catch(() => {}); schedule(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && ready) { pull().catch(() => { }); schedule(); } });
 
   function docSnap(p) { const d = cache.get(p); return { id: idOf(p), exists: d !== undefined, data: () => clone(d) }; }
   function colSnap(p) {
