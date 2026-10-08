@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Meu POP · Central Quinze</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%230660FF%27 stroke-width=%275%27/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+<style>
+  body{background:var(--paper)}
+  .mp{max-width:880px;margin:0 auto;padding:20px 16px 60px}
+  .mp-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .mp-top h1{margin:0;font:700 26px/1.2 var(--display)}
+  .mp-top .sp{flex:1}
+  .mp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .mp-tabs button{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:6px 12px;font:inherit;cursor:pointer}
+  .mp-tabs button[aria-pressed="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .mp-sub{font-size:13px;color:var(--ink2)}
+  @media print{
+    .mp-top .btn,.mp-tabs,.nao-imprime{display:none !important}
+    body{background:#fff}.po-card{border:0 !important;padding:0 !important}
+    .mp-pop{display:block !important;page-break-after:always}
+    .po-mk{background:none;border:1px dashed #999}
+  }
+</style>
+</head>
+<body>
+<main class="mp">
+  <div class="mp-top"><h1>Meu POP</h1><span class="sp"></span>
+    <a class="btn" href="/?modulos=1">Voltar aos módulos</a>
+    <button class="btn primary" type="button" id="imprimir">Imprimir / salvar em PDF</button></div>
+  <p class="mp-sub" id="quem">Carregando…</p>
+  <div class="mp-tabs" id="abas"></div>
+  <div id="pops"></div>
+</main>
+<script>window.QZ = window.QZ || { modulo() {} };</script>
+<script src="/modulos/pop.js"></script>
+<script>
+(async function(){
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  let r;
+  try { r = await fetch("/api/m?r=pop/meu", { credentials: "same-origin" }); } catch { $("#quem").textContent = "Sem conexão com o servidor."; return; }
+  if (r.status === 401) { location.href = "/?next=/pop"; return; }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $("#quem").textContent = d.msg || "Não deu para abrir o POP."; return; }
+  $("#quem").textContent = `${d.nome || ""} · ${d.perfil || ""}. Aqui ficam o POP publicado da sua função e o guia de uso das plataformas.`;
+  if (!d.pops.length) { $("#pops").innerHTML = `<div class="po-card">Ainda não há POP publicado para a sua função.</div>`; return; }
+  $("#pops").innerHTML = d.pops.map((p, i) => `<div class="mp-pop" data-i="${i}"${i ? " hidden" : ""}><div class="po-card po-ler"><p class="mp-sub nao-imprime">${esc(p.rotulo)} · versão ${p.versao.numero}, publicada em ${new Date(p.versao.publicadoEm).toLocaleDateString("pt-BR")}</p>${window.QZ_POP_RENDER(p.versao.conteudo, p.versao.avisoExportacao)}</div></div>`).join("");
+  $("#abas").innerHTML = d.pops.length > 1 ? d.pops.map((p, i) => `<button type="button" data-i="${i}" aria-pressed="${!i}">${esc(p.rotulo)}</button>`).join("") : "";
+  $("#abas").addEventListener("click", e => { const b = e.target.closest("[data-i]"); if (!b) return;
+    document.querySelectorAll("#abas button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    document.querySelectorAll(".mp-pop").forEach(x => x.hidden = x.dataset.i !== b.dataset.i); });
+  $("#imprimir").addEventListener("click", () => window.print());
+})();
+</script>
+</body>
+</html>

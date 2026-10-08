@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex, nofollow">
+<title>Central Quinze</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%230660FF%27 stroke-width=%275%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: painel azul da marca à esquerda (tese), cartão de acesso à direita; empilha no celular */
+:root{
+  --blue:#0660FF; --blue-dk:#0049CC; --blue-soft:#E6EFFF;
+  --paper:#F4F6FA; --card:#FFFFFF; --ink:#141C2C; --ink2:#586275; --line:#DFE4EC;
+  --danger:#C0271A; --danger-soft:#FDECEA; --ok:#0E8A7B;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.page{min-height:100%;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+.brand{position:relative;overflow:hidden;background:var(--blue);color:#fff;padding:48px clamp(24px,6vw,88px);display:flex;flex-direction:column;justify-content:space-between;gap:48px;
+  padding-top:calc(48px + env(safe-area-inset-top,0px))}
+.brand::before,.brand::after{content:"";position:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.14);pointer-events:none}
+.brand::before{width:640px;height:640px;right:-260px;bottom:-240px;box-shadow:0 0 0 70px rgba(255,255,255,.04),0 0 0 140px rgba(255,255,255,.03)}
+.brand::after{width:260px;height:260px;right:150px;bottom:250px;border-color:rgba(255,255,255,.10)}
+.brand img{width:190px;height:auto;display:block;position:relative}
+.thesis{position:relative;max-width:560px}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;opacity:.8;margin:0 0 14px}
+.thesis h1{font:800 clamp(34px,4.4vw,58px)/1.02 var(--display);letter-spacing:-.025em;margin:0 0 20px;text-wrap:balance}
+.thesis p{font-size:18px;line-height:1.55;margin:0;opacity:.9;max-width:46ch}
+.inside{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-width:620px}
+.inside div{border-top:1px solid rgba(255,255,255,.35);padding-top:12px}
+.inside b{display:block;font:700 16px var(--display)}
+.inside span{font-size:13px;opacity:.82}
+
+.side{display:flex;align-items:center;justify-content:center;padding:48px 24px;padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
+.card{width:100%;max-width:400px}
+.card h2{font:700 28px/1.15 var(--display);margin:0 0 6px;letter-spacing:-.01em}
+.card .lead{color:var(--ink2);margin:0 0 28px}
+label{display:block;font-size:14px;font-weight:600;margin:0 0 6px}
+.field{margin-bottom:16px}
+input{width:100%;min-height:48px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 14px}
+input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blue-soft)}
+.pw{position:relative}
+.pw input{padding-right:76px}
+.pw button{position:absolute;right:6px;top:6px;bottom:6px;border:0;background:none;color:var(--ink2);font-size:13px;font-weight:600;padding:0 10px;border-radius:7px;cursor:pointer}
+.pw button:hover{background:var(--paper)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:0;border-radius:10px;background:var(--blue);color:#fff;font-weight:600;font-size:16px;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--blue-dk)}
+.btn:disabled{opacity:.6;cursor:default}
+.err{background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:16px}
+.foot{color:var(--ink2);font-size:13px;margin-top:22px}
+
+.aviso{display:block;margin:-6px 0 16px;padding:10px 14px;border-radius:10px;background:#FFF8E6;border:1px solid #F2DDA4;color:#6B4E00;font-size:14px;text-decoration:none}
+.aviso b{color:#6B4E00;white-space:nowrap}
+.apps{display:flex;flex-direction:column;gap:12px;margin-bottom:22px}
+.app{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s}
+.app:hover{border-color:var(--blue);box-shadow:0 0 0 4px var(--blue-soft)}
+.app .ic{width:44px;height:44px;border-radius:12px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font:700 18px var(--display)}
+.app .ic svg{width:22px;height:22px}
+.app b{display:block;font:700 18px/1.2 var(--display)}
+.app small{display:block;color:var(--ink2);font-size:14px;margin-top:2px}
+.app .go{color:var(--blue);font-size:20px}
+.app.soon{cursor:default;background:#FAFBFD}
+.app.soon:hover{border-color:var(--line);box-shadow:none}
+.app.soon .ic{background:#EEF0F3;color:var(--ink2)}
+.app .badge{font-size:12px;font-weight:600;color:var(--ink2);background:#EEF0F3;border-radius:20px;padding:3px 10px;white-space:nowrap}
+.quick{display:flex;gap:10px;flex-wrap:wrap;margin:-8px 0 18px}
+.quick a{flex:1 1 140px;text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px}
+.quick a:hover{border-color:var(--blue);color:var(--blue-dk)}
+.out{background:none;border:0;color:var(--ink2);font-weight:600;cursor:pointer;padding:6px 0;margin-right:16px;text-decoration:underline;text-underline-offset:3px}
+
+@media (max-width:900px){
+  .page{grid-template-columns:1fr}
+  .brand{gap:28px;padding-bottom:36px}
+  .brand::before{width:420px;height:420px;right:-200px;bottom:-220px}
+  .brand::after{display:none}
+  .thesis p{font-size:16px}
+  .inside{grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .side{align-items:flex-start;padding-top:32px}
+}
+@media (max-width:520px){
+  .brand img{width:150px}
+  .inside{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="brand" aria-label="Quinze">
+    <img src="/logo.png" alt="Quinze" width="190" height="44" style="filter:brightness(0) invert(1)">
+    <div class="thesis">
+      <p class="eyebrow">Central de clientes</p>
+      <h1>A carteira e o onboarding da Quinze num só lugar.</h1>
+      <p>Cada atendimento vê os mesmos dados, na hora: quem está com quem, o que falta em cada novo cliente e quantos dias úteis a implantação já levou.</p>
+    </div>
+    <div class="inside">
+      <div><b>Carteira</b><span>Clientes do mês, níveis e carga por social media</span></div>
+      <div><b>Onboarding</b><span>Do aceite da proposta ao retorno ao cliente</span></div>
+      <div><b>Propostas e agenda</b><span>Propostas em PDF e reuniões da equipe</span></div>
+    </div>
+  </section>
+
+  <main class="side">
+    <div class="card" id="loginBox">
+      <h2>Entrar</h2>
+      <p class="lead">Use seu e-mail da Quinze e a senha do e-mail, ou o usuário e a senha que a gestão te passou.</p>
+      <form id="frm" novalidate>
+        <div class="err" id="err" role="alert" hidden></div>
+        <div class="field"><label for="user">E-mail ou usuário</label><input id="user" name="username" type="text" inputmode="email" placeholder="nome@quinzecomunicacao.com.br" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
+        <div class="field"><label for="pass">Senha</label><div class="pw"><input id="pass" name="password" type="password" autocomplete="current-password" required><button type="button" id="show" aria-controls="pass">Mostrar</button></div></div>
+        <button class="btn" type="submit" id="go">Entrar</button>
+      </form>
+      <p class="foot">Com e-mail da Quinze, a senha é conferida na Locaweb e não fica guardada na plataforma. Sem acesso? Fale com a gestão.</p>
+    </div>
+
+    <div class="card" id="pwdBox" hidden>
+      <h2>Crie sua senha</h2>
+      <p class="lead" id="pwdLead">Você entrou com uma senha temporária. Escolha uma senha só sua para continuar.</p>
+      <form id="frmPwd" novalidate>
+        <div class="err" id="pwdErr" role="alert" hidden></div>
+        <div class="field"><label for="pwAtual">Senha atual</label><input id="pwAtual" type="password" autocomplete="current-password" required></div>
+        <div class="field"><label for="pwNova">Nova senha</label><input id="pwNova" type="password" autocomplete="new-password" minlength="8" required></div>
+        <div class="field"><label for="pwConf">Repita a nova senha</label><input id="pwConf" type="password" autocomplete="new-password" minlength="8" required></div>
+        <button class="btn" type="submit" id="pwGo">Salvar senha</button>
+      </form>
+      <p class="foot">Pelo menos 8 caracteres. <button class="out" type="button" id="pwCancel">Voltar</button></p>
+    </div>
+
+    <div class="card" id="homeBox" hidden>
+      <h2 id="hello">Olá!</h2>
+      <p class="lead" id="homeLead">Escolha o módulo.</p>
+      <a class="aviso" id="avisoEtica" href="/app?m=politicas#etica" hidden>Leitura pendente: o código de ética tem uma versão que você ainda não leu. <b>Ler agora →</b></a>
+      <div class="apps" id="apps"></div>
+      <div class="quick">
+        <a href="/pop">Meu POP</a>
+        <a href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp ↗</a>
+      </div>
+      <button class="out" type="button" id="myPwd" hidden>Trocar minha senha</button>
+      <button class="out" type="button" id="out">Sair</button>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const qs = new URLSearchParams(location.search);
+  const next = qs.get("next");
+  const safeNext = next && /^\/[A-Za-z0-9/_#?=&-]*$/.test(next) && !next.startsWith("//") ? next : null;
+  const ficar = qs.has("modulos"); // veio do botão "Trocar de módulo": mostra a tela mesmo com um só módulo
+  const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const ICON = {
+    atendimento: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 13h3M8 16h6"/></svg>',
+    pecas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2.5"/><path d="M7 14l3-3 3 3 2-2 3 3"/><path d="M8 21h8"/></svg>',
+    administrativo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21 20c0-2.6-1.6-4.8-4-5.6"/></svg>',
+    cs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+    politicas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+    financeiro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  };
+  let ME = null;
+
+  function show(id){ ["#loginBox","#pwdBox","#homeBox"].forEach(s => $(s).hidden = s !== id); }
+
+  // Tela de módulos: só os módulos liberados para a pessoa. Com um único módulo, entra direto.
+  async function showHome(){
+    try { const r = await fetch("/api/me", {credentials:"same-origin"}); if (!r.ok) { show("#loginBox"); return; } ME = await r.json(); } catch { return; }
+    if (ME.trocarSenha) { openPwd(true); return; }
+    const areas = ME.areas || [];
+    if (safeNext) { location.href = safeNext; return; }
+    if (areas.length === 1 && !areas[0].emBreve && !ficar) { location.replace(areas[0].entrada); return; }
+    show("#homeBox");
+    if (ME.nome) $("#hello").textContent = `Olá, ${ME.nome.split(" ")[0]}!`;
+    $("#homeLead").textContent = areas.length ? "Escolha o módulo." : "Você ainda não tem módulos liberados. Fale com a gestão.";
+    $("#myPwd").hidden = ME.auth !== "senha";
+    $("#avisoEtica").hidden = !(ME.pendencias && ME.pendencias.etica);
+    $("#apps").innerHTML = areas.map(a => a.emBreve
+      ? `<div class="app soon" aria-disabled="true"><span class="ic">${ICON[a.id] || esc(a.nome.charAt(0))}</span><span><b>${esc(a.nome)}</b><small>${esc(a.descricao || "")}</small></span><span class="badge">Em breve</span></div>`
+      : `<a class="app" href="${esc(a.entrada)}"><span class="ic">${ICON[a.id] || esc(a.nome.charAt(0))}</span><span><b>${esc(a.nome)}</b><small data-sum="${esc(a.id)}">${esc(a.descricao || "")}</small></span><span class="go" aria-hidden="true">→</span></a>`).join("");
+    if (!areas.some(a => a.id === "atendimento" && !a.emBreve)) return;
+    try {
+      const r = await fetch("/api/sync?since=0", {credentials:"same-origin"});
+      if (!r.ok) return;
+      const {docs} = await r.json();
+      const months = docs.map(d => d.path).filter(p => /^meses\/\d{4}-\d{2}$/.test(p)).map(p => p.slice(6)).sort();
+      const now = new Date(), ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+      const cur = months.includes(ym) ? ym : months.filter(m => m <= ym).pop() || months[months.length-1];
+      const partes = [];
+      if (cur) { const n = docs.filter(d => d.path.startsWith("meses/"+cur+"/clientes/") && d.data.status !== "retirado").length; partes.push(`${n} cliente${n===1?"":"s"} ativo${n===1?"":"s"} em ${MESES[+cur.slice(5)-1]}`); }
+      const onb = docs.filter(d => /^onboarding\/[^/]+$/.test(d.path) && d.data.status !== "concluido").length;
+      if (onb) partes.push(`${onb} onboarding${onb>1?"s":""} em andamento`);
+      const el = document.querySelector('[data-sum="atendimento"]'); if (el && partes.length) el.textContent = partes.join(" · ");
+    } catch {}
+  }
+
+  // Troca de senha (obrigatória com senha temporária).
+  let pwdObrigatoria = false;
+  function openPwd(obrigatoria){
+    pwdObrigatoria = obrigatoria;
+    $("#pwdLead").textContent = obrigatoria ? "Você entrou com uma senha temporária. Escolha uma senha só sua para continuar." : "Troque a senha que você usa para entrar na Central.";
+    $("#pwCancel").textContent = obrigatoria ? "Sair" : "Voltar";
+    ["#pwAtual","#pwNova","#pwConf"].forEach(s => $(s).value = ""); $("#pwdErr").hidden = true;
+    show("#pwdBox"); $("#pwAtual").focus();
+  }
+  $("#frmPwd").addEventListener("submit", async e => {
+    e.preventDefault();
+    const err = $("#pwdErr"); err.hidden = true;
+    const atual = $("#pwAtual").value, nova = $("#pwNova").value;
+    if (nova.length < 8) { err.textContent = "A nova senha precisa ter pelo menos 8 caracteres."; err.hidden = false; return; }
+    if (nova !== $("#pwConf").value) { err.textContent = "As duas senhas novas não são iguais."; err.hidden = false; return; }
+    const b = $("#pwGo"); b.disabled = true;
+    try {
+      const r = await fetch("/api/senha", {method:"POST", credentials:"same-origin", headers:{"content-type":"application/json"}, body: JSON.stringify({atual, nova})});
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { ["#pwAtual","#pwNova","#pwConf"].forEach(s => $(s).value = ""); showHome(); return; }
+      err.textContent = r.status === 429 ? "Muitas tentativas erradas. Espere 15 minutos e tente de novo." : (j.error && j.error.length > 12 ? j.error : "Não deu para salvar a senha. Tente de novo.");
+      err.hidden = false;
+    } catch { err.textContent = "Sem conexão com o servidor."; err.hidden = false; }
+    finally { b.disabled = false; }
+  });
+  $("#pwCancel").addEventListener("click", async () => {
+    if (pwdObrigatoria) { try { await fetch("/api/logout", {method:"POST", credentials:"same-origin"}); } catch {} show("#loginBox"); return; }
+    showHome();
+  });
+  $("#myPwd").addEventListener("click", () => openPwd(false));
+
+  $("#show").addEventListener("click", () => {
+    const p = $("#pass"), on = p.type === "password";
+    p.type = on ? "text" : "password"; $("#show").textContent = on ? "Ocultar" : "Mostrar";
+  });
+  $("#frm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const err = $("#err"); err.hidden = true;
+    const user = $("#user").value.trim(), pass = $("#pass").value;
+    if (!user || !pass) { err.textContent = "Preencha o e-mail (ou usuário) e a senha."; err.hidden = false; return; }
+    const b = $("#go"); b.disabled = true; b.textContent = "Entrando…";
+    try {
+      const r = await fetch("/api/login", {method:"POST", credentials:"same-origin", headers:{"content-type":"application/json"}, body: JSON.stringify({user, pass})});
+      if (r.ok) { $("#pass").value = ""; showHome(); return; }
+      err.textContent = r.status === 429 ? "Muitas tentativas erradas. Espere 15 minutos e tente de novo."
+        : r.status === 403 ? "Seu acesso está bloqueado. Fale com a gestão."
+        : r.status === 503 ? "Não consegui confirmar a senha com a Locaweb agora. Tente de novo em instantes."
+        : "Usuário ou senha incorretos, ou sem acesso à plataforma. Confira e tente de novo.";
+      err.hidden = false; $("#pass").select();
+    } catch {
+      err.textContent = "Sem conexão com o servidor. Verifique a internet e tente de novo."; err.hidden = false;
+    } finally { b.disabled = false; b.textContent = "Entrar"; }
+  });
+  $("#out").addEventListener("click", async () => {
+    try { await fetch("/api/logout", {method:"POST", credentials:"same-origin"}); } catch {}
+    show("#loginBox"); $("#user").focus();
+  });
+
+  fetch("/api/me", {credentials:"same-origin"}).then(r => {
+    if (r.ok) showHome();
+    else $("#user").focus();
+  }).catch(() => $("#user").focus());
+})();
+</script>
+</body>
+</html>

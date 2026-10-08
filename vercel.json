@@ -1,0 +1,94 @@
+{
+  "buildCommand": "node build.js",
+  "outputDirectory": "public",
+  "cleanUrls": true,
+  "regions": [
+    "gru1"
+  ],
+  "functions": {
+    "api/m.js": {
+      "includeFiles": "logo.png",
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/cron/forms",
+      "destination": "/api/m?r=cs/forms.cron"
+    },
+    {
+      "source": "/api/cron/pecas",
+      "destination": "/api/m?r=pec/pecas.cron"
+    },
+    {
+      "source": "/api/cron/relatorio",
+      "destination": "/api/m?r=tar/relatorio.cron"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/forms",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/pecas",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Central Quinze</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%230660FF%27 stroke-width=%275%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="head-row">
+      <div class="brand">
+        <a href="/" title="Página inicial" style="display:block"><img src="/logo.png" alt="Quinze" width="150" height="34"></a>
+        <span class="sep" aria-hidden="true"></span>
+        <div>
+          <h1 id="modTitle">Carteira de clientes</h1>
+          <div class="sub" id="subtitle">Carregando…</div>
+        </div>
+      </div>
+      <div class="month" id="monthBox">
+        <button class="navbtn" id="prevM" aria-label="Mês anterior">‹</button>
+        <select id="monthSel" aria-label="Mês da carteira"></select>
+        <button class="navbtn" id="nextM" aria-label="Próximo mês">›</button>
+        <button class="btn" id="btnNewMonth">Nova carteira</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="dash" aria-selected="true">Dashboard</button>
+        <button role="tab" data-tab="cli" aria-selected="false">Clientes</button>
+        <button role="tab" data-tab="onb" aria-selected="false">Onboarding</button>
+        <button role="tab" data-tab="prop" aria-selected="false">Propostas</button>
+        <button role="tab" data-tab="agenda" aria-selected="false">Agenda</button>
+        <button role="tab" data-tab="and" aria-selected="false">Andamento de produção</button>
+        <button role="tab" data-tab="prod" aria-selected="false">Dados consolidados</button>
+        <button role="tab" data-tab="team" aria-selected="false">Equipe e ajustes</button>
+        <button role="tab" data-tab="users" aria-selected="false" hidden>Usuários</button>
+      </nav>
+      <div style="display:flex;align-items:center;gap:12px"><a class="lockbtn" id="trocaModulo" href="/?modulos=1" title="Voltar para a tela de módulos" style="color:var(--blue-dk);border-color:#BFD3FF">Trocar de módulo</a><a class="lockbtn" href="/pop" title="Procedimento operacional padrão da sua função">Meu POP</a><a class="lockbtn" href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp</a><button class="lockbtn" id="lockBtn" type="button"></button><div class="sync"><span class="dot" id="syncDot"></span><span id="syncTxt">Conectando</span></div><span class="sync" id="whoami" style="font-weight:600;color:var(--ink)"></span><a class="lockbtn" href="/api/logout" title="Sair da conta">Sair</a></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="offline" hidden>Não foi possível conectar ao banco de dados. Recarregue a página ou entre de novo pela página inicial.</div>
+  <div id="semAcesso" class="emptybig" hidden>
+    <h2>Você não tem acesso a este módulo</h2>
+    <p class="muted">Volte para a tela de módulos e escolha um dos liberados para você.</p>
+    <a class="btn primary" href="/?modulos=1" style="text-decoration:none">Trocar de módulo</a>
+  </div>
+  <div id="noMonth" class="emptybig" hidden>
+    <h2>Nenhuma carteira criada ainda</h2>
+    <p class="muted">Crie a carteira do mês para começar a distribuir os clientes.</p>
+    <button class="btn primary" data-open-newmonth>Criar carteira</button>
+  </div>
+
+  <section id="tab-dash">
+    <p id="atalhoProd" hidden style="margin:0 0 10px;font-size:14px">Os <b>Dados consolidados</b> agora ficam no módulo 02 Aprovação de peças. <a href="/app?m=pecas#prod">Abrir Dados consolidados →</a></p>
+    <div class="kpis" id="kpis"></div>
+    <div class="grid">
+      <div>
+        <div class="panel">
+          <h2>Carga por social media</h2>
+          <div class="legend">
+            <span><i style="background:var(--lvA)"></i>Nível A</span><span><i style="background:var(--lvB)"></i>Nível B</span>
+            <span><i style="background:var(--lvC)"></i>Nível C</span><span><i style="background:var(--lvD)"></i>Nível D</span>
+            <span>Cada bloco é um cliente, do tamanho do seu volume de conteúdos</span>
+          </div>
+          <div id="load"></div>
+        </div>
+        <div class="panel">
+          <h2>Clientes por atendimento e nível</h2>
+          <div style="overflow-x:auto"><table class="matrix" id="matrix"></table></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel mov">
+          <h2 id="movTitle">Movimento da carteira</h2>
+          <div id="mov"></div>
+        </div>
+        <div class="panel pend">
+          <h2>Pendências</h2>
+          <div id="pend"></div>
+        </div>
+        <div class="panel">
+          <h2>Por tipo de contrato</h2>
+          <div class="bars" id="byTipo"></div>
+        </div>
+        <div class="panel">
+          <h2>Por cidade</h2>
+          <div class="bars" id="byLocal"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-cli" hidden>
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Buscar cliente ou cidade" aria-label="Buscar">
+      <select id="fNivel" aria-label="Nível"><option value="">Todos os níveis</option><option>A</option><option>B</option><option>C</option><option>D</option></select>
+      <select id="fAt" aria-label="Atendimento"></select>
+      <select id="fSm" aria-label="Social media"></select>
+      <select id="fTipo" aria-label="Tipo"></select>
+      <select id="fOff" aria-label="Material off"><option value="">Material off: todos</option><option value="1">Com material off</option><option value="0">Sem material off</option></select>
+      <select id="fStatus" aria-label="Situação"><option value="ativo">Ativos</option><option value="retirado">Retirados</option><option value="">Todos</option></select>
+      <button class="btn" id="btnCsv">Exportar CSV</button>
+      <button class="btn" id="btnPdf">Exportar PDF</button>
+      <button class="btn" id="btnCopy">Copiar para WhatsApp</button>
+      <button class="btn primary" id="btnNew">Adicionar cliente</button>
+    </div>
+    <div class="table-wrap">
+      <table class="list">
+        <thead><tr>
+          <th>Nível</th><th>Cliente</th><th>Atendimento</th><th>Social media</th><th>Tipo</th>
+          <th class="num">Conteúdos</th><th class="num">Motions</th><th class="num">Total de conteúdos</th><th class="num">Gravações</th>
+          <th>Material off</th>
+          <th>Cidade</th><th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+        <tfoot id="foot"></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-onb" hidden>
+    <div class="toolbar">
+      <div style="flex:1;min-width:200px"><h2 style="margin:0">Onboarding de clientes</h2><div class="muted" style="font-size:13px">Do aceite da proposta ao primeiro retorno ao cliente. Prazos contados em dias úteis.</div></div>
+      <button class="btn primary" id="obNew" type="button">Novo onboarding</button>
+    </div>
+    <div class="kpis ob-kpis" id="obKpis"></div>
+    <div class="ob-layout">
+      <div class="ob-list">
+        <div class="ob-filter" role="group" aria-label="Filtrar onboardings">
+          <button type="button" data-obf="andamento" aria-pressed="true">Em andamento</button>
+          <button type="button" data-obf="concluido" aria-pressed="false">Concluídos</button>
+        </div>
+        <div id="obList"></div>
+      </div>
+      <div id="obDetail" style="min-width:0"></div>
+    </div>
+  </section>
+
+  <section id="tab-prop" hidden>
+    <div class="toolbar">
+      <div style="flex:1;min-width:200px"><h2 style="margin:0">Gerador de propostas</h2><div class="muted" style="font-size:13px">Toda proposta abre primeiro na visualização. Depois de aprovada, pode ser exportada em PDF.</div></div>
+      <button class="btn primary" id="prNew" type="button">Nova proposta</button>
+    </div>
+    <div class="pr-layout">
+      <div class="pr-list">
+        <input type="search" id="prQ" placeholder="Buscar cliente" aria-label="Buscar proposta">
+        <div id="prList" class="pr-list"></div>
+      </div>
+      <div id="prMain" style="min-width:0"></div>
+    </div>
+  </section>
+
+  <section id="tab-agenda" hidden>
+    <div class="ag-bar">
+      <div style="flex:1;min-width:200px"><h2 style="margin:0">Agenda de reuniões</h2><div class="muted" style="font-size:13px">Segunda a sexta, das 7h às 21h. Clique num horário livre para marcar uma reunião.</div></div>
+      <button class="btn" id="agFeeds" type="button">Agendas externas</button>
+      <button class="btn primary" id="agNew" type="button">Nova reunião</button>
+    </div>
+    <div class="ag-legend" id="agLegend" role="group" aria-label="Filtrar por atendimento"></div>
+    <div id="agCal"><p class="muted" style="margin:8px">Carregando a agenda…</p></div>
+    <p class="hint" id="agNote"></p>
+  </section>
+
+  <section id="tab-users" hidden>
+    <div class="toolbar">
+      <div style="flex:1;min-width:200px"><h2 style="margin:0">Usuários</h2><div class="muted" style="font-size:13px">Quem tem e-mail da Quinze entra com o e-mail e a senha da Locaweb (nada é guardado aqui). Quem não tem e-mail entra com usuário e senha própria: você define uma senha temporária e a pessoa troca no primeiro acesso.</div></div>
+    </div>
+    <div class="panel" style="margin-bottom:18px">
+      <h2 style="font-size:16px">Adicionar usuário</h2>
+      <div class="fgrid">
+        <div><label class="f" for="usr_nome">Nome</label><input id="usr_nome" placeholder="Ex.: Laís Marinho"></div>
+        <div><label class="f" for="usr_email">E-mail da Locaweb ou usuário</label><input id="usr_email" placeholder="nome@quinzecomunicacao.com.br ou joao.silva" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+        <div id="usr_senhaBox" hidden><label class="f" for="usr_senha">Senha temporária</label><input id="usr_senha" type="password" autocomplete="new-password" placeholder="Pelo menos 8 caracteres"><div class="hint">Passe à pessoa; ela cria a própria senha no primeiro acesso.</div></div>
+        <div><label class="f" for="usr_funcao">Perfil</label><select id="usr_funcao"></select></div>
+        <div class="full"><label style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer"><input type="checkbox" id="usr_pecas" style="min-height:0;width:16px;height:16px"> Pode enviar peças (módulo Aprovação de peças)</label></div>
+        <div class="full"><label class="f">Módulos e abas que pode acessar</label><div class="chk" id="usr_abas"></div><div class="hint" id="usr_funcHint"></div></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="usrAdd">Adicionar usuário</button><span class="hint" id="usrMsg" style="margin:0"></span></div>
+    </div>
+    <div class="table-wrap"><table class="list" style="min-width:1200px">
+      <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Acesso</th><th>Envia peças</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead>
+      <tbody id="usrRows"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section id="tab-and" hidden>
+    <div class="panel linkcard">
+      <div>
+        <h2 style="margin:0 0 4px">Andamento de produção</h2>
+        <p class="muted" style="margin:0 0 6px">Quadro de produção no ClickUp, com as tarefas em andamento. Não muda conforme a carteira selecionada.</p>
+        <div class="u" id="ckUrlTxt"></div>
+      </div>
+      <a class="btn primary" id="ckOpen" href="#" target="_blank" rel="noopener">Abrir quadro no ClickUp</a>
+    </div>
+    <div class="panel">
+      <p class="muted" style="margin:0 0 10px">O ClickUp não permite que o quadro seja exibido dentro de outra página, por isso ele abre em uma nova aba. Se você gerar um link público do quadro no ClickUp, pode trocá-lo aqui.</p>
+      <div class="addrow lockable" style="margin:0"><input id="ckUrl" placeholder="https://app.clickup.com/..." style="flex:1"><button class="btn" id="ckSave">Salvar link</button></div>
+    </div>
+  </section>
+
+  <section id="tab-prod" hidden>
+    <div class="toolbar">
+      <select id="prodYear" aria-label="Ano"></select>
+      <button class="btn lockable" id="btnNewYear">Novo ano</button>
+      <span class="muted" id="prodHint"></span>
+    </div>
+    <div class="kpis" id="prodKpis"></div>
+    <div class="panel">
+      <h2>Produção mês a mês</h2>
+      <div style="overflow-x:auto"><table class="prod" id="prodTable"></table></div>
+      <p class="hint" id="prodNote" style="margin-top:10px"></p>
+    </div>
+  </section>
+
+  <section id="tab-team" hidden>
+    <div class="banner" id="teamLock" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--blue-soft);color:var(--blue-dk);border-color:#C9DAFF">
+      <span>Equipe e ajustes em modo somente leitura. Digite a senha para adicionar ou remover pessoas e mudar os ajustes.</span>
+      <button class="btn primary small" type="button" id="teamUnlock">Desbloquear</button>
+    </div>
+    <div class="team">
+      <div class="panel"><h2>Atendimento</h2><div id="listAt"></div>
+        <div class="addrow lockable"><input id="newAt" placeholder="Nome"><button class="btn" data-add="atendimentos">Adicionar</button></div></div>
+      <div class="panel"><h2>Social media</h2><div id="listSm"></div>
+        <div class="addrow lockable"><input id="newSm" placeholder="Nome"><button class="btn" data-add="socials">Adicionar</button></div></div>
+      <div>
+        <div class="panel stack"><h2>Ajustes gerais</h2>
+          <div><label class="f" for="cfgCoord">Coordenação</label><input id="cfgCoord" style="width:100%"></div>
+          <div><label class="f" for="cfgTipos">Tipos de contrato (separados por vírgula)</label><input id="cfgTipos" style="width:100%"></div>
+          <button class="btn primary lockable" id="saveCfg">Salvar ajustes</button>
+        </div>
+        <div class="panel months-list"><h2>Carteiras mensais</h2><div id="monthsList"></div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="frm">
+    <div class="m-head"><h2 id="dlgTitle" style="margin:0">Adicionar cliente</h2><div class="hint" id="dlgCliMonth"></div></div>
+    <div class="m-body">
+      <div class="full"><label class="f" for="i_nome">Nome do cliente</label><input id="i_nome" required></div>
+      <div><label class="f" for="i_nivel">Nível</label><select id="i_nivel"><option>A</option><option>B</option><option selected>C</option><option>D</option></select></div>
+      <div><label class="f" for="i_tipo">Tipo</label><select id="i_tipo"></select></div>
+      <div><label class="f" for="i_at">Atendimento</label><select id="i_at"></select></div>
+      <div><label class="f" for="i_sm">Social media</label><select id="i_sm"></select></div>
+      <div><label class="f" for="i_cont">Conteúdos</label><input id="i_cont" type="number" min="0" inputmode="numeric"></div>
+      <div><label class="f" for="i_mot">Motions</label><input id="i_mot" type="number" min="0" inputmode="numeric"></div>
+      <div><label class="f">Total de conteúdos</label><div class="totbox" id="i_total">0</div><div class="hint">Conteúdos + motions</div></div>
+      <div><label class="f" for="i_grav">Total de gravações</label><input id="i_grav" type="number" min="0" step="1" inputmode="numeric" placeholder="0"><div class="hint">Pode ser 0. Contado à parte dos conteúdos.</div></div>
+      <div><label class="f" for="i_off">Material off</label><select id="i_off"><option value="0">Não tem direito</option><option value="1">Tem direito</option></select></div>
+      <div><label class="f" for="i_cidade">Cidade</label><input id="i_cidade" list="cidades" placeholder="Ex.: Mossoró"><datalist id="cidades"></datalist></div>
+      <div><label class="f" for="i_uf">Estado</label><select id="i_uf"></select></div>
+      <div class="full"><label class="f" for="i_obs">Observações</label><textarea id="i_obs" rows="2"></textarea></div>
+    </div>
+    <div class="m-foot">
+      <button type="button" class="btn danger left" id="btnDel" hidden>Excluir deste mês</button>
+      <button type="button" class="btn" id="btnCancel">Cancelar</button>
+      <button type="submit" class="btn primary" id="btnSave">Salvar cliente</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgOut">
+  <form method="dialog" id="frmOut">
+    <div class="m-head"><h2 style="margin:0" id="outTitle">Retirar cliente</h2></div>
+    <div class="m-body"><div class="full">
+      <label class="f" for="o_motivo">Motivo (opcional)</label>
+      <input id="o_motivo" placeholder="Ex.: fim de contrato">
+      <div class="hint">O cliente sai do dashboard deste mês e não é levado para as próximas carteiras. Ele fica em “Retirados” e pode ser reativado.</div>
+    </div></div>
+    <div class="m-foot"><button type="button" class="btn" id="outCancel">Cancelar</button><button type="submit" class="btn primary">Retirar cliente</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgCopy">
+  <form method="dialog">
+    <div class="m-head"><h2 style="margin:0">Copiar carteira</h2><div class="hint">Selecione o texto abaixo e copie para mandar no WhatsApp.</div></div>
+    <div class="m-body"><div class="full"><textarea id="copyTxt" rows="12" style="font-family:ui-monospace,monospace;font-size:13px"></textarea></div></div>
+    <div class="m-foot"><button type="button" class="btn" id="copySelect">Selecionar tudo</button><button type="submit" class="btn primary">Fechar</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgPwd">
+  <form method="dialog" id="frmPwd">
+    <div class="m-head"><h2 style="margin:0">Desbloquear edição</h2><div class="hint">Digite a senha para adicionar, editar ou retirar clientes.</div></div>
+    <div class="m-body"><div class="full">
+      <label class="f" for="pwdIn">Senha</label>
+      <input id="pwdIn" class="pwd" type="password" inputmode="numeric" autocomplete="off" required>
+      <div class="hint" id="pwdErr" style="color:var(--danger)"></div>
+    </div></div>
+    <div class="m-foot"><button type="button" class="btn" id="pwdCancel">Cancelar</button><button type="submit" class="btn primary">Desbloquear</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgMonth">
+  <form method="dialog" id="frmMonth">
+    <div class="m-head"><h2 style="margin:0">Nova carteira mensal</h2></div>
+    <div class="m-body">
+      <div class="full"><label class="f" for="nm_month">Mês</label><input id="nm_month" type="month" required></div>
+      <div class="full stack" id="nm_opts">
+        <label class="radio"><input type="radio" name="nm_src" value="copy" checked><span><b id="nm_copyLbl">Copiar a carteira atual</b><br><span class="hint">Leva os clientes ativos com a mesma divisão. Depois é só ajustar o que mudou.</span></span></label>
+        <label class="radio"><input type="radio" name="nm_src" value="blank"><span><b>Começar vazia</b><br><span class="hint">Você adiciona os clientes um por um.</span></span></label>
+      </div>
+      <div class="full hint" id="nm_err" style="color:var(--danger)"></div>
+    </div>
+    <div class="m-foot"><button type="button" class="btn" id="nmCancel">Cancelar</button><button type="submit" class="btn primary" id="nmSave">Criar carteira</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgOb">
+  <form method="dialog" id="frmOb">
+    <div class="m-head"><h2 style="margin:0">Novo onboarding</h2><div class="hint">Comece assim que o cliente aceitar a proposta. O contrato preenche o resto depois.</div></div>
+    <div class="m-body">
+      <div class="full"><label class="f" for="ob_nome">Cliente</label><input id="ob_nome" required placeholder="Ex.: Audit Contabilidade"></div>
+      <div><label class="f" for="ob_contato">Nome do contato</label><input id="ob_contato" placeholder="Quem fala com a gente"></div>
+      <div><label class="f" for="ob_inicio">Início</label><input id="ob_inicio" type="date" required></div>
+      <div class="full"><label class="f" for="ob_off">Envolve material off?</label><select id="ob_off" required><option value="">Escolha</option><option value="sim">Sim, tem material off</option><option value="nao">Não</option></select><div class="hint">Material produzido fora das redes (impressos, peças off-line). Entra na carteira e no aviso ao social media.</div></div>
+      <div class="full"><label class="f" for="ob_at">Atendimento responsável</label><select id="ob_at"></select>
+        <input id="ob_atNovo" placeholder="Nome do novo atendimento" style="margin-top:8px" hidden></div>
+      <div class="full hint" id="ob_err" style="color:var(--danger)"></div>
+    </div>
+    <div class="m-foot"><button type="button" class="btn" id="obCancel">Cancelar</button><button type="submit" class="btn primary">Começar onboarding</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgAg">
+  <form method="dialog" id="frmAg">
+    <div class="m-head"><h2 style="margin:0" id="agDlgTitle">Nova reunião</h2></div>
+    <div class="m-body">
+      <div class="full"><label class="f" for="ag_titulo">Assunto</label><input id="ag_titulo" required placeholder="Ex.: Alinhamento de planejamento"></div>
+      <div><label class="f" for="ag_at">Atendimento</label><select id="ag_at"></select><input id="ag_atNovo" placeholder="Nome" style="margin-top:8px" hidden></div>
+      <div><label class="f" for="ag_cli">Cliente (opcional)</label><input id="ag_cli" list="agClientes"><datalist id="agClientes"></datalist></div>
+      <div><label class="f" for="ag_data">Data</label><input id="ag_data" type="date" required></div>
+      <div class="row" style="gap:10px;flex-wrap:nowrap">
+        <div style="flex:1"><label class="f" for="ag_ini">Início</label><input id="ag_ini" type="time" min="07:00" max="21:00" step="900" required style="width:100%"></div>
+        <div style="flex:1"><label class="f" for="ag_fim">Fim</label><input id="ag_fim" type="time" min="07:00" max="21:00" step="900" required style="width:100%"></div>
+      </div>
+      <div class="full"><label class="f" for="ag_local">Local ou link da reunião</label><input id="ag_local" placeholder="Ex.: Meet, sala da Quinze, endereço do cliente"></div>
+      <div class="full"><label class="f" for="ag_obs">Observações</label><textarea id="ag_obs" rows="2"></textarea></div>
+      <div class="full hint" id="ag_err" style="color:var(--danger)"></div>
+    </div>
+    <div class="m-foot">
+      <button type="button" class="btn danger left" id="agDel" hidden>Excluir reunião</button>
+      <button type="button" class="btn" id="agCancel">Cancelar</button>
+      <button type="submit" class="btn primary">Salvar reunião</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgFeeds">
+  <form method="dialog" id="frmFeeds">
+    <div class="m-head"><h2 style="margin:0">Agendas externas</h2><div class="hint">Cole o link iCal (.ics) da agenda de cada atendimento. Funciona com Google, Outlook/Microsoft 365, Zoho e qualquer agenda que gere um link iCal.</div></div>
+    <div class="m-body"><div class="full ag-feeds" id="feedRows"></div>
+      <div class="full note" id="feedNote"></div>
+      <details class="full"><summary class="hint" style="cursor:pointer">Onde encontro o link iCal?</summary>
+        <ul class="hint" style="margin:6px 0 0;padding-left:18px">
+          <li><b>Google Agenda:</b> Configurações › clique na sua agenda › “Endereço secreto no formato iCal”.</li>
+          <li><b>Outlook / Microsoft 365:</b> Configurações › Calendário › Calendários compartilhados › Publicar um calendário › copie o link ICS.</li>
+          <li><b>Outros (Zoho, Apple, Locaweb):</b> procure por “publicar”, “compartilhar” ou “link iCal/ICS” nas configurações da agenda.</li>
+        </ul>
+        <p class="hint">Quem tiver o link consegue ver a agenda: só cole aqui links da própria equipe.</p>
+      </details>
+    </div>
+    <div class="m-foot"><button type="button" class="btn" id="feedCancel">Cancelar</button><button type="submit" class="btn primary" id="feedSave">Salvar links</button></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="/store.js"></script>
+<!--APP_JS-->
+</body>
+</html>
