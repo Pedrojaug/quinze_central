@@ -63,4 +63,4 @@ Para manter o histórico legível como o de uma empresa séria de tecnologia, us
 2. **Cuidado ao editar o `store.js`:**
    Esse arquivo controla todo o tráfego do banco. Teste muito bem qualquer alteração nele antes de subir.
 3. **Nunca commite senhas ou o arquivo `.env`:**
-   Mantenha apenas o [`.env.example`](file:///c:/Users/equip/Downloads/quinze-central/.env.example) versionado no Git. Chaves e senhas reais devem ser adicionadas apenas no painel da Vercel.
+   O `.gitignore` já bloqueia arquivos `.env`. Chaves e senhas reais devem ser adicionadas apenas no painel da Vercel.

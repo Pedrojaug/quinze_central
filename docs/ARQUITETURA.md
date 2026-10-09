@@ -1,6 +1,6 @@
 # Arquitetura e Guia Técnico · Central Quinze
 
-Este documento serve como mapa de sobrevivência para os desenvolvedores e estagiários da **Quinze Central**. Ele explica como as peças do sistema se conectam, onde os dados vivem e como evitar quebras.
+Este documento serve como mapa de sobrevivência para os desenvolvedores da **Inteligentte**. Ele explica como as peças do sistema se conectam, onde os dados vivem e como evitar quebras.
 
 ---
 

@@ -135,8 +135,6 @@ Crie um arquivo `.env.local` na raiz para execução local ou configure diretame
 | `IMAP_HOST` | Opcional | Host do servidor IMAP da Locaweb (padrão: `email-ssl.com.br`). |
 | `IMAP_PORT` | Opcional | Porta do servidor IMAP (padrão: `993`). |
 
-> Consulte o arquivo [`.env.example`](file:///.env.example) para um modelo pronto para preenchimento.
-
 ---
 
 ## 🚀 6. Como Rodar Localmente
@@ -160,8 +158,7 @@ Crie um arquivo `.env.local` na raiz para execução local ou configure diretame
 
 3. **Configure as variáveis de ambiente:**
    ```bash
-   cp .env.example .env.local
-   # Preencha a DATABASE_URL no .env.local
+   # Crie o arquivo .env.local com a DATABASE_URL="postgresql://..."
    ```
 
 4. **Execute o build dos arquivos estáticos:**
@@ -197,7 +194,7 @@ O deploy é **100% automatizado** via integração entre GitHub e Vercel:
 
 * **Repositório:** [https://github.com/Pedrojaug/quinze_central](https://github.com/Pedrojaug/quinze_central)
 * **Desenvolvido para:** Quinze Comunicação
-* **Manutenção:** Equipe de Tecnologia & Operações da Quinze
+* **Manutenção:** Equipe Inteligentte
 
 ---
 *Documentação atualizada em Outubro de 2026.*
