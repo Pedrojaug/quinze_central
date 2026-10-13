@@ -63,7 +63,7 @@
   const TIPOS_Q = { nps: "NPS (0 a 10)", aberta: "Aberta", multipla: "Múltipla escolha" };
   function nps(ctx) {
     const el = ctx.el; let base = null, sel = null, novo = false;
-    el.innerHTML = `<div class="cs-h"><div><h2>NPS Pesquisa</h2><div class="cs-sub">Do tom e objetivo até a mensagem de WhatsApp, uma pesquisa por cliente e mês.</div></div><span class="sp"></span>
+    el.innerHTML = `<div class="cs-h"><div><h2>NPS Pesquisa</h2><div class="cs-sub">Do tom e objetivo até a mensagem de WhatsApp, pesquisa mensal de satisfação.</div></div><span class="sp"></span>
       <button class="btn primary" type="button" id="nNova">Nova pesquisa</button></div>
       <div class="cs-lay"><div class="cs-list" id="nLista"></div><div id="nEd"></div></div>`;
     const $ = s => el.querySelector(s);
@@ -75,7 +75,7 @@
     }
     function lista() {
       $("#nLista").innerHTML = base.pesquisas.length ? base.pesquisas.map(p => `<button type="button" class="cs-it${sel && sel.id === p.id ? " on" : ""}" data-id="${esc(p.id)}">
-        <b>${esc(p.clienteNome)}</b><span class="cs-sub">${mesBr(p.mes)}</span> <span class="st ${p.status}">${ST_P[p.status]}</span></button>`).join("")
+        <b>${esc(p.clienteNome || "Pesquisa Geral")}</b><span class="cs-sub">${mesBr(p.mes)}</span> <span class="st ${p.status}">${ST_P[p.status]}</span></button>`).join("")
         : `<div class="empty" style="padding:14px">Nenhuma pesquisa ainda.</div>`;
     }
     function passo(n, titulo, feito, travado, corpo) {
@@ -88,7 +88,7 @@
       const cli = base.clientes.map(c => `<option value="${esc(c.id)}"${c.id === p.clienteId ? " selected" : ""}>${esc(c.nome)}</option>`).join("");
       const bloq1 = e > etapa("perguntas_em_aprovacao");
       let html = passo(1, "Tom de voz e objetivo", !!p.id, false, `<div class="cs-grid">
-        <label>Cliente (Carteira)<select id="pCli"${bloq1 ? " disabled" : ""}><option value="">Escolha</option>${cli}</select></label>
+        <label>Cliente / Escopo<select id="pCli"${bloq1 ? " disabled" : ""}><option value="">Todos os clientes (Pesquisa Geral)</option>${cli}</select></label>
         <label>Mês de referência<input id="pMes" type="month" value="${esc(p.mes || "")}"${bloq1 ? " disabled" : ""}></label>
         <label class="full">Tom de voz da pesquisa<textarea id="pTom" rows="2" placeholder="Ex.: próximo, leve e direto"${bloq1 ? " disabled" : ""}>${esc(p.tom || "")}</textarea></label>
         <label class="full">O que o levantamento do mês quer descobrir (pode colar texto)<textarea id="pObj" rows="4"${bloq1 ? " disabled" : ""}>${esc(p.objetivo || "")}</textarea></label></div>
@@ -118,7 +118,7 @@
           <div class="cs-grid" style="margin-top:8px"><label class="full">Link do formulário<input id="pLink" placeholder="https://forms.gle/..." value="${esc(p.formularioUrl || "")}"></label></div>
           <div class="cs-bar"><button class="btn" type="button" data-a="link">Salvar link</button><span class="cs-sub" id="m4"></span></div></details>`);
         html += passo(5, "Mensagem de WhatsApp", p.status === "enviada", e < etapa("formulario_gerado"), e < etapa("formulario_gerado") ? `<p class="cs-sub">Cole o link do formulário para gerar a mensagem.</p>` : `
-          <div class="cs-grid"><label>Cliente<select id="pMsgCli">${base.clientes.map(c => `<option value="${esc(c.nome)}"${c.id === p.clienteId ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></label></div>
+          <div class="cs-grid"><label>Cliente para envio (WhatsApp)<select id="pMsgCli"><option value="">Geral / Sem personalizar</option>${base.clientes.map(c => `<option value="${esc(c.nome)}"${c.id === p.clienteId ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></label></div>
           <textarea class="cs-msg" id="pMsg" style="margin-top:10px"></textarea>
           <div class="cs-bar"><button class="btn primary" type="button" data-a="copiar">Copiar</button>${p.status === "enviada" ? `<span class="cs-sub">Marcada como enviada em ${brHora(p.enviadaEm)}.</span>` : `<span class="cs-sub">Ao copiar, a pesquisa é marcada como enviada.</span>`}</div>`);
       }
@@ -127,7 +127,7 @@
       const mc = $("#pMsgCli"); if (mc) mc.onchange = mensagem;
     }
     async function mensagem() {
-      try { const j = await api("pesquisa.mensagem", { id: sel.id, hora: new Date().getHours(), clienteNome: $("#pMsgCli").value }); $("#pMsg").value = j.mensagem; } catch (e) { $("#pMsg").value = e.message; }
+      try { const j = await api("pesquisa.mensagem", { id: sel.id, hora: new Date().getHours(), clienteNome: $("#pMsgCli")?.value || "" }); $("#pMsg").value = j.mensagem; } catch (e) { $("#pMsg").value = e.message; }
     }
     const lerPerguntas = () => [...el.querySelectorAll(".cs-q")].map(r => ({ tipo: r.querySelector('[data-k="tipo"]').value, texto: r.querySelector('[data-k="texto"]').value,
       opcoes: (r.querySelector('[data-k="opcoes"]')?.value || "").split(";").map(s => s.trim()).filter(Boolean) }));
