@@ -75,8 +75,8 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
 .app.soon:hover{border-color:var(--line);box-shadow:none}
 .app.soon .ic{background:#EEF0F3;color:var(--ink2)}
 .app .badge{font-size:12px;font-weight:600;color:var(--ink2);background:#EEF0F3;border-radius:20px;padding:3px 10px;white-space:nowrap}
-.quick{display:flex;gap:10px;flex-wrap:wrap;margin:-8px 0 18px}
-.quick a{flex:1 1 140px;text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-8px 0 18px}
+.quick a{text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center}
 .quick a:hover{border-color:var(--blue);color:var(--blue-dk)}
 .out{background:none;border:0;color:var(--ink2);font-weight:600;cursor:pointer;padding:6px 0;margin-right:16px;text-decoration:underline;text-underline-offset:3px}
 
@@ -146,6 +146,8 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
       <div class="quick">
         <a href="/pop">Meu POP</a>
         <a href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp ↗</a>
+        <a href="https://webmail-seguro.com.br/" target="_blank" rel="noopener">Webmail ↗</a>
+        <a href="https://appsocial.mlabs.io/" target="_blank" rel="noopener">mLabs ↗</a>
       </div>
       <button class="out" type="button" id="myPwd" hidden>Trocar minha senha</button>
       <button class="out" type="button" id="out">Sair</button>
