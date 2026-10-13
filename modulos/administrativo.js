@@ -70,6 +70,7 @@
       .adm-dias .f{background:var(--blue);color:#fff;font-weight:600}
       .adm-ia-box{background:#F0F6FF;border:1.5px dashed var(--blue);border-radius:10px;padding:12px 16px;margin-bottom:14px;transition:background .15s}
       .adm-ia-box.dragover{background:var(--blue-soft)}
+      .campo-ia{border-color:var(--blue)!important;background:#F0F6FF!important;box-shadow:0 0 0 2px var(--blue-soft)}
       .adm-sub{font-size:12.5px;color:var(--ink2)}`;
     document.head.appendChild(st);
   }
@@ -114,7 +115,7 @@
     }
     function form(c) {
       c = c || {};
-      let arquivoEmMemoria = null;
+      let arquivoEmMemoria = null, clienteIdSugerido = "";
       const opts = dados.clientes.map(x => `<option value="${esc(x.nome)}" data-id="${esc(x.id)}">`).join("");
       $("#cForm").innerHTML = `<div class="adm-form"><h3>${c.id ? "Editar contrato" : "Novo contrato"}</h3>
         <div class="adm-ia-box">
@@ -179,10 +180,72 @@
           const lido = await lerArquivo(file);
           const r = await api("contrato.lerIA", { arquivo: lido });
           arquivoEmMemoria = lido;
-          const cp = r.dados?.contraparte ? ` · <b>${esc(r.dados.contraparte)}</b>` : "";
-          const vm = r.dados?.valorMensal != null ? ` · ${brl(r.dados.valorMensal)}` : "";
-          const pz = r.dados?.prazoMeses ? ` · ${r.dados.prazoMeses} meses` : "";
-          iaStatus(`<span style="color:var(--ok)">✓ <b>Contrato lido com sucesso pela IA!</b> (${esc(file.name)})${cp}${vm}${pz}</span>`);
+          const d = r.dados || {};
+          if (d.clienteId) clienteIdSugerido = d.clienteId;
+
+          // Função auxiliar para preencher e destacar campos lidos pela IA
+          const setCampo = (id, val) => {
+            const input = $(id);
+            if (!input || val == null || val === "") return;
+            input.value = val;
+            input.classList.add("campo-ia");
+            input.addEventListener("input", () => input.classList.remove("campo-ia"), { once: true });
+            input.addEventListener("change", () => input.classList.remove("campo-ia"), { once: true });
+          };
+
+          // 1. Contraparte / Cliente
+          const cpVal = d.clienteNome || d.contraparte || "";
+          setCampo("#fCp", cpVal);
+
+          // 2. Tipo do contrato
+          if (d.tipo && dados.tipos.includes(d.tipo)) {
+            setCampo("#fTipo", d.tipo);
+          }
+
+          // 3. Valor mensal
+          if (d.valorMensal != null) {
+            setCampo("#fValor", d.valorMensal);
+          }
+
+          // 4. Data de início
+          if (d.inicio) {
+            setCampo("#fIni", d.inicio);
+          }
+
+          // 5. Prazo em meses
+          if (d.prazoMeses) {
+            setCampo("#fPrazo", d.prazoMeses);
+          }
+
+          // 6. Data final (lança os prazos)
+          if (d.dataFinal) {
+            setCampo("#fFim", d.dataFinal);
+          } else {
+            calc();
+            if ($("#fFim").value) $("#fFim").classList.add("campo-ia");
+          }
+
+          // 7. Renovação automática
+          if (d.renovacaoAutomatica) {
+            $("#fAuto").checked = true;
+          }
+
+          // 8. Último reajuste
+          if (d.ultimoReajuste) {
+            setCampo("#fReaj", d.ultimoReajuste);
+          }
+
+          // 9. Observações
+          if (d.obs) {
+            setCampo("#fObs", d.obs);
+          }
+
+          const cp = cpVal ? ` · <b>${esc(cpVal)}</b>` : "";
+          const vm = d.valorMensal != null ? ` · ${brl(d.valorMensal)}` : "";
+          const pz = d.prazoMeses ? ` · ${d.prazoMeses} meses` : "";
+          const df = (d.dataFinal || $("#fFim").value) ? ` · até ${br(d.dataFinal || $("#fFim").value)}` : "";
+          iaStatus(`<div style="color:var(--ok)">✓ <b>Contrato lido e campos preenchidos pela IA!</b> (${esc(file.name)})${cp}${vm}${pz}${df}</div>
+            <div class="adm-sub" style="margin-top:2px">Campos destacados em azul para sua conferência. Clique em <b>Salvar</b> para confirmar.</div>`);
           const lbl = $("#fArqLabel");
           if (lbl) lbl.innerHTML = `Arquivo do contrato (carregado pela IA: <b>${esc(file.name)}</b>)<input id="fArq" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">`;
         } catch (e) {
@@ -228,9 +291,10 @@
         try {
           const cp = $("#fCp").value.trim();
           const cli = dados.clientes.find(x => x.nome === cp);
+          const clienteId = cli ? cli.id : (clienteIdSugerido || "");
           const arqManual = await lerArquivo($("#fArq")?.files?.[0]);
           const arqSalvar = arqManual || arquivoEmMemoria;
-          await api("contrato.salvar", { id: c.id, contraparte: cp, clienteId: cli ? cli.id : "", tipo: $("#fTipo").value, valorMensal: $("#fValor").value,
+          await api("contrato.salvar", { id: c.id, contraparte: cp, clienteId, tipo: $("#fTipo").value, valorMensal: $("#fValor").value,
             inicio: $("#fIni").value, prazoMeses: $("#fPrazo").value, dataFinal: $("#fFim").value, ultimoReajuste: $("#fReaj").value,
             renovacaoAutomatica: $("#fAuto").checked, obs: $("#fObs").value, arquivo: arqSalvar });
           ctx.toast("Contrato salvo"); $("#cForm").innerHTML = ""; carregar();
