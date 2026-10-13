@@ -68,6 +68,8 @@
       .adm-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:12px;text-align:center}
       .adm-dias span{padding:4px 0;border-radius:4px}.adm-dias .h{color:var(--ink2);font-weight:600}
       .adm-dias .f{background:var(--blue);color:#fff;font-weight:600}
+      .adm-ia-box{background:#F0F6FF;border:1.5px dashed var(--blue);border-radius:10px;padding:12px 16px;margin-bottom:14px;transition:background .15s}
+      .adm-ia-box.dragover{background:var(--blue-soft)}
       .adm-sub{font-size:12.5px;color:var(--ink2)}`;
     document.head.appendChild(st);
   }
@@ -112,8 +114,23 @@
     }
     function form(c) {
       c = c || {};
+      let arquivoEmMemoria = null;
       const opts = dados.clientes.map(x => `<option value="${esc(x.nome)}" data-id="${esc(x.id)}">`).join("");
       $("#cForm").innerHTML = `<div class="adm-form"><h3>${c.id ? "Editar contrato" : "Novo contrato"}</h3>
+        <div class="adm-ia-box">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span style="font-size:22px">✨</span>
+            <div style="flex:1;min-width:200px">
+              <b style="font-size:13.5px;color:var(--blue-dk)">Preencher contrato com IA</b>
+              <div class="adm-sub">Envie o contrato em PDF para a IA ler as cláusulas e extrair contraparte, valores, prazos e datas.</div>
+            </div>
+            <label class="btn primary" id="fIaBtnLabel" style="min-height:36px;padding:6px 14px;cursor:pointer;margin:0;font-size:13px;display:inline-flex;align-items:center;gap:6px">
+              <span>Ler contrato (PDF)</span>
+              <input id="fIaArq" type="file" accept=".pdf,application/pdf" hidden>
+            </label>
+          </div>
+          <div id="fIaStatus" style="margin-top:8px;font-size:13px;display:none"></div>
+        </div>
         <div class="adm-grid">
           <label class="full">Cliente ou contraparte (da Carteira ou texto livre)<input id="fCp" list="fCli" value="${esc(c.contraparte || "")}" required><datalist id="fCli">${opts}</datalist></label>
           <label>Tipo<select id="fTipo">${dados.tipos.map(t => `<option${t === c.tipo ? " selected" : ""}>${t}</option>`).join("")}</select></label>
@@ -124,7 +141,7 @@
           <label>Último reajuste<input id="fReaj" type="date" value="${c.ultimoReajuste || ""}"></label>
           <label class="ck"><input id="fAuto" type="checkbox"${c.renovacaoAutomatica ? " checked" : ""}> Renovação automática</label>
           <label class="full">Observações<textarea id="fObs" rows="2">${esc(c.obs || "")}</textarea></label>
-          <label class="full">Arquivo do contrato ${c.arquivo ? `(atual: ${esc(c.arquivo.nome)}; envie outro só para trocar)` : "(obrigatório, até 3 MB)"}<input id="fArq" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"></label>
+          <label class="full" id="fArqLabel">Arquivo do contrato ${c.arquivo ? `(atual: ${esc(c.arquivo.nome)}; envie outro só para trocar)` : "(obrigatório, até 3 MB)"}<input id="fArq" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"></label>
         </div>
         ${c.id ? `<div class="adm-bar"><b style="font-size:13px">Renovação:</b>
           <button class="btn" type="button" data-r="renovar">Registrar renovação (+${c.prazoMeses} meses)</button>
@@ -136,6 +153,63 @@
           ${c.id ? `<span style="flex:1"></span><button class="btn" type="button" data-f="excluir" style="color:var(--danger)">Excluir</button>` : ""}<span id="fMsg" class="adm-sub"></span></div></div>`;
       const calc = () => { const i = $("#fIni").value, p = parseInt($("#fPrazo").value, 10); if (i && p > 0) { const [y, m, d] = i.split("-").map(Number); const x = new Date(Date.UTC(y, m - 1 + p, 1)); const ult = new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth() + 1, 0)).getUTCDate(); x.setUTCDate(Math.min(d, ult)); x.setUTCDate(x.getUTCDate() - 1); $("#fFim").value = x.toISOString().slice(0, 10); } };
       $("#fIni").addEventListener("change", calc); $("#fPrazo").addEventListener("input", calc);
+
+      const iaStatus = html => {
+        const el = $("#fIaStatus");
+        if (!el) return;
+        if (!html) { el.style.display = "none"; el.innerHTML = ""; return; }
+        el.style.display = "block";
+        el.innerHTML = html;
+      };
+
+      const processarArquivoIA = async file => {
+        if (!file) return;
+        if (!/\.pdf$/i.test(file.name)) {
+          iaStatus(`<span style="color:var(--danger)">Por favor, envie o contrato em formato PDF.</span>`);
+          return;
+        }
+        if (file.size > 3 * 1024 * 1024) {
+          iaStatus(`<span style="color:var(--danger)">O arquivo ultrapassa 3 MB. Envie um PDF de até 3 MB.</span>`);
+          return;
+        }
+        iaStatus(`<span style="color:var(--blue-dk)">⏳ <b>Lendo contrato com IA…</b> Analisando cláusulas, valores e prazos (pode levar alguns segundos).</span>`);
+        const btn = $("#fIaBtnLabel");
+        if (btn) btn.style.pointerEvents = "none";
+        try {
+          const lido = await lerArquivo(file);
+          const r = await api("contrato.lerIA", { arquivo: lido });
+          arquivoEmMemoria = lido;
+          const cp = r.dados?.contraparte ? ` · <b>${esc(r.dados.contraparte)}</b>` : "";
+          const vm = r.dados?.valorMensal != null ? ` · ${brl(r.dados.valorMensal)}` : "";
+          const pz = r.dados?.prazoMeses ? ` · ${r.dados.prazoMeses} meses` : "";
+          iaStatus(`<span style="color:var(--ok)">✓ <b>Contrato lido com sucesso pela IA!</b> (${esc(file.name)})${cp}${vm}${pz}</span>`);
+          const lbl = $("#fArqLabel");
+          if (lbl) lbl.innerHTML = `Arquivo do contrato (carregado pela IA: <b>${esc(file.name)}</b>)<input id="fArq" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">`;
+        } catch (e) {
+          iaStatus(`<span style="color:var(--danger)">✕ ${esc(e.message || "Não foi possível ler o contrato com IA.")}</span>`);
+        } finally {
+          if (btn) btn.style.pointerEvents = "auto";
+        }
+      };
+
+      $("#fIaArq").onchange = () => {
+        const file = $("#fIaArq").files[0];
+        if (file) processarArquivoIA(file);
+        $("#fIaArq").value = "";
+      };
+
+      const iaBox = $("#cForm .adm-ia-box");
+      if (iaBox) {
+        iaBox.ondragover = e => { e.preventDefault(); iaBox.classList.add("dragover"); };
+        iaBox.ondragleave = () => { iaBox.classList.remove("dragover"); };
+        iaBox.ondrop = e => {
+          e.preventDefault();
+          iaBox.classList.remove("dragover");
+          const file = e.dataTransfer?.files?.[0];
+          if (file) processarArquivoIA(file);
+        };
+      }
+
       let armado = false;
       $("#cForm").onclick = async ev => {
         const f = ev.target.dataset.f, r = ev.target.dataset.r;
@@ -154,9 +228,11 @@
         try {
           const cp = $("#fCp").value.trim();
           const cli = dados.clientes.find(x => x.nome === cp);
+          const arqManual = await lerArquivo($("#fArq")?.files?.[0]);
+          const arqSalvar = arqManual || arquivoEmMemoria;
           await api("contrato.salvar", { id: c.id, contraparte: cp, clienteId: cli ? cli.id : "", tipo: $("#fTipo").value, valorMensal: $("#fValor").value,
             inicio: $("#fIni").value, prazoMeses: $("#fPrazo").value, dataFinal: $("#fFim").value, ultimoReajuste: $("#fReaj").value,
-            renovacaoAutomatica: $("#fAuto").checked, obs: $("#fObs").value, arquivo: await lerArquivo($("#fArq").files[0]) });
+            renovacaoAutomatica: $("#fAuto").checked, obs: $("#fObs").value, arquivo: arqSalvar });
           ctx.toast("Contrato salvo"); $("#cForm").innerHTML = ""; carregar();
         } catch (e) { $("#fMsg").textContent = e.message; ev.target.disabled = false; }
       };
