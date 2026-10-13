@@ -86,7 +86,7 @@ export const MODULOS = [
   { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: GESTAO, arquivo: "/modulos/tarefas.js", colecoes: [] },
   // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m. O "Envio" é liberado para todos os usuários ativos.
   { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
-  { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: ["coordenador", "mestre", "gestao"], arquivo: "/modulos/pecas.js", colecoes: [] },
+  { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
   { id: "pecasdash", modulo: "pecas", nome: "Dashboard mensal", ordem: 30, funcoes: ["mestre", "gestao", "atendimento"], arquivo: "/modulos/pecas.js", colecoes: [] },
   // Instrução 10: "Dados consolidados" saiu do Atendimento (mesmo id, mesmos dados em producao/).
   { id: "prod", modulo: "pecas", nome: "Dados consolidados", ordem: 40, funcoes: ["mestre", "gestao", "atendimento"], livre: true,
