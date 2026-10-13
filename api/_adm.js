@@ -6,6 +6,7 @@ import { sql, ehGestao } from "./_lib.js";
 import { listar, ler, gravar, apagar, auditar, novoId, idValido, clientesCarteira, txt, dataIso, num } from "./_mdados.js";
 import { decodificar, guardar, enviar, extensao, nomeSeguro, lerArquivo, linkTemporario } from "./_arquivos.js";
 import { enviarArquivoDrive, googleConfigurado, emailContaServico } from "./_google.js";
+import { perguntarJSON, iaDisponivel, ErroIA, MSG_IA } from "./_ia.js";
 
 const M = "administrativo";
 const TIPOS_CONTRATO = ["Fee mensal", "Job", "Prestação de serviço", "Fornecedor", "Locação", "Outro"];
@@ -104,6 +105,7 @@ async function contratos(u, req, res) {
   const lista = (await listar(M, "contratos")).map(comStatus).sort((a, b) => (a.dataFinal || "9").localeCompare(b.dataFinal || "9"));
   const conta = s => lista.filter(c => c.status === s).length;
   return res.json({ contratos: lista, tipos: TIPOS_CONTRATO, clientes: await clientesCarteira(), hoje: hojeSP(),
+    ia: iaDisponivel(),
     alertas: { vencendo: conta("vencendo"), vencidos: conta("vencido"), pendentes: conta("pendente_renovacao"),
       proximos: lista.filter(c => c.proximoVencimento && c.proximoVencimento >= hojeSP()).sort((a, b) => a.proximoVencimento.localeCompare(b.proximoVencimento)).slice(0, 5)
         .map(c => ({ id: c.id, contraparte: c.contraparte, proximoVencimento: c.proximoVencimento, status: c.status })) } });
@@ -269,6 +271,123 @@ async function contratoRenovar(u, req, res) {
   await gravar(M, "contratos", b.id, c);
   await auditar(u, M, "contrato." + b.acao, b.id);
   return res.json({ ok: true, contrato: comStatus({ ...c, id: b.id }) });
+}
+
+// ---------- Leitura de contrato com IA (mestre e gestão) ----------
+const SISTEMA_CONTRATO_ADM = `Você lê contratos de prestação de serviços, fornecimento, locação ou parceria de uma agência de comunicação (Quinze) e extrai dados estruturados para o sistema de controle administrativo da agência.
+Regras:
+1. Extraia SOMENTE o que está explícito no contrato. Nunca invente valores ou datas.
+2. Identifique a CONTRAPARTE (a outra parte contratante ou contratada com quem a Quinze negocia).
+3. Determine o TIPO mais adequado dentre: "Fee mensal", "Job", "Prestação de serviço", "Fornecedor", "Locação", "Outro".
+4. VALOR MENSAL: número decimal (ex.: 3500.00). Se o contrato for mensal/recorrente, extraia a parcela mensal. Se for valor global com parcelas, extraia o valor da parcela mensal.
+5. DATA DE INÍCIO: formato AAAA-MM-DD da vigência ou assinatura.
+6. PRAZO EM MESES: número inteiro de meses de vigência (ex.: 12).
+7. DATA FINAL: formato AAAA-MM-DD do término da vigência inicial.
+8. RENOVAÇÃO AUTOMÁTICA: boolean (true se houver previsão de renovação/prorrogação automática por igual período, false caso contrário).
+9. ÚLTIMO REAJUSTE: data prevista para o primeiro reajuste (formato AAAA-MM-DD) ou a mesma data de início.
+10. OBSERVAÇÕES: breve resumo do objeto do contrato e condições de rescisão/aviso prévio (ex.: "Gestão de mídias sociais e tráfego pago. Aviso prévio de 30 dias. Reajuste pelo IGP-M.").
+
+Responda EXCLUSIVAMENTE em formato JSON com esta estrutura:
+{
+  "contraparte": "Nome da Contraparte" | null,
+  "tipo": "Fee mensal" | "Job" | "Prestação de serviço" | "Fornecedor" | "Locação" | "Outro",
+  "valorMensal": 0.00 | null,
+  "inicio": "AAAA-MM-DD" | null,
+  "prazoMeses": 12 | null,
+  "dataFinal": "AAAA-MM-DD" | null,
+  "renovacaoAutomatica": true | false,
+  "ultimoReajuste": "AAAA-MM-DD" | null,
+  "obs": "..." | null
+}`;
+
+async function contratoLerIA(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  if (!iaDisponivel()) return res.status(503).json({ code: "ia_sem_chave", msg: "A IA ainda não está configurada (falta a chave ANTHROPIC_API_KEY na Vercel)." });
+  const b = corpo(req);
+  if (!b.arquivo || !b.arquivo.b64) return res.status(400).json({ code: "sem_arquivo", msg: "Envie o arquivo do contrato para leitura." });
+
+  const nome = txt(b.arquivo.nome, 150) || "contrato.pdf";
+  const { buf, erro } = decodificar(b.arquivo.b64, nome);
+  if (erro) return res.status(400).json({ code: erro, msg: "Arquivo inválido ou muito grande para leitura (limite de 3 MB)." });
+
+  const ext = extensao(nome);
+  let docContent = null;
+  if (ext === "pdf") {
+    docContent = { type: "document", source: { type: "base64", media_type: "application/pdf", data: buf.toString("base64") } };
+  } else if (["png", "jpg", "jpeg"].includes(ext)) {
+    const mime = ext === "png" ? "image/png" : "image/jpeg";
+    docContent = { type: "image", source: { type: "base64", media_type: mime, data: buf.toString("base64") } };
+  } else {
+    return res.status(400).json({ code: "formato_invalido", msg: "Envie o contrato em formato PDF para leitura com IA." });
+  }
+
+  let respostaIA = null;
+  try {
+    respostaIA = await perguntarJSON(
+      SISTEMA_CONTRATO_ADM,
+      [docContent, { type: "text", text: "Leia este contrato e extraia os campos solicitados no formato JSON especificado." }],
+      2500
+    );
+  } catch (e) {
+    if (e instanceof ErroIA) {
+      return res.status(502).json({ code: e.code, msg: MSG_IA[e.code] || "Não foi possível ler o contrato com IA no momento." });
+    }
+    console.error("[adm] contrato.lerIA erro:", e);
+    return res.status(500).json({ code: "ia_erro", msg: "Erro ao processar contrato com a IA: " + (e.message || String(e)) });
+  }
+
+  const raw = respostaIA && typeof respostaIA === "object" ? respostaIA : {};
+
+  // Normalização e validação dos dados
+  const contraparte = txt(raw.contraparte, 200) || "";
+  const tipo = TIPOS_CONTRATO.includes(raw.tipo) ? raw.tipo : "Prestação de serviço";
+  const valorMensal = num(raw.valorMensal) ?? null;
+  const inicio = dataIso(raw.inicio) || null;
+  let prazoMeses = Number.isInteger(raw.prazoMeses) && raw.prazoMeses > 0 && raw.prazoMeses <= 600 ? raw.prazoMeses : null;
+  let dataFinal = dataIso(raw.dataFinal) || null;
+  if (inicio && prazoMeses && !dataFinal) {
+    dataFinal = dataFinalPadrao(inicio, prazoMeses);
+  } else if (inicio && dataFinal && !prazoMeses) {
+    const [y1, m1] = inicio.split("-").map(Number), [y2, m2] = dataFinal.split("-").map(Number);
+    const m = (y2 - y1) * 12 + (m2 - m1);
+    if (m > 0 && m <= 600) prazoMeses = m;
+  }
+  const renovacaoAutomatica = !!raw.renovacaoAutomatica;
+  const ultimoReajuste = dataIso(raw.ultimoReajuste) || inicio || null;
+  const obs = txt(raw.obs, 3000) || "";
+
+  // Tenta vincular automaticamente a um cliente da Carteira
+  const clientes = await clientesCarteira();
+  let clienteId = "", clienteNome = "";
+  if (contraparte) {
+    const cpNorm = contraparte.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const match = clientes.find(c => {
+      const cliNorm = (c.nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return cliNorm && (cpNorm.includes(cliNorm) || cliNorm.includes(cpNorm));
+    });
+    if (match) {
+      clienteId = match.id;
+      clienteNome = match.nome;
+    }
+  }
+
+  return res.json({
+    ok: true,
+    arquivo: { nome, tamanho: buf.length },
+    dados: {
+      contraparte,
+      clienteId,
+      clienteNome,
+      tipo,
+      valorMensal,
+      inicio,
+      prazoMeses,
+      dataFinal,
+      renovacaoAutomatica,
+      ultimoReajuste,
+      obs
+    }
+  });
 }
 
 // ---------- Assinatura de documentos ----------
@@ -491,7 +610,7 @@ const gestao = fn => (u, req, res) => (ehGestao(u) ? fn(u, req, res) : res.statu
 export const rotas = Object.fromEntries(Object.entries({
   contratos, "contrato.salvar": contratoSalvar, "contrato.excluir": contratoExcluir, "contrato.arquivo": contratoArquivo,
   "contrato.reajustar": contratoReajustar, "contrato.renovar": contratoRenovar, igpm,
-  "contratos.importar": contratosImportar, "contrato.conferir": contratoConferir,
+  "contratos.importar": contratosImportar, "contrato.conferir": contratoConferir, "contrato.lerIA": contratoLerIA,
   assinaturas, "assinatura.salvar": assinaturaSalvar, "assinatura.assinado": assinaturaAssinado,
   "assinatura.arquivo": assinaturaArquivo, "assinatura.excluir": assinaturaExcluir,
   "assinatura.drive": assinaturaDrive, "assinatura.drive_lote": assinaturaDriveLote,
