@@ -33,6 +33,8 @@
       .pc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
       .pc-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink2)}.pc-grid .full{grid-column:1/-1}
       .pc-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+      .pc-cli{display:inline-block;background:var(--blue-soft);color:var(--blue-dk);font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid rgba(6,96,255,0.18)}
+      .pc-req{color:var(--danger);font-weight:700;margin-left:2px}
       .st{font-size:12px;padding:2px 9px;border-radius:20px;white-space:nowrap;font-weight:600}
       .st.pendente{background:#FFF4DE;color:#8A5A00}.st.aprovada{background:#E6F6EC;color:#1B6B3A}
       .st.reprovada{background:#FDE8E8;color:#A12020}.st.alteracao_solicitada{background:#E5EFFC;color:#1D4F91}
@@ -96,8 +98,8 @@
     const nova = !peca;
     const arquivos = [];   // { file, chave, prog, erro, el }
     alvo.innerHTML = `<div class="pc-card form"><h3 style="margin:0 0 12px">${esc(titulo)}</h3><div class="pc-grid">
-      ${nova ? `<label>Título da peça<input data-f="titulo" maxlength="160" placeholder="Ex.: Post Dia das Crianças"></label>
-      <label>Cliente<select data-f="cliente"><option value="">Escolha</option>${base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("")}</select></label>
+      ${nova ? `<label>Título da peça <span class="pc-req">*</span><input data-f="titulo" maxlength="160" placeholder="Ex.: Post Dia das Crianças"></label>
+      <label>Cliente <span class="pc-req">*</span><select data-f="cliente"><option value="">${base.clientes?.length ? "Escolha o cliente" : "Nenhum cliente disponível"}</option>${base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("")}</select></label>
       <div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · deixe em branco para qualquer coordenador)</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#FAFBFD;max-height:120px;overflow-y:auto">
           ${(base.usuarios || []).filter(u => u.login !== base.login).map(u => `<label style="display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;background:#fff;font-size:12.5px;cursor:pointer">
@@ -123,7 +125,16 @@
       a.el.querySelector("button").onclick = () => { arquivos.splice(arquivos.indexOf(a), 1); a.el.remove(); };
       if (a.erro) a.el.querySelector(".pc-sub").title = a.erro;
     };
+    const validarCliente = () => {
+      if (nova && !$("cliente").value) {
+        msg("Selecione o cliente antes de adicionar arquivos.");
+        $("cliente").focus();
+        return false;
+      }
+      return true;
+    };
     const adicionar = files => {
+      if (!validarCliente()) return;
       for (const file of files) {
         if (arquivos.length >= base.maxArquivos) { msg(`No máximo ${base.maxArquivos} arquivos.`); break; }
         if (!/\.(jpe?g|png|pdf)$/i.test(file.name)) { msg(`"${file.name}": envie JPG, PNG ou PDF.`); continue; }
@@ -134,21 +145,30 @@
           .then(r => { a.chave = r.chave; a.prog = 1; pintar(a); }, e => { a.erro = e.message; pintar(a); });
       }
     };
-    $("drop").onclick = () => $("file").click();
+    $("drop").onclick = () => { if (validarCliente()) $("file").click(); };
     $("file").onchange = () => { adicionar([...$("file").files]); $("file").value = ""; };
     $("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("on"); };
     $("drop").ondragleave = () => $("drop").classList.remove("on");
-    $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("on"); adicionar([...e.dataTransfer.files]); };
+    $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("on"); if (validarCliente()) adicionar([...e.dataTransfer.files]); };
+    if (nova) {
+      $("cliente").onchange = () => { if ($("cliente").value && $("msg").textContent.includes("cliente")) msg(""); };
+      $("titulo").oninput = () => { if ($("titulo").value.trim() && $("msg").textContent.includes("título")) msg(""); };
+    }
     $("cancelar").onclick = () => { alvo.innerHTML = ""; aoCancelar && aoCancelar(); };
     $("ok").onclick = async () => {
       const b = $("ok");
+      if (nova) {
+        if (!$("cliente").value) { msg("Selecione o cliente da peça."); $("cliente").focus(); return; }
+        if (!$("titulo").value.trim()) { msg("Informe o título da peça."); $("titulo").focus(); return; }
+      }
       if (arquivos.some(a => !a.chave && !a.erro)) { msg("Aguarde o fim do envio dos arquivos…"); await Promise.all(arquivos.map(a => a.promessa)); }
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
-      const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })),
-        links: $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean) };
+      const links = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
+      if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo ou um link do Drive.");
+      const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links };
       if (nova) {
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
-        Object.assign(corpo, { titulo: $("titulo").value, clienteId: $("cliente").value, aprovadores });
+        Object.assign(corpo, { titulo: $("titulo").value.trim(), clienteId: $("cliente").value, aprovadores });
       } else corpo.id = peca.id;
       b.disabled = true; msg("Salvando…");
       try { const j = await api(nova ? "peca.enviar" : "peca.reenviar", corpo); alvo.innerHTML = ""; aoEnviar && aoEnviar(j.peca); }
@@ -175,8 +195,9 @@
     const aprovTxt = (p.aprovadores && p.aprovadores.length)
       ? ` · Aprovadores: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
       : " · Aprovador: <i>Qualquer coordenador</i>";
-    return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t"><b>${esc(p.titulo)}</b>
-        <div class="pc-sub">${esc(p.clienteNome)} · enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
+    return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span></div>
+        <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
         <span class="st ${p.status}">${ST[p.status]}</span></div>
       <div style="margin-top:8px">${versaoHtml(p, atual)}</div>
       ${anteriores.length ? `<details class="pc-ver"><summary>Versões anteriores (${anteriores.length})</summary>${anteriores.map(v => `<div style="margin-top:8px">${versaoHtml(p, v)}</div>`).join("")}</details>` : ""}
@@ -192,20 +213,23 @@
     el.innerHTML = `<div class="pc-h"><div><h2>Envio de peças</h2><div class="pc-sub">Envie a peça para a fila de aprovação. Você vê aqui só as peças que enviou.</div></div><span class="sp"></span>
       <button class="btn primary" type="button" data-x="nova">Nova peça</button></div>
       <div data-box="form"></div>
-      <div class="pc-filtros"><label>Status<select data-x="st"><option value="">Todas</option>${Object.entries(ST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label></div>
+      <div class="pc-filtros"><label>Status<select data-x="st"><option value="">Todas</option>${Object.entries(ST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+        <label>Cliente<select data-x="cli"><option value="">Todos</option></select></label></div>
       <div data-box="lista"><div class="pc-vazio">Carregando…</div></div>`;
-    const box = n => el.querySelector(`[data-box="${n}"]`);
+    const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`).value;
     let lista = [];
+    const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
     async function carregar() {
       try { await carregarBase(); lista = (await api("pecas")).pecas.filter(p => p.minha); } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      const uniq = f => [...new Map(lista.map(f)).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+      opcoes(el.querySelector('[data-x="cli"]'), uniq(p => [p.clienteId, p.clienteNome]));
       render();
     }
     function render() {
-      const f = el.querySelector('[data-x="st"]').value;
-      const l = lista.filter(p => !f || p.status === f);
+      const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")));
       box("lista").innerHTML = l.length ? l.map(p => cartao(p, ["reprovada", "alteracao_solicitada"].includes(p.status)
         ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar">Enviar nova versão (v${p.versao + 1})</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("")
-        : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esse status." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
+        : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
     }
     el.addEventListener("click", async ev => {
       const x = ev.target.dataset.x;
@@ -216,7 +240,7 @@
         formEnvio(el.querySelector(`[data-box="re-${CSS.escape(id)}"]`), { titulo: `Nova versão de "${p.titulo}"`, peca: p, aoEnviar: () => { ctx.toast(`Versão ${p.versao + 1} enviada`); carregar(); } });
       }
     });
-    el.addEventListener("change", ev => { if (ev.target.dataset.x === "st") render(); });
+    el.addEventListener("change", ev => { if (ev.target.dataset.x) render(); });
     return carregar;
   }
 
