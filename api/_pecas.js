@@ -1,6 +1,6 @@
 // 02 Aprovação de peças: Envio, Fila de aprovação e Dashboard mensal.
 // Dados em m/pecas/<colecao>/<id>, servidos só por aqui (fora da sincronização geral). Permissões sempre conferidas aqui:
-//   enviar e reenviar: diretor de arte, social media ou quem tem a permissão extra pode_enviar_pecas (vê só as suas peças)
+//   enviar e reenviar: todos os usuários ativos (vê só as suas peças)
 //   decidir e ver todas: coordenador, mestre e gestão
 //   dashboard: mestre, gestão e atendimento (atendimento não vê as peças)
 // Arquivos: o navegador envia direto ao Vercel Blob com um token do servidor; ficam 7 dias e são apagados pela rotina diária.
