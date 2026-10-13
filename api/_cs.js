@@ -42,6 +42,7 @@ export function conferirPerguntas(lista) {
   return "";
 }
 const MODELO_PERGUNTAS = [
+  { tipo: "aberta", texto: "Qual é o nome da sua empresa?" },
   { tipo: "nps", texto: "De 0 a 10, o quanto você recomendaria a Quinze para um amigo ou colega?" },
   { tipo: "aberta", texto: "O que mais contribuiu para a sua nota?" },
   { tipo: "multipla", texto: "Como você avalia a agilidade do nosso atendimento neste mês?", opcoes: ["Muito boa", "Boa", "Regular", "Ruim"] },
@@ -76,7 +77,10 @@ export async function registrarResposta(pesquisaId, resposta, opt = {}) {
   const nota = Number(resposta?.nota);
   if (!Number.isInteger(nota) || nota < 0 || nota > 10) throw new Error("nota_invalida");
   const r = {
-    pesquisaId, clienteId: p.clienteId, clienteNome: p.clienteNome, mes: p.mes, nota,
+    pesquisaId,
+    clienteId: resposta.clienteId !== undefined ? resposta.clienteId : (p.clienteId || null),
+    clienteNome: resposta.clienteNome || p.clienteNome || "Todos os clientes",
+    mes: p.mes, nota,
     respostas: (Array.isArray(resposta.respostas) ? resposta.respostas : []).slice(0, 12)
       .map(x => ({ pergunta: txt(x?.pergunta, 300), valor: txt(x?.valor, 2000) })).filter(x => x.pergunta),
     recebidaEm: txt(resposta.recebidaEm, 40) || agora(), origem: txt(opt.origem || resposta.origem || "google_forms", 30),
@@ -101,13 +105,14 @@ async function pesquisaSalvar(u, req, res) {
   if (b.id && !atual) return res.status(404).json({ code: "nao_encontrado" });
   if (atual && etapa(atual.status) > etapa("perguntas_em_aprovacao")) return res.status(409).json({ code: "etapa", msg: "As perguntas já foram aprovadas: tom e objetivo não mudam mais." });
   const clientes = await clientesCarteira();
-  const cli = clientes.find(c => c.id === b.clienteId);
-  if (!cli) return res.status(400).json({ code: "cliente", msg: "Escolha o cliente da Carteira." });
+  const cli = b.clienteId ? clientes.find(c => c.id === b.clienteId) : null;
   if (!mesValido(b.mes)) return res.status(400).json({ code: "mes", msg: "Escolha o mês de referência." });
   const tom = txt(b.tom, 1000), objetivo = txt(b.objetivo, 6000);
   if (!tom || !objetivo) return res.status(400).json({ code: "campos", msg: "Preencha o tom de voz e o objetivo." });
+  const clienteId = cli ? cli.id : null;
+  const clienteNome = cli ? cli.nome : "Todos os clientes";
   const p = { ...(atual || { status: "rascunho", criadoEm: agora(), criadoPor: quem(u), perguntas: [], briefing: "" }),
-    clienteId: cli.id, clienteNome: cli.nome, mes: b.mes, tom, objetivo, atualizadoEm: agora() };
+    clienteId, clienteNome, mes: b.mes, tom, objetivo, atualizadoEm: agora() };
   const id = b.id || novoId();
   await gravar(M, "pesquisas", id, p);
   return res.json({ ok: true, pesquisa: { ...p, id } });
@@ -119,23 +124,25 @@ async function pesquisaBriefing(u, req, res) {
   if (!p) return res.status(404).json({ code: "nao_encontrado" });
   if (etapa(p.status) > etapa("perguntas_em_aprovacao")) return res.status(409).json({ code: "etapa", msg: "As perguntas já foram aprovadas." });
   let briefing, perguntas;
+  const ehGeral = !p.clienteId || p.clienteNome === "Todos os clientes";
   if (modelo === true) {
     // Sem IA: briefing a partir do que foi preenchido e perguntas-modelo, para editar.
-    briefing = `Objetivo: ${p.objetivo}\nPúblico: responsáveis pela conta do cliente ${p.clienteNome}.\nTom: ${p.tom}\nReferência: ${p.mes}.`;
+    briefing = `Objetivo: ${p.objetivo}\nPúblico: ${ehGeral ? "todos os clientes da Quinze (pesquisa geral do mês)" : `responsáveis pela conta do cliente ${p.clienteNome}`}.\nTom: ${p.tom}\nReferência: ${p.mes}.`;
     perguntas = MODELO_PERGUNTAS;
   } else {
     try {
+      const publicoTexto = ehGeral ? "para todos os clientes da agência Quinze (pesquisa geral do mês)" : `para o cliente "${p.clienteNome}"`;
       const j = await perguntarJSON(
         "Você ajuda a equipe de atendimento da Quinze, uma agência de comunicação e marketing digital, a montar pesquisas mensais de satisfação (NPS) com clientes. Escreva em português do Brasil. Responda só com JSON válido, sem texto fora do JSON.",
-        `Monte a pesquisa do mês ${p.mes} para o cliente "${p.clienteNome}".\n\nTom de voz pedido:\n${p.tom}\n\nO que o levantamento do mês quer descobrir:\n${p.objetivo}\n\n`
+        `Monte a pesquisa do mês ${p.mes} ${publicoTexto}.\n\nTom de voz pedido:\n${p.tom}\n\nO que o levantamento do mês quer descobrir:\n${p.objetivo}\n\n`
         + `Devolva JSON no formato {"briefing": "texto curto com objetivo, público, o que se busca e tom (até 120 palavras)", "perguntas": [{"tipo": "nps"|"aberta"|"multipla", "texto": "...", "opcoes": ["..."] (só em multipla)}]}.\n`
-        + `Regras: exatamente uma pergunta tipo "nps" (nota de 0 a 10 sobre recomendar a Quinze), primeiro; no total no máximo ${MAX_PERGUNTAS} perguntas; perguntas curtas, no tom pedido.`);
+        + `Regras: exatamente uma pergunta tipo "nps" (nota de 0 a 10 sobre recomendar a Quinze); ${ehGeral ? 'a primeira pergunta deve ser aberta para o cliente informar o nome da empresa ("Qual é o nome da sua empresa?"); ' : ''}no total no máximo ${MAX_PERGUNTAS} perguntas; perguntas curtas, no tom pedido.`);
       briefing = txt(j.briefing, 3000);
       perguntas = j.perguntas;
     } catch (e) { return falhaIA(res, e); }
   }
   perguntas = limparPerguntas(perguntas);
-  if (perguntas.filter(q => q.tipo === "nps").length === 0) perguntas.unshift(MODELO_PERGUNTAS[0]);
+  if (perguntas.filter(q => q.tipo === "nps").length === 0) perguntas.unshift(MODELO_PERGUNTAS.find(q => q.tipo === "nps") || MODELO_PERGUNTAS[1]);
   perguntas = perguntas.slice(0, MAX_PERGUNTAS);
   Object.assign(p, { briefing, perguntas, origemPerguntas: modelo === true ? "modelo" : "ia", status: "perguntas_em_aprovacao", geradoEm: agora(), atualizadoEm: agora() });
   await gravar(M, "pesquisas", id, p);
@@ -186,8 +193,14 @@ async function pesquisaMensagem(u, req, res) {
   if (!p) return res.status(404).json({ code: "nao_encontrado" });
   if (etapa(p.status) < etapa("formulario_gerado") || !p.formularioUrl) return res.status(409).json({ code: "etapa", msg: "Gere ou cole o link do formulário primeiro." });
   const hora = Number.isInteger(b.hora) && b.hora >= 0 && b.hora <= 23 ? b.hora : horaSP();
-  const cliente = txt(b.clienteNome, 120) || p.clienteNome;
-  return res.json({ mensagem: mensagemWhatsApp({ cliente, link: p.formularioUrl, hora }) });
+  const cliente = txt(b.clienteNome, 120) || (p.clienteId ? p.clienteNome : "parceiro");
+  let link = p.formularioUrl;
+  const empQ = (p.formQuestoes || []).find(q => /empresa|cliente/i.test(q.texto) && q.tipo !== "nps");
+  if (empQ?.questionId && cliente && cliente !== "parceiro" && cliente !== "Todos os clientes") {
+    const sep = link.includes("?") ? "&" : "?";
+    link = `${link}${sep}usp=pp_url&entry.${empQ.questionId}=${encodeURIComponent(cliente)}`;
+  }
+  return res.json({ mensagem: mensagemWhatsApp({ cliente, link, hora }) });
 }
 async function pesquisaEnviada(u, req, res) {
   if (!so(req, res, "POST")) return;
@@ -220,8 +233,10 @@ async function pesquisaFormulario(u, req, res) {
   if (etapa(p.status) < etapa("aprovada")) return res.status(409).json({ code: "etapa", msg: "Aprove as perguntas antes de gerar o formulário." });
   if (p.formId && b.novo !== true) return res.status(409).json({ code: "ja_gerado", msg: "O formulário desta pesquisa já foi gerado." });
   if (!googleConfigurado()) return res.status(503).json({ code: "google", msg: "A integração com o Google ainda não está configurada." });
+  const ehGeral = !p.clienteId || p.clienteNome === "Todos os clientes";
+  const nomeTitulo = ehGeral ? "Quinze" : p.clienteNome;
   try {
-    const f = await criarFormulario({ titulo: `Pesquisa de satisfação – ${p.clienteNome} – ${mesLongo(p.mes)}`,
+    const f = await criarFormulario({ titulo: `Pesquisa de satisfação – ${nomeTitulo} – ${mesLongo(p.mes)}`,
       descricao: `Olá! Queremos saber como foi o nosso trabalho com vocês em ${mesLongo(p.mes)}. São ${p.perguntas.length} perguntas rápidas, leva menos de 2 minutos. Obrigado pela parceria! — Equipe Quinze`,
       perguntas: p.perguntas });
     Object.assign(p, { formId: f.formId, formularioUrl: f.linkResposta, formularioEdicao: f.linkEdicao, formQuestoes: f.questoes, formularioOrigem: "google",
@@ -249,8 +264,25 @@ export async function sincronizarForms(soPesquisa) {
         const nota = Number(npsQ ? valor(npsQ.questionId) : NaN);
         if (!Number.isInteger(nota)) continue;
         const respostas = Object.keys(ans).filter(qid => qs[qid] && qs[qid].tipo !== "nps").map(qid => ({ pergunta: qs[qid].texto, valor: valor(qid) }));
+        let clienteId = p.clienteId || null;
+        let clienteNome = p.clienteNome || "Todos os clientes";
+        const empQ = (p.formQuestoes || []).find(q => /empresa|cliente/i.test(q.texto) && q.tipo !== "nps");
+        if (empQ) {
+          const nomeResp = valor(empQ.questionId).trim();
+          if (nomeResp) {
+            const clientes = await clientesCarteira();
+            const norm = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+            const cli = clientes.find(c => norm(c.nome) === norm(nomeResp) || (norm(nomeResp).length >= 3 && (norm(nomeResp).includes(norm(c.nome)) || norm(c.nome).includes(norm(nomeResp)))));
+            if (cli) {
+              clienteId = cli.id;
+              clienteNome = cli.nome;
+            } else {
+              clienteNome = nomeResp;
+            }
+          }
+        }
         const id = "g_" + crypto.createHash("sha1").update(r.responseId).digest("hex").slice(0, 24);
-        const novo = await registrarResposta(p.id, { nota, respostas, recebidaEm: r.lastSubmittedTime || r.createTime }, { id, origem: "google_forms" });
+        const novo = await registrarResposta(p.id, { nota, respostas, clienteId, clienteNome, recebidaEm: r.lastSubmittedTime || r.createTime }, { id, origem: "google_forms" });
         if (novo) out.novas++;
       }
       await gravar(M, "pesquisas", p.id, { ...p, respostasSincronizadasEm: agora(), respostasNoForm: lista.length });
@@ -285,9 +317,11 @@ const lerFiltro = (src, u) => ({ de: mesValido(src.de) ? src.de : "", ate: mesVa
 async function respostas(u, req, res) {
   const q = lerFiltro(req.query, u);
   const lista = await listar(M, "respostas");
-  const todas = filtrar(lista, q);
-  const agrupar = k => Object.entries(todas.reduce((acc, r) => ((acc[r[k]] ||= []).push(r), acc), {}))
-    .map(([chave, rs]) => ({ chave, nome: rs[0].clienteNome, ...calcularNps(rs.map(r => r.nota)) }));
+  const agrupar = k => Object.entries(todas.reduce((acc, r) => {
+    const chave = r[k] || (k === "clienteId" ? (r.clienteNome || "geral") : "geral");
+    (acc[chave] ||= []).push(r);
+    return acc;
+  }, {})).map(([chave, rs]) => ({ chave, nome: rs[0].clienteNome || (chave === "geral" ? "Pesquisa Geral" : chave), ...calcularNps(rs.map(r => r.nota)) }));
   const rel = await ler(M, "relatorios", chaveRelatorio(q));
   return res.json({ filtro: q, total: calcularNps(todas.map(r => r.nota)),
     porMes: agrupar("mes").sort((a, b) => a.chave.localeCompare(b.chave)),
