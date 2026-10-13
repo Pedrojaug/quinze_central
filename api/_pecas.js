@@ -7,8 +7,8 @@
 // Os contadores mensais (m/pecas/contadores/<AAAA-MM>) são atualizados a cada envio e decisão e nunca são apagados.
 import crypto from "node:crypto";
 import { sql } from "./_lib.js";
-import { perfilDe, podeEnviarPecas } from "./_modules.js";
-import { listar, ler, gravar, apagar, novoId, clientesCarteira, txt } from "./_mdados.js";
+import { perfilDe, podeEnviarPecas, ehGestao } from "./_modules.js";
+import { listar, ler, gravar, apagar, novoId, clientesCarteira, txt, usuariosAtivos } from "./_mdados.js";
 import { tokenEnvioDireto, infoArquivo, apagarArquivos, listarArquivos, linkTemporario, enviar, nomeSeguro, extensao } from "./_arquivos.js";
 import { hojeSP } from "./_adm.js";
 
@@ -32,7 +32,7 @@ export const podeEnviar = u => podeEnviarPecas(u);
 export const podeDecidir = u => ["coordenador", "mestre", "gestao"].includes(perfilDe(u));
 export const veTodas = u => ["coordenador", "mestre", "gestao"].includes(perfilDe(u));
 export const veDash = u => ["mestre", "gestao", "atendimento"].includes(perfilDe(u));
-const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login === u.login);
+const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login === u.login) || (p.aprovadores || []).some(a => a.login === u.login);
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;
 
@@ -67,7 +67,7 @@ export function resumoContadores(c) {
 // ---------- Peça vista pela página (sem as chaves internas dos arquivos) ----------
 function publica(p, u) {
   const expira = v => new Date(Date.parse(v.enviadaEm) + RETENCAO_DIAS * DIA).toISOString();
-  return { id: p.id, titulo: p.titulo, clienteId: p.clienteId, clienteNome: p.clienteNome, remetente: p.remetente, status: p.status, versao: p.versao,
+  return { id: p.id, titulo: p.titulo, clienteId: p.clienteId, clienteNome: p.clienteNome, remetente: p.remetente, aprovadores: p.aprovadores || [], status: p.status, versao: p.versao,
     criadoEm: p.criadoEm, atualizadoEm: p.atualizadoEm, minha: p.remetente?.login === u.login,
     versoes: p.versoes.map(v => ({ n: v.n, enviadaEm: v.enviadaEm, expiraEm: expira(v), obs: v.obs, links: v.links,
       arquivos: v.arquivos.map((a, i) => ({ i, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho, expirado: !!a.expirado })) })),
@@ -100,8 +100,9 @@ function conferirLinks(lista) {
 
 // ---------- Rotas ----------
 async function inicio(u, req, res) {
-  return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), login: u.login,
-    clientes: podeEnviar(u) ? await clientesCarteira() : [], maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
+  const usuarios = (await usuariosAtivos()).map(x => ({ login: x.login, nome: x.nome || x.login, funcao: x.funcao }));
+  return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login,
+    clientes: podeEnviar(u) ? await clientesCarteira() : [], usuarios, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
     retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
 }
 
@@ -131,8 +132,14 @@ async function pecaEnviar(u, req, res) {
   const a = await conferirArquivos(u, b.arquivos); if (a.erro) return res.status(400).json({ code: "arquivos", msg: a.erro });
   const l = conferirLinks(b.links); if (l.erro) return res.status(400).json({ code: "links", msg: l.erro });
   if (!a.arquivos.length && !l.links.length) return res.status(400).json({ code: "vazio", msg: "Anexe pelo menos um arquivo ou um link do Drive." });
+
+  // Aprovadores selecionados (opcional; pode ser vazio/em branco)
+  const usuarios = await usuariosAtivos();
+  const loginsAprovadores = Array.isArray(b.aprovadores) ? b.aprovadores.map(s => String(s).trim()) : [];
+  const aprovadores = usuarios.filter(x => loginsAprovadores.includes(x.login)).map(quem);
+
   const em = agora(), id = novoId();
-  const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, remetente: quem(u), status: "pendente", versao: 1,
+  const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, remetente: quem(u), aprovadores, status: "pendente", versao: 1,
     versoes: [{ n: 1, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links }],
     historico: [{ tipo: "envio", versao: 1, em, por: quem(u), comentario: obs }], criadoEm: em, atualizadoEm: em };
   await gravar(M, "pecas", id, p);
@@ -163,7 +170,6 @@ async function pecaReenviar(u, req, res) {
 
 async function pecaDecidir(u, req, res) {
   if (!so(req, res, "POST")) return;
-  if (!podeDecidir(u)) return negado(res, "Só coordenador, Mestre ou gestão aprovam, reprovam ou pedem alteração.");
   const b = corpo(req);
   const decisao = String(b.decisao || ""), comentario = txt(b.comentario, 3000);
   if (!DECISOES.includes(decisao)) return res.status(400).json({ code: "decisao", msg: "Decisão inválida." });
@@ -171,6 +177,11 @@ async function pecaDecidir(u, req, res) {
   const p = await ler(M, "pecas", b.id);
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada (pode ter expirado)." });
   if (p.remetente?.login === u.login) return negado(res, "Você não pode decidir uma peça que você mesmo enviou.");
+  
+  const souAprovador = (p.aprovadores || []).some(a => a.login === u.login);
+  const temAprovadores = (p.aprovadores || []).length > 0;
+  const autorizado = ehGestao(u) || souAprovador || (!temAprovadores && podeDecidir(u));
+  if (!autorizado) return negado(res, "Você não está na lista de aprovadores desta peça.");
   if (p.status !== "pendente") return res.status(409).json({ code: "status", msg: "Esta peça já foi decidida." });
   const em = agora();
   p.historico.push({ tipo: decisao, versao: p.versao, em, por: quem(u), comentario });

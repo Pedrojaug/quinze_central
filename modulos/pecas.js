@@ -97,7 +97,15 @@
     const arquivos = [];   // { file, chave, prog, erro, el }
     alvo.innerHTML = `<div class="pc-card form"><h3 style="margin:0 0 12px">${esc(titulo)}</h3><div class="pc-grid">
       ${nova ? `<label>Título da peça<input data-f="titulo" maxlength="160" placeholder="Ex.: Post Dia das Crianças"></label>
-      <label>Cliente<select data-f="cliente"><option value="">Escolha</option>${base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("")}</select></label>` : ""}
+      <label>Cliente<select data-f="cliente"><option value="">Escolha</option>${base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("")}</select></label>
+      <div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · deixe em branco para qualquer coordenador)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#FAFBFD;max-height:120px;overflow-y:auto">
+          ${(base.usuarios || []).filter(u => u.login !== base.login).map(u => `<label style="display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;background:#fff;font-size:12.5px;cursor:pointer">
+            <input type="checkbox" data-f="aprovador" value="${esc(u.login)}" style="min-height:0;width:14px;height:14px">
+            <span>${esc(u.nome || u.login)}</span>
+          </label>`).join("")}
+        </div>
+      </div>` : ""}
       <label class="full">Observação (opcional)<textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto para quem vai aprovar" : "O que mudou nesta versão"}"></textarea></label>
       <div class="full"><div class="pc-sub" style="margin-bottom:4px">Arquivos (até ${base.maxArquivos}, JPG, PNG ou PDF, até ${base.maxMB} MB cada)</div>
         <div class="pc-drop" data-f="drop">Arraste os arquivos aqui ou <u>clique para escolher</u></div>
@@ -138,7 +146,10 @@
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
       const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })),
         links: $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean) };
-      if (nova) Object.assign(corpo, { titulo: $("titulo").value, clienteId: $("cliente").value }); else corpo.id = peca.id;
+      if (nova) {
+        const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
+        Object.assign(corpo, { titulo: $("titulo").value, clienteId: $("cliente").value, aprovadores });
+      } else corpo.id = peca.id;
       b.disabled = true; msg("Salvando…");
       try { const j = await api(nova ? "peca.enviar" : "peca.reenviar", corpo); alvo.innerHTML = ""; aoEnviar && aoEnviar(j.peca); }
       catch (e) { msg(e.message); b.disabled = false; }
@@ -161,8 +172,11 @@
   function cartao(p, extra) {
     const atual = p.versoes[p.versoes.length - 1], anteriores = p.versoes.slice(0, -1).reverse();
     const hist = p.historico.filter(h => h.tipo !== "envio" || h.comentario).map(h => `<li><b>${esc(h.por?.nome || "")}</b> ${ACAO[h.tipo] || esc(h.tipo)} a versão ${h.versao} · <span class="pc-sub">${brHora(h.em)}</span>${h.comentario ? `<span class="c">${esc(h.comentario)}</span>` : ""}</li>`).join("");
+    const aprovTxt = (p.aprovadores && p.aprovadores.length)
+      ? ` · Aprovadores: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
+      : " · Aprovador: <i>Qualquer coordenador</i>";
     return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t"><b>${esc(p.titulo)}</b>
-        <div class="pc-sub">${esc(p.clienteNome)} · enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}</div></div>
+        <div class="pc-sub">${esc(p.clienteNome)} · enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
         <span class="st ${p.status}">${ST[p.status]}</span></div>
       <div style="margin-top:8px">${versaoHtml(p, atual)}</div>
       ${anteriores.length ? `<details class="pc-ver"><summary>Versões anteriores (${anteriores.length})</summary>${anteriores.map(v => `<div style="margin-top:8px">${versaoHtml(p, v)}</div>`).join("")}</details>` : ""}
@@ -230,11 +244,15 @@
     function render() {
       const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")) && (!fv("rem") || p.remetente.login === fv("rem")))
         .sort((a, b) => fv("st") === "pendente" ? a.atualizadoEm.localeCompare(b.atualizadoEm) : b.atualizadoEm.localeCompare(a.atualizadoEm));
-      box("lista").innerHTML = l.length ? l.map(p => cartao(p, base.podeDecidir && p.status === "pendente" && !p.minha ? `<div class="pc-dec">
+      box("lista").innerHTML = l.length ? l.map(p => {
+        const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
+        const podeDecidirEsta = base.ehGestao || souAprovador || (!(p.aprovadores || []).length && base.podeDecidir);
+        return cartao(p, podeDecidirEsta && p.status === "pendente" && !p.minha ? `<div class="pc-dec">
           <textarea data-c="com" placeholder="Comentário (obrigatório para reprovar ou pedir alteração)"></textarea>
           <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
           <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
-          <span class="pc-sub" data-c="msg"></span></div></div>` : "")).join("")
+          <span class="pc-sub" data-c="msg"></span></div></div>` : "");
+      }).join("")
         : `<div class="pc-card pc-vazio">${lista.length ? "Nada com esses filtros." : "Nenhuma peça na fila."}</div>`;
     }
     el.addEventListener("click", async ev => {
