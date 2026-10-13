@@ -84,9 +84,8 @@ export const MODULOS = [
   { id: "pendencias", modulo: "atendimento", nome: "Pendências de clientes", ordem: 16, funcoes: ["mestre", "gestao", "atendimento"], arquivo: "/modulos/pendencias.js", colecoes: [],
     card: { titulo: "Pendências de clientes", texto: "Envios aguardando retorno do cliente" } },
   { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: GESTAO, arquivo: "/modulos/tarefas.js", colecoes: [] },
-  // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m. O "Envio" também vai para quem tem a
-  // permissão extra pode_enviar_pecas (qualquer perfil); ver ajustarPecas() abaixo.
-  { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: ["diretor_arte", "social"], arquivo: "/modulos/pecas.js", colecoes: [] },
+  // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m. O "Envio" é liberado para todos os usuários ativos.
+  { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
   { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: ["coordenador", "mestre", "gestao"], arquivo: "/modulos/pecas.js", colecoes: [] },
   { id: "pecasdash", modulo: "pecas", nome: "Dashboard mensal", ordem: 30, funcoes: ["mestre", "gestao", "atendimento"], arquivo: "/modulos/pecas.js", colecoes: [] },
   // Instrução 10: "Dados consolidados" saiu do Atendimento (mesmo id, mesmos dados em producao/).
@@ -141,8 +140,8 @@ const casa = (path, p) => path === p.replace(/\/$/, "") || (p.endsWith("/") && p
 // Perfil efetivo (o cadastro antigo "master" vale como mestre).
 export const perfilDe = u => (!u ? null : u.papel === "master" ? "mestre" : u.funcao);
 export const ehGestao = u => ["mestre", "gestao"].includes(perfilDe(u));
-// Envio de peças: diretor de arte, social media ou qualquer usuário com a permissão extra (linha do banco ou sessão).
-export const podeEnviarPecas = u => !!u && (["diretor_arte", "social"].includes(perfilDe(u)) || !!(u.pode_enviar_pecas ?? u.podeEnviarPecas));
+// Envio de peças: liberado para todos os usuários logados.
+export const podeEnviarPecas = u => !!u;
 const ajustarPecas = (u, abas) => { const sem = abas.filter(id => id !== "envio"); return podeEnviarPecas(u) ? [...sem, "envio"] : sem; };
 
 // Abas e módulos que cada perfil fixo recebe (o Personalizado escolhe na mão).
