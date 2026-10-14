@@ -26,14 +26,15 @@ const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 
-export const veTodas = u => ["mestre", "gestao"].includes(perfilDe(u));
-export const usaTarefas = u => ["mestre", "gestao", "atendimento"].includes(perfilDe(u));
+export const veTodas = u => ["mestre", "gestao", "coordenador"].includes(perfilDe(u));
+export const usaTarefas = u => ["mestre", "gestao", "coordenador", "atendimento"].includes(perfilDe(u));
 
-// Pessoas com lista de tarefas: usuários ativos com perfil atendimento.
-export async function atendimentos() {
-  const r = await sql`SELECT login, nome FROM usuarios WHERE ativo AND funcao = 'atendimento' ORDER BY nome`;
-  return r.map(x => ({ login: x.login, nome: x.nome || x.login }));
+// Pessoas com lista de tarefas: todos os usuários ativos aptos a ter/receber tarefas
+export async function pessoasTarefas() {
+  const r = await sql`SELECT login, nome, funcao FROM usuarios WHERE ativo ORDER BY nome`;
+  return r.map(x => ({ login: x.login, nome: x.nome || x.login, funcao: x.funcao }));
 }
+export const atendimentos = pessoasTarefas;
 
 // ---------- Regras da tarefa ----------
 export function situacao(t, hoje = hojeLocal()) {
@@ -87,8 +88,9 @@ async function sincronizar() { for (const fn of SINCRONIZADORES) { try { await f
 
 // ---------- Rotas: tarefas ----------
 async function inicio(u, req, res) {
-  if (!usaTarefas(u)) return negado(res, "Minhas tarefas é do Atendimento, do Mestre e da gestão.");
-  return res.json({ login: u.login, veTodas: veTodas(u), pessoas: veTodas(u) ? await atendimentos() : [quem(u)],
+  if (!usaTarefas(u)) return negado(res, "Minhas tarefas é do Atendimento, da Coordenação, do Mestre e da gestão.");
+  const pessoas = veTodas(u) ? await pessoasTarefas() : [quem(u)];
+  return res.json({ login: u.login, nome: u.nome || u.login, veTodas: veTodas(u), pessoas,
     clientes: await clientesCarteira(), hoje: hojeLocal(), prioridades: PRIORIDADES });
 }
 
@@ -103,8 +105,17 @@ async function tarefas(u, req, res) {
   if (visao === "hoje") lista = lista.filter(t => naListaDeHoje(t, hoje));
   else if (visao === "concluidas") lista = lista.filter(t => t.status === "concluida" && dataLocal(t.concluidaEm) >= limite30);
   const peso = { alta: 0, normal: 1, baixa: 2 };
-  lista.sort((a, b) => visao === "concluidas" ? (b.concluidaEm || "").localeCompare(a.concluidaEm || "")
-    : (a.status === b.status ? 0 : a.status === "pendente" ? -1 : 1) || (a.prazo || "9999").localeCompare(b.prazo || "9999") || peso[a.prioridade] - peso[b.prioridade]);
+  lista.sort((a, b) => {
+    if (visao === "concluidas") return (b.concluidaEm || "").localeCompare(a.concluidaEm || "");
+    if (a.status !== b.status) return a.status === "pendente" ? -1 : 1;
+    // Tarefas sem data são consideradas para o dia de hoje, não sendo jogadas para o final da fila
+    const dataA = a.prazo || hoje;
+    const dataB = b.prazo || hoje;
+    if (dataA !== dataB) return dataA.localeCompare(dataB);
+    const diffPeso = (peso[a.prioridade] ?? 1) - (peso[b.prioridade] ?? 1);
+    if (diffPeso !== 0) return diffPeso;
+    return (b.criadoEm || "").localeCompare(a.criadoEm || "");
+  });
   return res.json({ hoje, tarefas: lista.map(t => publica(t, hoje)) });
 }
 
@@ -119,13 +130,18 @@ async function salvar(u, req, res) {
   const prazo = b.prazo === "" || b.prazo === null ? "" : dataIso(b.prazo) || hojeLocal();
   let cliente = { id: "", nome: "" };
   if (b.clienteId) { const c = (await clientesCarteira()).find(x => x.id === b.clienteId); if (!c) return res.status(400).json({ code: "cliente", msg: "Cliente não está na Carteira." }); cliente = c; }
-  // Dono: o atendimento é sempre dono das próprias tarefas; mestre e gestão escolhem um atendimento.
+  
+  // Dono: se não informado ou se for o próprio usuário, o dono é quem está criando;
+  // se gestão/coordenação escolher outra pessoa, valida na lista de usuários ativos.
   let dono = quem(u);
-  if (veTodas(u)) {
-    const alvo = (await atendimentos()).find(p => p.login === b.dono);
-    if (!alvo) return res.status(400).json({ code: "dono", msg: "Escolha o atendimento responsável." });
-    dono = alvo;
-  } else if (b.dono && b.dono !== u.login) return negado(res, "Você só cria tarefas para você.");
+  if (veTodas(u) && b.dono && b.dono !== u.login) {
+    const pessoas = await pessoasTarefas();
+    const alvo = pessoas.find(p => p.login === b.dono);
+    if (!alvo) return res.status(400).json({ code: "dono", msg: "Pessoa responsável não encontrada." });
+    dono = { login: alvo.login, nome: alvo.nome };
+  } else if (!veTodas(u) && b.dono && b.dono !== u.login) {
+    return negado(res, "Você só cria tarefas para você.");
+  }
   const em = agora();
   if (b.id) {
     const t = await lerTarefaPermitida(u, b.id, res); if (!t) return;
@@ -190,7 +206,7 @@ const linhaTarefa = t => `• ${t.titulo}${t.clienteNome ? " — " + t.clienteNo
 // Monta o relatório do dia: devolve { texto, partes, totais }. "hoje" pode ser simulado nos testes.
 export async function montarRelatorio(hoje = hojeLocal()) {
   await sincronizar();
-  const pessoas = await atendimentos();
+  const pessoas = await pessoasTarefas();
   const todas = await listar(M, "tarefas");
   const blocos = [];
   let feitasEquipe = 0, pendEquipe = 0, atrasEquipe = 0;
@@ -199,6 +215,8 @@ export async function montarRelatorio(hoje = hojeLocal()) {
     const feitas = minhas.filter(t => t.status === "concluida" && dataLocal(t.concluidaEm) === hoje);
     const pend = minhas.filter(t => t.status === "pendente").map(t => ({ ...t, ...situacao(t, hoje) }))
       .sort((a, b) => b.diasAtraso - a.diasAtraso || (a.prazo || "9999").localeCompare(b.prazo || "9999"));
+    // Se não for do perfil 'atendimento' e não tiver nenhuma tarefa (feita ou pendente), não polui o relatório
+    if (p.funcao !== "atendimento" && !feitas.length && !pend.length) continue;
     feitasEquipe += feitas.length; pendEquipe += pend.length; atrasEquipe += pend.filter(t => t.atrasada).length;
     const linhas = [`*${p.nome}*`];
     if (!feitas.length && !pend.length) linhas.push("Sem tarefas registradas hoje");
