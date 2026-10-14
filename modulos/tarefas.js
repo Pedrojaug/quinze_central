@@ -72,12 +72,12 @@
     async function montar() {
       try { await carregarBase(); } catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       const g = base.veTodas;
-      el.innerHTML = `<div class="tr-h"><div><h2>Minhas tarefas</h2><div class="tr-sub">${g ? "Tarefas de todos os atendimentos. Filtre por pessoa ou crie uma tarefa para alguém." : "Sua lista do dia. Tarefa atrasada continua aqui até ser concluída."}</div></div><span class="sp"></span>
-        ${g ? `<label class="tr-sub">Pessoa <select data-x="pessoa">${opPessoas("", "Todos os atendimentos")}</select></label>` : ""}
+      el.innerHTML = `<div class="tr-h"><div><h2>Minhas tarefas</h2><div class="tr-sub">${g ? "Tarefas da equipe. Filtre por pessoa ou crie uma tarefa para alguém." : "Sua lista do dia. Tarefa atrasada continua aqui até ser concluída."}</div></div><span class="sp"></span>
+        ${g ? `<label class="tr-sub">Pessoa <select data-x="pessoa">${opPessoas("", "Todas as pessoas")}</select></label>` : ""}
         <div class="tr-seg" role="group"><button type="button" data-v="hoje" aria-pressed="true">Hoje</button><button type="button" data-v="todas" aria-pressed="false">Todas</button><button type="button" data-v="concluidas" aria-pressed="false">Concluídas</button></div></div>
         <form class="tr-card" data-x="add"><div class="tr-add${g ? " gestao" : ""}">
           <input data-a="titulo" maxlength="200" placeholder="Nova tarefa… (Enter para adicionar)" aria-label="Título da tarefa">
-          ${g ? `<select data-a="dono" aria-label="Atendimento">${opPessoas("", "Para quem?")}</select>` : ""}
+          ${g ? `<select data-a="dono" aria-label="Responsável">${opPessoas("", "Para quem? (padrão: você)")}</select>` : ""}
           <select data-a="cliente" aria-label="Cliente">${opClientes("")}</select>
           <input type="date" data-a="prazo" value="${base.hoje}" aria-label="Prazo">
           <select data-a="prioridade" aria-label="Prioridade">${opObj(PRI, "normal")}</select>
@@ -89,9 +89,9 @@
         const f = n => el.querySelector(`[data-a="${n}"]`);
         if (!f("titulo").value.trim()) { f("titulo").focus(); return; }
         const b = { titulo: f("titulo").value, clienteId: f("cliente").value, prazo: f("prazo").value, prioridade: f("prioridade").value, repetir: f("repetir").value };
-        if (g) b.dono = f("dono").value || fv("pessoa");
-        try { await api("tarefa.salvar", b); f("titulo").value = ""; f("msg").textContent = ""; f("titulo").focus(); carregar(); }
-        catch (e) { f("msg").textContent = e.message; }
+        if (g) b.dono = f("dono").value || fv("pessoa") || base.login;
+        try { await api("tarefa.salvar", b); f("titulo").value = ""; f("msg").textContent = ""; f("titulo").focus(); ctx.toast("Tarefa adicionada"); carregar(); }
+        catch (e) { f("msg").textContent = e.message; ctx.toast(e.message); }
       });
       carregar();
     }
@@ -120,7 +120,7 @@
         ${aberta === t.id ? `<form class="tr-edit" data-edit="${esc(t.id)}">
           <label class="full">Título<input data-e="titulo" maxlength="200" value="${esc(t.titulo)}"></label>
           <label class="full">Descrição (opcional)<textarea data-e="descricao" rows="2">${esc(t.descricao || "")}</textarea></label>
-          ${base.veTodas ? `<label>Atendimento<select data-e="dono">${opPessoas(t.dono?.login)}</select></label>` : ""}
+          ${base.veTodas ? `<label>Responsável<select data-e="dono">${opPessoas(t.dono?.login)}</select></label>` : ""}
           <label>Cliente<select data-e="cliente">${opClientes(t.clienteId)}</select></label>
           <label>Prazo<input type="date" data-e="prazo" value="${esc(t.prazo || "")}"></label>
           <label>Prioridade<select data-e="prioridade">${opObj(PRI, t.prioridade)}</select></label>
@@ -138,7 +138,7 @@
         const e = n => f.querySelector(`[data-e="${n}"]`);
         const b = { id: f.dataset.edit, titulo: e("titulo").value, descricao: e("descricao").value, clienteId: e("cliente").value, prazo: e("prazo").value, prioridade: e("prioridade").value, repetir: e("repetir").value };
         if (base.veTodas) b.dono = e("dono").value;
-        try { await api("tarefa.salvar", b); aberta = null; ctx.toast("Tarefa salva"); carregar(); } catch (er) { e("msg").textContent = er.message; }
+        try { await api("tarefa.salvar", b); aberta = null; ctx.toast("Tarefa salva"); carregar(); } catch (er) { e("msg").textContent = er.message; ctx.toast(er.message); }
       });
     }
     el.addEventListener("click", async ev => {

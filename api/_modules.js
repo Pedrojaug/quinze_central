@@ -79,11 +79,11 @@ export const MODULOS = [
 
   // Instruções 07 e 08: dados em m/atendimento/..., só pela /api/m (o módulo também abre para o social media,
   // que não vê tarefas nem pendências; a rota confere o perfil).
-  { id: "tarefas", modulo: "atendimento", nome: "Minhas tarefas", ordem: 15, funcoes: ["mestre", "gestao", "atendimento"], arquivo: "/modulos/tarefas.js", colecoes: [],
+  { id: "tarefas", modulo: "atendimento", nome: "Minhas tarefas", ordem: 15, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/tarefas.js", colecoes: [],
     card: { titulo: "Minhas tarefas", texto: "To-do do dia e relatório das 20h" } },
   { id: "pendencias", modulo: "atendimento", nome: "Pendências de clientes", ordem: 16, funcoes: ["mestre", "gestao", "atendimento"], arquivo: "/modulos/pendencias.js", colecoes: [],
     card: { titulo: "Pendências de clientes", texto: "Envios aguardando retorno do cliente" } },
-  { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: GESTAO, arquivo: "/modulos/tarefas.js", colecoes: [] },
+  { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: ["mestre", "gestao", "coordenador"], arquivo: "/modulos/tarefas.js", colecoes: [] },
   // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m. O "Envio" é liberado para todos os usuários ativos.
   { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
   { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
