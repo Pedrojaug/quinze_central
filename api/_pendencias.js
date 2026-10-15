@@ -52,11 +52,13 @@ const PEDIDO = {
 };
 export function mensagemPadrao({ cliente, tipo, titulo, resumo, link, prazo, hora = horaAgora() }) {
   const p = PEDIDO[tipo] || PEDIDO.retorno_necessario;
-  return `${saudacao(hora)}, ${cliente}! Tudo bem?\n\n${p.abre}: *${titulo}*.${resumo ? "\n" + resumo : ""}\n\n${link}\n\n${p.pede} Se possível, nos dê um retorno até ${prazoTexto(prazo)}.\n\nQualquer dúvida, estou à disposição!`;
+  const trechoLink = link ? `\n\n${link}` : "";
+  return `${saudacao(hora)}, ${cliente}! Tudo bem?\n\n${p.abre}: *${titulo}*.${resumo ? "\n" + resumo : ""}${trechoLink}\n\n${p.pede} Se possível, nos dê um retorno até ${prazoTexto(prazo)}.\n\nQualquer dúvida, estou à disposição!`;
 }
 export function mensagemCobranca({ cliente, titulo, link, enviadoEm, cobrancas = 0, hora = horaAgora() }) {
   const quando = brCurta(dataLocal(enviadoEm));
-  return `${saudacao(hora)}, ${cliente}! Tudo bem?\n\n${cobrancas ? "Passando mais uma vez" : "Passando"} para lembrar do envio do dia ${quando}: *${titulo}*.\n${link}\n\nConseguiu dar uma olhada? Precisamos do seu retorno para seguirmos com o trabalho. Obrigado!`;
+  const trechoLink = link ? `\n${link}` : "";
+  return `${saudacao(hora)}, ${cliente}! Tudo bem?\n\n${cobrancas ? "Passando mais uma vez" : "Passando"} para lembrar do envio do dia ${quando}: *${titulo}*.${trechoLink}\n\nConseguiu dar uma olhada? Precisamos do seu retorno para seguirmos com o trabalho. Obrigado!`;
 }
 
 const SISTEMA_CLASSIFICAR = `Você classifica envios que uma agência de comunicação (Quinze) faz aos clientes e ainda aguardam resposta.
@@ -67,27 +69,33 @@ Tipos possíveis:
 Regras: use SOMENTE o conteúdo recebido. Não invente nomes, valores, datas ou detalhes que não estejam lá. Se o conteúdo for pouco, faça um título e um resumo genéricos e fiéis ao que existe.
 Responda só com JSON: {"tipo":"material_ooh_offline|orcamento|retorno_necessario","titulo":"até 60 caracteres","resumo":"uma linha, até 140 caracteres","confianca":"alta|media|baixa"}`;
 const SISTEMA_MENSAGEM = `Você escreve mensagens de WhatsApp de um atendimento da agência Quinze para um cliente, no tom da Quinze: cordial, profissional e curto, em português do Brasil.
-Use exatamente os dados recebidos. Não invente nada além deles. A mensagem DEVE: começar com a saudação e o nome do cliente exatamente como recebidos; dizer o que está sendo enviado (título e resumo); trazer o link exatamente como recebido, sozinho numa linha; dizer o que precisamos do cliente; pedir retorno até o prazo recebido. Pode usar *negrito* do WhatsApp no título. No máximo 600 caracteres. Sem assinatura com nome de pessoa.
+Use exatamente os dados recebidos. Não invente nada além deles. A mensagem DEVE: começar com a saudação e o nome do cliente exatamente como recebidos; dizer o que está sendo enviado (título e resumo); se houver link nos dados, trazer o link exatamente como recebido, sozinho numa linha (se não houver link, NÃO mencione nem invente link); dizer o que precisamos do cliente; pedir retorno até o prazo recebido. Pode usar *negrito* do WhatsApp no título. No máximo 600 caracteres. Sem assinatura com nome de pessoa.
 Responda só com JSON: {"mensagem":"..."}`;
 
 async function classificar({ blocos, link, nota, descricao, cliente }) {
-  const contexto = [`Cliente: ${cliente}`, `Link: ${link}`, nota && `Nota do atendimento: ${nota}`, descricao && `Descrição do atendimento (o link não pôde ser lido): ${descricao}`].filter(Boolean).join("\n");
-  const pedido = [{ type: "text", text: contexto + (blocos?.length ? "\n\nConteúdo lido do link:" : "\n\nO conteúdo do link NÃO foi lido. Classifique só pela descrição e pela nota acima.") }, ...(blocos || [])];
+  const contexto = [`Cliente: ${cliente}`, link && `Link: ${link}`, nota && `Assunto / Nota: ${nota}`, descricao && `Descrição do atendimento: ${descricao}`].filter(Boolean).join("\n");
+  const instrucaoConteudo = blocos?.length
+    ? "\n\nConteúdo lido do link:"
+    : link
+    ? "\n\nO conteúdo do link NÃO foi lido. Classifique só pelo assunto, descrição e nota acima."
+    : "\n\nClassifique com base no assunto e descrição acima.";
+  const pedido = [{ type: "text", text: contexto + instrucaoConteudo }, ...(blocos || [])];
   const j = await perguntarJSON(SISTEMA_CLASSIFICAR, pedido, 600);
   const tipo = TIPOS[j.tipo] ? j.tipo : "retorno_necessario";
-  return { tipo, titulo: txt(j.titulo, 80) || "Envio para o cliente", resumo: txt(j.resumo, 200), confianca: ["alta", "media", "baixa"].includes(j.confianca) ? j.confianca : "media" };
+  return { tipo, titulo: txt(j.titulo, 80) || txt(nota || descricao || "Envio para o cliente", 80), resumo: txt(j.resumo, 200), confianca: ["alta", "media", "baixa"].includes(j.confianca) ? j.confianca : "media" };
 }
 // Gera a mensagem com a IA; se a IA falhar ou não respeitar os dados (link, nome, saudação), usa o modelo fixo.
 async function gerarMensagem(dados, variar) {
   const padrao = mensagemPadrao(dados);
   if (!iaDisponivel()) return { mensagem: padrao, fonte: "modelo" };
   const sauda = saudacao(dados.hora ?? horaAgora());
-  const fatos = { saudacao: sauda, cliente: dados.cliente, tipo: TIPOS[dados.tipo], titulo: dados.titulo, resumo: dados.resumo, link: dados.link,
+  const fatos = { saudacao: sauda, cliente: dados.cliente, tipo: TIPOS[dados.tipo], titulo: dados.titulo, resumo: dados.resumo, link: dados.link || "",
     pedido: (PEDIDO[dados.tipo] || PEDIDO.retorno_necessario).pede, prazo_de_retorno: prazoTexto(dados.prazo) };
   try {
     const j = await perguntarJSON(SISTEMA_MENSAGEM, `Dados:\n${JSON.stringify(fatos, null, 1)}${variar ? `\n\nEscreva uma versão diferente da anterior (variação ${variar}).` : ""}`, 700);
     const m = txt(j.mensagem, 1200);
-    if (m && m.includes(dados.link) && m.startsWith(sauda) && m.includes(dados.cliente)) return { mensagem: m, fonte: "ia" };
+    const linkOk = !dados.link || m.includes(dados.link);
+    if (m && linkOk && m.startsWith(sauda) && m.includes(dados.cliente)) return { mensagem: m, fonte: "ia" };
   } catch (e) { console.error("[pendencias] mensagem:", e.code || "erro"); }
   return { mensagem: padrao, fonte: "modelo" };
 }
@@ -114,14 +122,19 @@ async function pendencias(u, req, res) {
   return res.json({ hoje, pendencias: lista.map(p => publica(p, u, hoje)) });
 }
 
-// Passo 1: interpreta o link e cria o rascunho (com mensagem). Se não der para ler e não vier descrição, pede a descrição.
+// Passo 1: interpreta o envio (com ou sem link) e cria o rascunho (com mensagem).
 async function interpretar(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!usaPendencias(u)) return negado(res);
   const b = corpo(req);
   const link = txt(b.link, 1500), nota = txt(b.nota, 300), descricao = txt(b.descricao, 300);
-  let url; try { url = new URL(link); } catch { /* inválido */ }
-  if (!url || !["https:", "http:"].includes(url.protocol)) return res.status(400).json({ code: "link", msg: "Cole um link completo (começando com https://)." });
+  if (link) {
+    let url; try { url = new URL(link); } catch { /* inválido */ }
+    if (!url || !["https:", "http:"].includes(url.protocol)) return res.status(400).json({ code: "link", msg: "Cole um link completo (começando com https://)." });
+  }
+  if (!link && !nota && !descricao) {
+    return res.status(400).json({ code: "assunto", msg: "Informe o que foi enviado (assunto/nota) ou cole um link." });
+  }
   const cli = (await clientesCarteira()).find(c => c.id === b.clienteId);
   if (!cli) return res.status(400).json({ code: "cliente", msg: "Escolha o cliente da Carteira." });
   let resp = quem(u);
@@ -131,9 +144,14 @@ async function interpretar(u, req, res) {
     if (!p) return res.status(400).json({ code: "responsavel", msg: "Responsável inválido." });
     resp = { login: p.login, nome: p.nome };
   }
-  const leitura = await lerLink(link);
-  if (leitura.motivo === "endereco_bloqueado") return res.status(400).json({ code: "link", msg: "Este endereço não pode ser lido pela plataforma." });
-  if (!leitura.ok && !descricao) return res.json({ precisaDescricao: true, msg: "Não consegui ler esse link (pode ser privado ou exigir login). Descreva em uma linha o que foi enviado." });
+
+  let leitura = { ok: false, fonte: "manual", nome: "", baseadoSoNaDescricao: false };
+  if (link) {
+    leitura = await lerLink(link);
+    if (leitura.motivo === "endereco_bloqueado") return res.status(400).json({ code: "link", msg: "Este endereço não pode ser lido pela plataforma." });
+    if (!leitura.ok && !descricao && !nota) return res.json({ precisaDescricao: true, msg: "Não consegui ler esse link (pode ser privado ou exigir login). Descreva em uma linha o que foi enviado." });
+  }
+
   const cliente = nomeCliente(cli.nome);
   let c;
   try { c = await classificar({ blocos: leitura.ok ? leitura.blocos : null, link, nota, descricao, cliente }); }
@@ -146,10 +164,11 @@ async function interpretar(u, req, res) {
   const prazo = somarDiasUteis(hoje, pz[c.tipo] || 2);
   const m = await gerarMensagem({ cliente, tipo: c.tipo, titulo: c.titulo, resumo: c.resumo, link, prazo });
   const em = agora();
+  const histNota = link ? (leitura.ok ? "Link lido e classificado" : "Classificado só pela descrição") : "Classificado a partir do assunto informado";
   const p = { link, clienteId: cli.id, clienteNome: cli.nome, responsavel: resp, nota, descricao, tipo: c.tipo, tipoSugerido: c.tipo,
     titulo: c.titulo, resumo: c.resumo, confianca: c.confianca, prazo, mensagem: m.mensagem, mensagemFonte: m.fonte,
-    leitura: { ok: !!leitura.ok, fonte: leitura.ok ? leitura.fonte : "descricao", nome: leitura.nome || "", baseadoSoNaDescricao: !leitura.ok },
-    status: "rascunho", cobrancas: [], historico: [{ em, por: quem(u), acao: "rascunho", nota: leitura.ok ? "Link lido e classificado" : "Classificado só pela descrição" }],
+    leitura: { ok: !!leitura.ok, fonte: leitura.ok ? leitura.fonte : (link ? "descricao" : "manual"), nome: leitura.nome || "", baseadoSoNaDescricao: !leitura.ok && !!link, semLink: !link },
+    status: "rascunho", cobrancas: [], historico: [{ em, por: quem(u), acao: "rascunho", nota: histNota }],
     criadoPor: quem(u), criadoEm: em, atualizadoEm: em, ...(c.erroIA ? { avisoIA: c.erroIA } : {}) };
   const id = novoId();
   await gravar(M, "pendencias", id, p);
@@ -267,8 +286,9 @@ export async function sincronizarTarefas(hoje = hojeLocal()) {
     if (p.status === "rascunho") continue;
     const s = situacao(p, hoje);
     if (p.status === "aguardando_retorno" && s.atrasada) {
+      const linkTxt = p.link ? `. Link: ${p.link}` : "";
       await garantirTarefaOrigem({ origem: origemDe(p.id), dono: p.responsavel, prazo: p.prazo, clienteId: p.clienteId, clienteNome: p.clienteNome,
-        titulo: `Cobrar retorno: ${p.titulo}`, descricao: `${TIPOS[p.tipo]} enviado em ${br(dataLocal(p.enviadoEm))}. Link: ${p.link}` });
+        titulo: `Cobrar retorno: ${p.titulo}`, descricao: `${TIPOS[p.tipo]} enviado em ${br(dataLocal(p.enviadoEm))}${linkTxt}` });
     } else if (p.status !== "aguardando_retorno") await concluirTarefaOrigem(origemDe(p.id), "pendência com retorno");
   }
 }

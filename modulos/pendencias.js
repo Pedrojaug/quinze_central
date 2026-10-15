@@ -104,10 +104,10 @@
         && (!fv("cliente").value || p.clienteId === fv("cliente").value) && (!fv("resp").value || p.responsavel.login === fv("resp").value)
         && (!fv("tipo").value || p.tipo === fv("tipo").value) && (!fv("atrasadas").checked || p.atrasada)
         && (!fv("de").value || dLocal(p.enviadoEm) >= fv("de").value) && (!fv("ate").value || (p.enviadoEm && dLocal(p.enviadoEm) <= fv("ate").value))
-        && (!q || [p.titulo, p.clienteNome, p.link, p.nota, p.resumo, p.responsavel.nome].join(" ").toLowerCase().includes(q)));
+        && (!q || [p.titulo, p.clienteNome, p.link || "", p.nota, p.resumo, p.responsavel.nome].join(" ").toLowerCase().includes(q)));
     }
     const COLS = [["cliente", "Cliente", p => p.clienteNome], ["resp", "Atendimento", p => p.responsavel.nome], ["tipo", "Tipo", p => base.tipos[p.tipo]], ["titulo", "Título", p => p.titulo],
-      ["link", "Link", p => p.link], ["envio", "Envio", p => p.enviadoEm || ""], ["prazo", "Prazo de retorno", p => p.prazo || ""], ["dias", "Dias sem retorno", p => p.diasSemRetorno],
+      ["link", "Link", p => p.link || ""], ["envio", "Envio", p => p.enviadoEm || ""], ["prazo", "Prazo de retorno", p => p.prazo || ""], ["dias", "Dias sem retorno", p => p.diasSemRetorno],
       ["status", "Status", p => base.status[p.status]], ["atual", "Última atualização", p => p.atualizadoEm || ""]];
     function ordenar(l) {
       const c = COLS.find(x => x[0] === ord.col); const k = c[2]; const s = ord.dir === "asc" ? 1 : -1;
@@ -125,7 +125,7 @@
       const l = ordenar(filtrada());
       $("[data-box=tabela]").innerHTML = l.length ? `<table class="pn-tbl"><thead><tr>${COLS.map(([k, n]) => `<th data-ord="${k}" class="${ord.col === k ? ord.dir : ""}">${n}</th>`).join("")}</tr></thead><tbody>
         ${l.map(p => `<tr class="linha${p.atrasada ? " atrasada" : ""}" data-id="${esc(p.id)}"><td>${esc(p.clienteNome)}</td><td>${esc(p.responsavel.nome)}</td><td>${esc(base.tipos[p.tipo])}</td><td>${esc(p.titulo)}</td>
-          <td><a class="pn-link" href="${esc(p.link)}" target="_blank" rel="noopener" title="${esc(p.link)}">${esc(p.link.replace(/^https?:\/\//, ""))}</a></td>
+          <td>${p.link ? `<a class="pn-link" href="${esc(p.link)}" target="_blank" rel="noopener" title="${esc(p.link)}">${esc(p.link.replace(/^https?:\/\//, ""))}</a>` : '<span class="pn-sub">—</span>'}</td>
           <td>${brd(dLocal(p.enviadoEm))}</td><td>${brd(p.prazo)}${p.atrasada ? `<br><span class="pn-st atr">atrasada há ${p.diasAtraso} dia${p.diasAtraso > 1 ? "s" : ""}</span>` : ""}</td>
           <td class="num">${p.status === "aguardando_retorno" ? p.diasSemRetorno : "—"}</td><td><span class="pn-st ${p.status}">${esc(base.status[p.status])}</span>${(p.cobrancas || []).length ? `<div class="pn-sub">${p.cobrancas.length} cobrança${p.cobrancas.length > 1 ? "s" : ""}</div>` : ""}</td>
           <td>${dataHora(p.atualizadoEm)}</td></tr>${aberta === p.id ? `<tr><td colspan="10" class="pn-det">${detalhe(p)}</td></tr>` : ""}`).join("")}</tbody></table>`
@@ -142,7 +142,7 @@
             ${cob ? `<div style="margin-top:10px"><div class="pn-sub">Mensagem de cobrança (registrada no histórico):</div><textarea class="pn-msg" style="min-height:120px" data-r="cob">${esc(cob)}</textarea><div class="pn-bar"><button class="btn" type="button" data-x="copiar-cob">Copiar cobrança</button></div></div>` : ""}`
         : `<div class="pn-bar"><button class="btn" type="button" data-x="reabrir">Reabrir (voltar a aguardar retorno)</button><span class="pn-sub" data-r="msg"></span></div>`;
       return `<div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px">
-        <div><div class="pn-sub">Resumo</div><div>${esc(p.resumo || "—")}</div>${p.nota ? `<div class="pn-sub" style="margin-top:6px">Nota: ${esc(p.nota)}</div>` : ""}
+        <div><div class="pn-sub">Resumo</div><div>${esc(p.resumo || "—")}</div>${p.nota ? `<div class="pn-sub" style="margin-top:6px">Nota / Assunto: ${esc(p.nota)}</div>` : ""}${p.link ? `<div class="pn-sub" style="margin-top:6px">Link: <a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.link)}</a></div>` : ""}
           ${p.retorno ? `<div class="pn-ok">Retorno em ${brd(p.retorno.data)}: <b>${esc(base.status[p.retorno.status])}</b>${p.retorno.nota ? " — " + esc(p.retorno.nota) : ""}</div>` : ""}${acoes}</div>
         <div><div class="pn-sub">Histórico</div><ul class="pn-hist">${hist}</ul></div></div>`;
     }
@@ -153,21 +153,22 @@
       const opCli = base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("");
       if (!p) {
         box.innerHTML = `<div class="pn-card form"><h3 style="margin:0 0 10px;font-size:16px">Nova pendência</h3><div class="pn-grid">
-          <label class="full">Link do que foi enviado<input data-n="link" placeholder="https://drive.google.com/..." inputmode="url"></label>
-          <label>Cliente<select data-n="cliente"><option value="">Escolha</option>${opCli}</select></label>
+          <label>Cliente <span class="pc-req" style="color:var(--danger)">*</span><select data-n="cliente"><option value="">Escolha o cliente</option>${opCli}</select></label>
           ${base.gestao ? `<label>Atendimento responsável<select data-n="resp">${base.pessoas.map(x => `<option value="${esc(x.login)}"${x.login === base.login ? " selected" : ""}>${esc(x.nome)}</option>`).join("")}</select></label>` : ""}
-          <label class="full">Nota curta (opcional)<input data-n="nota" maxlength="300" placeholder="Ex.: arte do outdoor da campanha de verão"></label>
+          <label class="full">O que foi enviado / Assunto <span class="pc-req" style="color:var(--danger)">*</span><input data-n="nota" maxlength="300" placeholder="Ex.: Retorno sobre contrato de embalagens off campanha"></label>
+          <label class="full">Link do que foi enviado (opcional)<input data-n="link" placeholder="https://drive.google.com/..." inputmode="url"></label>
           <label class="full" data-n="descbox" hidden>Descreva em uma linha o que foi enviado<input data-n="desc" maxlength="300"></label></div>
           <div data-n="aviso"></div>
-          <div class="pn-bar"><button class="btn primary" type="button" data-x="interpretar">Interpretar link</button><button class="btn" type="button" data-x="fechar">Cancelar</button><span class="pn-sub" data-n="msg"></span></div></div>`;
-        box.querySelector('[data-n="link"]').focus();
+          <div class="pn-bar"><button class="btn primary" type="button" data-x="interpretar">Criar pendência</button><button class="btn" type="button" data-x="fechar">Cancelar</button><span class="pn-sub" data-n="msg"></span></div></div>`;
+        box.querySelector('[data-n="cliente"]').focus();
         return;
       }
       rascunho = p;
       const tipos = Object.entries(base.tipos).map(([k, v]) => `<option value="${k}"${k === p.tipo ? " selected" : ""}>${esc(v)}${k === p.tipoSugerido ? " (sugerido)" : ""}</option>`).join("");
       box.innerHTML = `<div class="pn-card form"><h3 style="margin:0 0 6px;font-size:16px">Mensagem para aprovação · ${esc(p.clienteNome)}</h3>
-        ${p.leitura.baseadoSoNaDescricao ? `<div class="pn-aviso">Tipo sugerido <b>baseado só na sua descrição</b>: o link não pôde ser lido. Confira o tipo antes de aprovar.</div>`
-          : `<div class="pn-sub">Link lido (${p.leitura.fonte === "pagina" ? "página" : p.leitura.fonte === "arquivo" ? "arquivo" : "Google Drive"}${p.leitura.nome ? ": " + esc(p.leitura.nome) : ""}). Confiança da classificação: ${esc(p.confianca)}.</div>`}
+        ${p.link ? (p.leitura.baseadoSoNaDescricao ? `<div class="pn-aviso">Tipo sugerido <b>baseado só na sua descrição</b>: o link não pôde ser lido. Confira o tipo antes de aprovar.</div>`
+          : `<div class="pn-sub">Link lido (${p.leitura.fonte === "pagina" ? "página" : p.leitura.fonte === "arquivo" ? "arquivo" : "Google Drive"}${p.leitura.nome ? ": " + esc(p.leitura.nome) : ""}). Confiança da classificação: ${esc(p.confianca)}.</div>`)
+          : `<div class="pn-sub">Pendência criada sem link. Confiança da classificação: ${esc(p.confianca)}.</div>`}
         ${p.avisoIA ? `<div class="pn-aviso">${esc(p.avisoIA)} Preencha o tipo e o título.</div>` : ""}
         <div class="pn-grid" style="margin-top:10px">
           <label>Tipo<select data-d="tipo">${tipos}</select></label>
@@ -210,11 +211,15 @@
         }
         if (x === "interpretar") {
           const n = k => $(`[data-n="${k}"]`);
-          if (!n("link").value.trim() || !n("cliente").value) { msgN("Informe o link e o cliente."); return; }
+          if (!n("cliente").value) { msgN("Escolha o cliente."); n("cliente").focus(); return; }
+          const temLink = !!n("link").value.trim();
+          const temNota = !!n("nota").value.trim();
           const pedeDesc = !n("descbox").hidden;
-          if (pedeDesc && !n("desc").value.trim()) { msgN("Descreva o que foi enviado."); n("desc").focus(); return; }
-          travar(true); msgN("Lendo o link…");
-          const r = await api("interpretar", { link: n("link").value, clienteId: n("cliente").value, responsavel: n("resp")?.value || "", nota: n("nota").value, descricao: pedeDesc ? n("desc").value : "" });
+          const temDesc = !!n("desc").value.trim();
+          if (!temLink && !temNota && !temDesc) { msgN("Informe o que foi enviado ou cole um link."); n("nota").focus(); return; }
+          if (pedeDesc && !temDesc && !temNota) { msgN("Descreva o que foi enviado."); n("desc").focus(); return; }
+          travar(true); msgN(temLink ? "Lendo o link e gerando mensagem…" : "Gerando mensagem com IA…");
+          const r = await api("interpretar", { link: n("link").value.trim(), clienteId: n("cliente").value, responsavel: n("resp")?.value || "", nota: n("nota").value.trim(), descricao: pedeDesc ? n("desc").value.trim() : "" });
           travar(false);
           if (r.precisaDescricao) { n("descbox").hidden = false; n("aviso").innerHTML = `<div class="pn-aviso">${esc(r.msg)}</div>`; btn.textContent = "Classificar pela descrição"; msgN(""); n("desc").focus(); return; }
           formNova(r.pendencia); lista = lista.filter(p => p.id !== r.pendencia.id).concat(r.pendencia); return;
