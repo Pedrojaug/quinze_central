@@ -3,7 +3,7 @@
   // A página só esconde o que não é liberado; quem decide de verdade é o servidor.
   let TAB_NAMES = {dash:"Dashboard", cli:"Clientes", onb:"Onboarding", prop:"Propostas", agenda:"Agenda", and:"Andamento", prod:"Dados consolidados", team:"Equipe e ajustes", users:"Usuários"};
   const TAB_MOD = {users:"administrativo"};
-  let ME = null, usrList = [], usrDelArm = null, usrPwdArm = null;
+  let usrList = [], usrDelArm = null, usrPwdArm = null;
   let FUNC_TABS = {}, PERFIS = {}, ESCOLHAS = [], AREAS_ALL = [], SENHA_MIN = 8;
   const FUNC_HINT = {
     gestao: "Gestão acessa todos os módulos, inclusive Administrativo e Financeiro, e cadastra usuários.",
@@ -13,12 +13,16 @@
     diretor_arte: "Diretor de arte acessa Aprovação de peças, CS e Políticas. Não vê o Atendimento.",
     personalizado: "Marque os módulos e as abas que a pessoa pode acessar. Administrativo e Financeiro são só da Gestão.",
   };
-  const ehGestaoMe = () => ME && (ME.funcao === "mestre" || ME.funcao === "gestao");
 
   async function loadMe(){
     if (!IS_SITE) return;
     try { const r = await fetch("/api/me", {credentials:"same-origin"}); if (!r.ok) return; ME = await r.json(); } catch { return; }
     if (ME.trocarSenha) { location.href = "/"; return; }
+    if (ehGestaoMe()) {
+      unlocked = true;
+      try { sessionStorage.setItem("carteira-edit", "1"); } catch {}
+      renderLock();
+    }
     (ME.modulos || []).forEach(m => { TAB_NAMES[m.id] = m.nome; TAB_MOD[m.id] = m.modulo; if (m.arquivo) QZ_montar(m); });
     document.querySelectorAll("nav.tabs button").forEach(b => { if (!TAB_MOD[b.dataset.tab]) TAB_MOD[b.dataset.tab] = "atendimento"; });
     const areas = ME.areas || [];
