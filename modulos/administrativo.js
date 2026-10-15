@@ -15,7 +15,7 @@
     const res = await fetch("/api/m?r=adm/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
       headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
     const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || MSG[j.code] || "Não deu para concluir. Tente de novo."), { code: j.code, status: res.status, dados: j });
+    if (!res.ok) throw Object.assign(new Error(j.msg || MSG[j.code] || (res.status === 404 ? "Rota ou recurso não encontrado (404)." : res.status === 413 ? "Arquivo muito grande para o servidor (413)." : res.status === 504 ? "Tempo limite esgotado ao processar (504)." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status, dados: j });
     return j;
   }
   const MSG = { sem_acesso: "Sem permissão.", arquivo_grande: "O arquivo passa de 3 MB.", tipo_invalido: "Tipo de arquivo não aceito (use PDF, Word, imagem).",

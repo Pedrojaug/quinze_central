@@ -3,7 +3,13 @@
 // ANTHROPIC_MODEL (opcional) troca o modelo.
 // ANTHROPIC_WORKSPACE_ID (opcional): obrigatório quando a chave não é de um workspace específico (chave de usuário).
 const URL_API = "https://api.anthropic.com/v1/messages";
-const MODELO_PADRAO = "claude-sonnet-5-5";
+const MODELO_PADRAO = "claude-3-5-sonnet-latest";
+
+const modeloAtivo = () => {
+  const m = process.env.ANTHROPIC_MODEL;
+  if (!m || m === "claude-sonnet-5-5") return MODELO_PADRAO;
+  return m;
+};
 
 export const iaDisponivel = () => !!process.env.ANTHROPIC_API_KEY;
 
@@ -21,10 +27,19 @@ export async function perguntarJSON(sistema, pedido, maxTokens = 2000) {
   try {
     r = await fetch(URL_API, {
       method: "POST", signal: ctrl.signal,
-      headers: { "content-type": "application/json", "x-api-key": chave, "anthropic-version": "2023-06-01",
-        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}) },
-      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || MODELO_PADRAO, max_tokens: maxTokens, system: sistema,
-        messages: [{ role: "user", content: pedido }] }),
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": chave,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "pdfs-2024-09-25",
+        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {})
+      },
+      body: JSON.stringify({
+        model: modeloAtivo(),
+        max_tokens: maxTokens,
+        system: sistema,
+        messages: [{ role: "user", content: pedido }]
+      }),
     });
   } catch (e) {
     throw new ErroIA("ia_indisponivel_0", 502, { rede: e && e.name === "AbortError" ? "tempo_esgotado" : "falha_de_rede" });
@@ -33,11 +48,11 @@ export async function perguntarJSON(sistema, pedido, maxTokens = 2000) {
     // Só o código HTTP e o tipo de erro da Anthropic vão para o log e para a resposta (nada da requisição, que leva a chave).
     let tipo = "", texto = "";
     try { const e = (await r.json())?.error || {}; tipo = String(e.type || "").slice(0, 60); texto = String(e.message || "").slice(0, 160); } catch { /* sem corpo */ }
-    console.error("[ia] resposta HTTP", r.status, tipo);
+    console.error("[ia] resposta HTTP", r.status, tipo, texto);
     ULTIMO[r.status] = texto;
     const code = r.status === 401 || r.status === 403 ? "ia_chave_invalida" : r.status === 404 ? "ia_modelo" : r.status === 429 ? "ia_limite" : "ia_indisponivel";
     // O código devolvido leva o status HTTP (ex.: ia_chave_invalida_403), para diagnóstico sem expor nada sensível.
-    throw new ErroIA(code + "_" + r.status, 502, { http: r.status, tipo });
+    throw new ErroIA(code + "_" + r.status, 502, { http: r.status, tipo, texto });
   }
   const j = await r.json();
   const texto = (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
