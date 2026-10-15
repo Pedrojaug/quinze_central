@@ -6,13 +6,14 @@
 export const whatsappConfigurado = () => !!(process.env.WHATSAPP_API_URL && process.env.WHATSAPP_TOKEN);
 export const LIMITE_MENSAGEM = 4000;   // caracteres por mensagem (abaixo do limite do WhatsApp, para leitura confortável)
 
-// Normaliza uma lista de números: só dígitos, 10 a 15 dígitos, sem repetir. Aceita id de grupo (...@g.us).
+// Normaliza uma lista de números: só dígitos, 10 a 15 dígitos, sem repetir. Aceita id de grupo (...@g.us) e canais (...@newsletter).
 export function numeros(texto) {
   const out = [];
   for (const parte of String(texto || "").split(/[,;\n]+/)) {
     const p = parte.trim();
     if (!p) continue;
-    if (/^\d{10,30}@g\.us$/.test(p)) { if (!out.includes(p)) out.push(p); continue; }
+    if (/^[\d-]{10,40}@g\.us$/.test(p)) { if (!out.includes(p)) out.push(p); continue; }
+    if (/^[\d-]{10,40}@newsletter$/.test(p)) { if (!out.includes(p)) out.push(p); continue; }
     const d = p.replace(/\D/g, "");
     if (d.length >= 10 && d.length <= 15 && !out.includes(d)) out.push(d);
   }
