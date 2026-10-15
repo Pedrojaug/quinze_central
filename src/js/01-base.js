@@ -7,6 +7,8 @@
   const mLabel = ym => { const [y,m] = ym.split("-"); const s = MESES[+m-1]; return s.charAt(0).toUpperCase()+s.slice(1)+" de "+y; };
   const mShort = ym => { const [y,m] = ym.split("-"); return MESES[+m-1].slice(0,3)+"/"+y.slice(2); };
 
+  let ME = null;
+  const ehGestaoMe = () => ME && (ME.funcao === "mestre" || ME.funcao === "gestao");
   let db = null;
   let months = [];          // ["2026-09", ...] ordenado
   let cur = null;           // mês selecionado
@@ -29,6 +31,13 @@
   async function sha256(t){ const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
   let pendingEl = null;
   function askPassword(el){
+    if (ehGestaoMe()) {
+      unlocked = true;
+      try { sessionStorage.setItem("carteira-edit", "1"); } catch {}
+      renderLock(); renderAll(); toast("Edição liberada");
+      if (el && document.contains(el)) setTimeout(()=>el.click(), 0);
+      return;
+    }
     pendingEl = el || null;
     document.getElementById("pwdIn").value = ""; document.getElementById("pwdErr").textContent = "";
     document.getElementById("dlgPwd").showModal();

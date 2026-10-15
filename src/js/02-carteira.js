@@ -253,11 +253,25 @@
   });
   document.getElementById("pwdCancel").addEventListener("click", ()=>{ pendingEl=null; document.getElementById("dlgPwd").close(); });
   document.getElementById("lockBtn").addEventListener("click", () => {
-    if (!unlocked) return askPassword(null);
+    if (!unlocked) {
+      if (ehGestaoMe()) {
+        unlocked = true; try { sessionStorage.setItem("carteira-edit","1"); } catch {}
+        renderLock(); renderAll(); toast("Edição liberada");
+        return;
+      }
+      return askPassword(null);
+    }
     unlocked = false; try { sessionStorage.removeItem("carteira-edit"); } catch {}
     renderLock(); renderAll(); toast("Edição bloqueada");
   });
-  document.getElementById("teamUnlock").addEventListener("click", ()=>askPassword(null));
+  document.getElementById("teamUnlock").addEventListener("click", () => {
+    if (ehGestaoMe()) {
+      unlocked = true; try { sessionStorage.setItem("carteira-edit","1"); } catch {}
+      renderLock(); renderAll(); toast("Edição liberada");
+      return;
+    }
+    askPassword(null);
+  });
   renderLock();
 
   // Copiar para WhatsApp
