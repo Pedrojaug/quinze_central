@@ -315,6 +315,9 @@ async function relConfigSalvar(u, req, res) {
   if (!HORAS.includes(b.hora)) return res.status(400).json({ code: "hora", msg: "Horário inválido." });
   const destino = numeros(b.destino).join(", "), numeroTeste = numeros(b.numeroTeste).slice(0, 1).join("");
   if (txt(b.destino) && !destino) return res.status(400).json({ code: "destino", msg: "Destino inválido: use números com DDI e DDD, separados por vírgula." });
+  if (b.ativo && !destino && !numeros(process.env.WHATSAPP_DESTINO).length) {
+    return res.status(400).json({ code: "destino", msg: "Para ligar o envio automático, informe os números de destino." });
+  }
   const cfg = { ativo: !!b.ativo, hora: b.hora, dias, destino, numeroTeste, atualizadoPor: quem(u), atualizadoEm: agora() };
   await gravar(M, "relatorio_config", "geral", cfg);
   return res.json({ ok: true, config: cfg });

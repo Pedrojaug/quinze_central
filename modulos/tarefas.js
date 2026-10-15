@@ -7,6 +7,12 @@
   const br = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : "");
   const brAno = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "");
   const dataHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Fortaleza", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+  async function copiar(txt) {
+    try { await navigator.clipboard.writeText(txt); return true; } catch {}
+    const ta = document.createElement("textarea"); ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { const ok = document.execCommand("copy"); ta.remove(); return ok; } catch { ta.remove(); return false; }
+  }
   async function api(r, body) {
     const res = await fetch("/api/m?r=tar/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
       headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -173,19 +179,20 @@
       catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       const cfg = c.config;
       el.innerHTML = `<div class="tr-h"><div><h2>Relatório das 20h</h2><div class="tr-sub">Uma mensagem no WhatsApp com o que cada atendimento fez no dia e o que ficou pendente.</div></div></div>
-        ${c.whatsapp ? "" : `<div class="note warn" style="margin-bottom:12px">O WhatsApp ainda não está configurado: faltam <b>WHATSAPP_API_URL</b> e <b>WHATSAPP_TOKEN</b> na Vercel. A prévia funciona; o envio, não.</div>`}
+        ${c.whatsapp ? "" : `<div class="note warn" style="margin-bottom:12px"><b>Envio automático via API aguardando credenciais na Vercel</b> (faltam <code>WHATSAPP_API_URL</code> e <code>WHATSAPP_TOKEN</code>).<br>O envio manual está liberado: use o botão <b>Copiar relatório</b> abaixo para colar no WhatsApp a qualquer momento.</div>`}
         ${c.producao ? "" : `<div class="note" style="margin-bottom:12px">Este é um ambiente de teste: o envio automático vai só para o número de teste, nunca para o destino real.</div>`}
         <form class="tr-card" data-x="cfg"><h3 style="margin:0 0 10px;font-size:15px">Configuração</h3><div class="tr-grid">
           <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" data-c="ativo"${cfg.ativo ? " checked" : ""}> Envio automático ligado</label>
           <label>Horário (Fortaleza)<select data-c="hora">${c.horas.map(x => `<option${x === cfg.hora ? " selected" : ""}>${x}</option>`).join("")}</select></label>
           <div><div class="tr-sub" style="margin-bottom:4px">Dias</div><div class="tr-dias">${DIAS.map((d, i) => `<label><input type="checkbox" data-dia="${i}"${cfg.dias.includes(i) ? " checked" : ""}> ${d}</label>`).join("")}</div></div>
-          <label>Destino (números com DDI e DDD, separados por vírgula)<input data-c="destino" value="${esc(cfg.destino)}" placeholder="${c.destinoVercel.length ? "Vazio = o da Vercel (" + esc(c.destinoVercel.join(", ")) + ")" : "5585999999999, 5585988888888"}"></label>
-          <label>Número de teste<input data-c="numeroTeste" value="${esc(cfg.numeroTeste)}" placeholder="${c.testeVercel.length ? "Vazio = o da Vercel (" + esc(c.testeVercel.join(", ")) + ")" : "5585999999999"}"></label></div>
+          <label>Destino (números com DDI e DDD, separados por vírgula)<input data-c="destino" value="${esc(cfg.destino)}" placeholder="${c.destinoVercel.length ? "Vazio = o da Vercel (" + esc(c.destinoVercel.join(", ")) + ")" : "Ex.: 5585999999999 ou id-do-grupo@g.us"}"></label>
+          <label>Número de teste<input data-c="numeroTeste" value="${esc(cfg.numeroTeste)}" placeholder="${c.testeVercel.length ? "Vazio = o da Vercel (" + esc(c.testeVercel.join(", ")) + ")" : "Ex.: 5585999999999"}"></label></div>
           <p class="tr-sub" style="margin:10px 0 0">O envio sai na primeira passada da rotina depois do horário escolhido (a Vercel passa uma vez por hora; pode chegar até cerca de 1 hora depois). Nunca sai duas vezes no mesmo dia.</p>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:10px"><button class="btn primary" type="submit">Salvar configuração</button><span class="tr-sub" data-c="msg"></span></div></form>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:10px"><button class="btn primary" type="submit">Salvar configuração</button><span class="tr-sub" data-c="msg" style="color:var(--danger)"></span></div></form>
         <div class="tr-card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><h3 style="margin:0;font-size:15px">Prévia do relatório de hoje</h3><span class="tr-sub">${p.partes.length > 1 ? `${p.partes.length} mensagens (dividido para caber no WhatsApp)` : "1 mensagem"}</span><span style="flex:1"></span>
-          <button class="btn" type="button" data-x="teste"${c.whatsapp ? "" : " disabled"}>Enviar agora (teste)</button><span class="tr-sub" data-x="tmsg"></span></div>
-          ${p.partes.map(x => `<pre class="tr-pre">${esc(x)}</pre>`).join("")}</div>
+          <button class="btn primary" type="button" data-x="copiar-tudo">Copiar relatório</button>
+          <button class="btn" type="button" data-x="teste"${c.whatsapp ? "" : " disabled"} title="${c.whatsapp ? "Enviar teste para o número de teste" : "Requer WHATSAPP_API_URL e WHATSAPP_TOKEN na Vercel"}">Enviar agora (teste)</button><span class="tr-sub" data-x="tmsg"></span></div>
+          ${p.partes.map((x, idx) => `<div style="margin-bottom:12px"><pre class="tr-pre">${esc(x)}</pre>${p.partes.length > 1 ? `<div style="margin-top:4px;display:flex;justify-content:flex-end"><button class="btn small" type="button" data-x="copiar-parte" data-idx="${idx}">Copiar parte ${idx + 1}</button></div>` : ""}</div>`).join("")}</div>
         <div class="tr-card"><h3 style="margin:0 0 10px;font-size:15px">Histórico de envios</h3>
           ${h.historico.length ? `<table class="tr-tbl"><thead><tr><th>Dia</th><th>Tipo</th><th>Status</th><th>Mensagens</th><th>Quando</th><th>Erro</th></tr></thead><tbody>
           ${h.historico.map(x => `<tr><td>${brAno(x.data)}</td><td>${x.tipo === "teste" ? "Teste" + (x.por ? " (" + esc(x.por.nome) + ")" : "") : x.somenteTeste ? "Diário (só nº de teste)" : "Diário"}</td><td><span class="tr-st ${esc(x.status)}">${esc(x.status)}</span></td><td>${x.partes || ""}</td><td>${dataHora(x.fim || x.em || x.inicio)}</td><td class="tr-sub">${esc(x.erro || (x.resultados || []).find(r => !r.ok)?.erro || "")}</td></tr>`).join("")}</tbody></table>`
@@ -193,13 +200,39 @@
       el.querySelector('[data-x="cfg"]').addEventListener("submit", async ev => {
         ev.preventDefault();
         const q = n => el.querySelector(`[data-c="${n}"]`);
-        const b = { ativo: q("ativo").checked, hora: q("hora").value, dias: [...el.querySelectorAll("[data-dia]")].filter(x => x.checked).map(x => +x.dataset.dia), destino: q("destino").value, numeroTeste: q("numeroTeste").value };
+        const ativo = q("ativo").checked;
+        const destino = q("destino").value.trim();
+        if (ativo && !destino && !c.destinoVercel.length) {
+          q("msg").textContent = "Para ligar o envio automático, preencha os números de destino.";
+          q("destino").focus();
+          return;
+        }
+        q("msg").textContent = "";
+        const b = { ativo, hora: q("hora").value, dias: [...el.querySelectorAll("[data-dia]")].filter(x => x.checked).map(x => +x.dataset.dia), destino, numeroTeste: q("numeroTeste").value };
         try { await api("relatorio.config.salvar", b); ctx.toast("Configuração salva"); carregar(); } catch (e) { q("msg").textContent = e.message; }
       });
-      el.querySelector('[data-x="teste"]').addEventListener("click", async ev => {
-        ev.target.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando…";
-        try { const r = await api("relatorio.teste", {}); ctx.toast(`Teste enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
-        catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; ev.target.disabled = false; }
+      el.addEventListener("click", async ev => {
+        const btn = ev.target.closest("[data-x]");
+        if (!btn) return;
+        const x = btn.dataset.x;
+        if (x === "copiar-tudo") {
+          const texto = p.partes.join("\n\n---\n\n");
+          const ok = await copiar(texto);
+          ctx.toast(ok ? "Relatório copiado! Cole no WhatsApp." : "Não foi possível copiar. Selecione o texto manualmente.");
+          return;
+        }
+        if (x === "copiar-parte") {
+          const idx = Number(btn.dataset.idx);
+          const texto = p.partes[idx] || "";
+          const ok = await copiar(texto);
+          ctx.toast(ok ? `Parte ${idx + 1} copiada!` : "Não foi possível copiar.");
+          return;
+        }
+        if (x === "teste") {
+          btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando…";
+          try { const r = await api("relatorio.teste", {}); ctx.toast(`Teste enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
+          catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
+        }
       });
     }
     return carregar;
