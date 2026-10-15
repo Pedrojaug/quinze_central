@@ -100,7 +100,8 @@ function conferirLinks(lista) {
 
 // ---------- Rotas ----------
 async function inicio(u, req, res) {
-  const usuarios = (await usuariosAtivos()).map(x => ({ login: x.login, nome: x.nome || x.login, funcao: x.funcao }));
+  const todos = await usuariosAtivos();
+  const usuarios = todos.filter(podeDecidir).map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x) }));
   return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login,
     clientes: podeEnviar(u) ? await clientesCarteira() : [], usuarios, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
     retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
@@ -133,10 +134,10 @@ async function pecaEnviar(u, req, res) {
   const l = conferirLinks(b.links); if (l.erro) return res.status(400).json({ code: "links", msg: l.erro });
   if (!a.arquivos.length && !l.links.length) return res.status(400).json({ code: "vazio", msg: "Anexe pelo menos um arquivo ou um link do Drive." });
 
-  // Aprovadores selecionados (opcional; pode ser vazio/em branco)
-  const usuarios = await usuariosAtivos();
+  // Aprovadores selecionados (opcional; pode ser vazio/em branco - restrito a quem pode aprovar)
+  const todos = await usuariosAtivos();
   const loginsAprovadores = Array.isArray(b.aprovadores) ? b.aprovadores.map(s => String(s).trim()) : [];
-  const aprovadores = usuarios.filter(x => loginsAprovadores.includes(x.login)).map(quem);
+  const aprovadores = todos.filter(x => loginsAprovadores.includes(x.login) && podeDecidir(x)).map(quem);
 
   const em = agora(), id = novoId();
   const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, remetente: quem(u), aprovadores, status: "pendente", versao: 1,
@@ -176,12 +177,13 @@ async function pecaDecidir(u, req, res) {
   if (decisao !== "aprovada" && !comentario) return res.status(400).json({ code: "comentario", msg: "Escreva um comentário para reprovar ou pedir alteração." });
   const p = await ler(M, "pecas", b.id);
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada (pode ter expirado)." });
-  if (p.remetente?.login === u.login) return negado(res, "Você não pode decidir uma peça que você mesmo enviou.");
-  
   const souAprovador = (p.aprovadores || []).some(a => a.login === u.login);
   const temAprovadores = (p.aprovadores || []).length > 0;
   const autorizado = ehGestao(u) || souAprovador || (!temAprovadores && podeDecidir(u));
   if (!autorizado) return negado(res, "Você não está na lista de aprovadores desta peça.");
+  if (p.remetente?.login === u.login && !ehGestao(u) && !souAprovador) {
+    return negado(res, "Você não pode decidir uma peça que você mesmo enviou.");
+  }
   if (p.status !== "pendente") return res.status(409).json({ code: "status", msg: "Esta peça já foi decidida." });
   const em = agora();
   p.historico.push({ tipo: decisao, versao: p.versao, em, por: quem(u), comentario });
