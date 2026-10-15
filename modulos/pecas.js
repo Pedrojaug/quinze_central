@@ -102,10 +102,10 @@
       <label>Cliente <span class="pc-req">*</span><select data-f="cliente"><option value="">${base.clientes?.length ? "Escolha o cliente" : "Nenhum cliente disponível"}</option>${base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("")}</select></label>
       <div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · deixe em branco para qualquer coordenador)</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#FAFBFD;max-height:120px;overflow-y:auto">
-          ${(base.usuarios || []).filter(u => u.login !== base.login).map(u => `<label style="display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;background:#fff;font-size:12.5px;cursor:pointer">
+          ${(base.usuarios || []).map(u => `<label style="display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;background:#fff;font-size:12.5px;cursor:pointer">
             <input type="checkbox" data-f="aprovador" value="${esc(u.login)}" style="min-height:0;width:14px;height:14px">
             <span>${esc(u.nome || u.login)}</span>
-          </label>`).join("")}
+          </label>`).join("") || '<span class="pc-sub" style="padding:4px 0">Nenhum coordenador específico disponível (qualquer um poderá aprovar).</span>'}
         </div>
       </div>` : ""}
       <label class="full">Observação (opcional)<textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto para quem vai aprovar" : "O que mudou nesta versão"}"></textarea></label>
@@ -271,7 +271,8 @@
       box("lista").innerHTML = l.length ? l.map(p => {
         const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
         const podeDecidirEsta = base.ehGestao || souAprovador || (!(p.aprovadores || []).length && base.podeDecidir);
-        return cartao(p, podeDecidirEsta && p.status === "pendente" && !p.minha ? `<div class="pc-dec">
+        const possoDecidirMinha = base.ehGestao || souAprovador;
+        return cartao(p, podeDecidirEsta && p.status === "pendente" && (!p.minha || possoDecidirMinha) ? `<div class="pc-dec">
           <textarea data-c="com" placeholder="Comentário (obrigatório para reprovar ou pedir alteração)"></textarea>
           <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
           <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
