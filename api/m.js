@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   const i = r.indexOf("/");
   const mod = MODULOS[i > 0 ? r.slice(0, i) : r];
   const acao = i > 0 ? r.slice(i + 1) : "";
-  if (!mod || !/^[a-z0-9_.-]{1,40}$/.test(acao)) return res.status(404).json({ code: "rota" });
+  if (!mod || !/^[a-zA-Z0-9_.-]{1,40}$/.test(acao)) return res.status(404).json({ code: "rota" });
   // Rotas sem sessão: .ics das férias (token secreto) e rotinas diárias (CRON_SECRET).
   if (mod.h.publicas && mod.h.publicas[acao]) return mod.h.publicas[acao](req, res);
   const u = await requireSession(req, res);
