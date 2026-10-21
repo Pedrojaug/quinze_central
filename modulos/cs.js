@@ -97,7 +97,7 @@
       if (p.id) {
         html += passo(2, "Briefing e proposta de perguntas", e >= etapa("perguntas_em_aprovacao"), bloq1, `
           ${p.briefing ? `<label class="cs-sub" style="display:block">Briefing${p.origemPerguntas === "ia" ? " (gerado por IA)" : ""}<textarea id="pBrief" rows="5" style="width:100%">${esc(p.briefing)}</textarea></label>` : `<p class="cs-sub" style="margin-top:0">A IA monta um briefing curto e propõe até ${base.maxPerguntas} perguntas (a NPS de 0 a 10 é obrigatória).</p>`}
-          ${base.ia ? "" : `<div class="note warn">A IA ainda não está ligada (falta a chave ANTHROPIC_API_KEY na Vercel). Use as perguntas-modelo e edite.</div>`}
+          ${base.ia ? "" : `<div class="note warn">A IA ainda não está ligada (falta a chave OPENAI_API_KEY na Vercel). Use as perguntas-modelo e edite.</div>`}
           <div class="cs-bar"><button class="btn primary" type="button" data-a="ia"${base.ia ? "" : " disabled"}>${p.briefing ? "Gerar de novo com IA" : "Gerar briefing com IA"}</button>
           <button class="btn" type="button" data-a="modelo">Usar perguntas-modelo</button><span class="cs-sub" id="m2"></span></div>`);
         html += passo(3, "Aprovação das perguntas", e >= etapa("aprovada"), e < etapa("perguntas_em_aprovacao"), e < etapa("perguntas_em_aprovacao") ? `<p class="cs-sub">Gere o briefing primeiro.</p>` : `
@@ -211,7 +211,7 @@
       const r = dados.relatorio;
       $("#mRel").textContent = r ? "Gerar de novo" : "Gerar relatório";
       $("#mRel").disabled = !dados.ia;
-      $("#mRelBox").innerHTML = (dados.ia ? "" : `<div class="note warn">A IA ainda não está ligada (falta a chave ANTHROPIC_API_KEY na Vercel).</div>`)
+      $("#mRelBox").innerHTML = (dados.ia ? "" : `<div class="note warn">A IA ainda não está ligada (falta a chave OPENAI_API_KEY na Vercel).</div>`)
         + (r ? `<ol class="cs-pontos">${r.pontos.map(p => `<li><b>${esc(p.titulo)}</b><br><span class="cs-sub" style="font-size:14px">${esc(p.detalhe)}</span></li>`).join("")}</ol>
           <p class="cs-sub">Gerado em ${brHora(r.geradoEm)} por ${esc(r.geradoPor?.nome || "")}, a partir de ${r.respostasAnalisadas} respostas abertas.</p>`
           : `<p class="cs-sub" style="margin:0">${dados.abertas.length ? `${dados.abertas.length} respostas abertas no período. Clique em “Gerar relatório”.` : "Sem respostas abertas no período."}</p>`);

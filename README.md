@@ -59,7 +59,7 @@ O sistema é dividido em **6 Grandes Áreas** com controle granular de permissõ
 
 ### 📘 Meu POP (Procedimentos Operacionais Padrão)
 * Página acessível interna e publicamente (`/pop`) onde cada colaborador consulta o guia passo a passo da sua função e regras operacionais.
-* Suporte a enriquecimento e geração de procedimentos com Inteligência Artificial (**Anthropic Claude**).
+* Suporte a enriquecimento e geração de procedimentos com Inteligência Artificial (**OpenAI GPT-4o-mini** / **Claude**).
 
 ---
 
@@ -125,7 +125,8 @@ Crie um arquivo `.env.local` na raiz para execução local ou configure diretame
 | `DB_ENDPOINT_PREVIEW` | Não | Endpoint de branch do Neon para ambientes de Preview. |
 | `CRON_SECRET` | Recomendada | Chave de proteção para as rotas de Cron da Vercel (`/api/cron/...`). |
 | `BLOB_READ_WRITE_TOKEN` | Opcional | Token do **Vercel Blob** para upload e armazenamento de arquivos em nuvem. |
-| `ANTHROPIC_API_KEY` | Opcional | Chave de API da **Anthropic** para geração e análise de POPs com Claude. |
+| `OPENAI_API_KEY` | Opcional | Chave de API da **OpenAI** (provedor padrão) para leitura de contratos, POPs e NPS com GPT-4o-mini. |
+| `ANTHROPIC_API_KEY` | Opcional | Chave alternativa da **Anthropic** (fallback) para modelos Claude. |
 | `WHATSAPP_API_URL` | Opcional | Endpoint da API de WhatsApp para envio de tarefas e relatórios. |
 | `WHATSAPP_TOKEN` | Opcional | Token de autenticação da API de WhatsApp. |
 | `WHATSAPP_DESTINO` | Opcional | Número(s) de destino dos relatórios automáticos. |

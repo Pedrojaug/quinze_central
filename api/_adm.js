@@ -302,7 +302,7 @@ Responda EXCLUSIVAMENTE em formato JSON com esta estrutura:
 
 async function contratoLerIA(u, req, res) {
   if (!so(req, res, "POST")) return;
-  if (!iaDisponivel()) return res.status(503).json({ code: "ia_sem_chave", msg: "A IA ainda não está configurada (falta a chave ANTHROPIC_API_KEY na Vercel)." });
+  if (!iaDisponivel()) return res.status(503).json({ code: "ia_sem_chave", msg: "A IA ainda não está configurada (falta a chave OPENAI_API_KEY na Vercel)." });
   const b = corpo(req);
   if (!b.arquivo || !b.arquivo.b64) return res.status(400).json({ code: "sem_arquivo", msg: "Envie o arquivo do contrato para leitura." });
 
