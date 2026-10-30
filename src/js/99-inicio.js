@@ -4,7 +4,7 @@
   loadMe();
   (async () => {
     try { db = window.claude && typeof claude.use==="function" ? await claude.use("db") : null; } catch { db = null; }
-    if (!db) { $("#offline").hidden=false; $("#syncTxt").textContent="Sem conexão"; ["#btnNewMonth","#btnNew"].forEach(s=>$(s).disabled=true); return; }
+    if (!db) { $("#offline").hidden=false; $("#syncTxt").textContent="Sem conexão"; ["#btnNewMonth","#btnDelMonth","#btnNew"].forEach(s=>{ if ($(s)) $(s).disabled=true; }); return; }
     $("#syncDot").classList.add("on"); $("#syncTxt").textContent="Sincronizado";
     db.collection("producao").onSnapshot(s => { prodYears = s.docs.map(d=>d.id).filter(id=>/^\d{4}$/.test(id)).sort(); renderProd(); }, ()=>{});
     selectProdYear(prodYear);
@@ -17,7 +17,7 @@
     let first = true;
     db.collection("meses").onSnapshot(s => {
       const prevList = months.join();
-      months = s.docs.map(d=>d.id).filter(id=>/^\d{4}-\d{2}$/.test(id)).sort();
+      months = s.docs.map(d=>d.id).filter(id=>/^\d{4}-(0[1-9]|1[0-2])$/.test(id)).sort();
       if (first) {
         first = false;
         let saved = ""; try { saved = localStorage.getItem("carteira-mes") || ""; } catch {}

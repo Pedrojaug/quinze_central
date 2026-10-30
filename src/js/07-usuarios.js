@@ -52,6 +52,7 @@
     const sel = document.querySelector('nav.tabs button[aria-selected="true"]');
     if (want && !want.hidden) want.click();
     else if (!sel || sel.hidden) { const first = [...document.querySelectorAll("nav.tabs button")].find(b => !b.hidden); if (first) first.click(); }
+    renderAll();
     if (modAtual !== "atendimento") $("#subtitle").textContent = ME.perfil ? "Perfil: " + ME.perfil : "";
     if (allowed.has("users") && ehGestaoMe()) loadUsers();
   }

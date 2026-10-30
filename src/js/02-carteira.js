@@ -1,6 +1,6 @@
   // ---------- Escrita ----------
   const colRef = ym => db.collection("meses/"+ym+"/clientes");
-  function friendly(e){ return e?.code==="quota_exceeded" ? "Limite de registros atingido. Exclua carteiras antigas." : e?.code==="invalid_argument" ? "Você não tem permissão para editar." : "Não deu para salvar. Tente de novo."; }
+  function friendly(e){ return e?.code==="quota_exceeded" ? "Limite de registros atingido. Exclua carteiras antigas." : (e?.code==="invalid_argument" || e?.code==="sem_acesso") ? "Você não tem permissão para realizar esta ação." : "Não deu para salvar. Tente de novo."; }
   async function save(id, data){
     if (!db || !cur) { toast("Sem conexão com o banco de dados."); return false; }
     try { await colRef(cur).doc(id).set({...data, atualizadoEm:new Date().toISOString()}); return true; }
@@ -39,7 +39,7 @@
       if ((cfg[key]||[]).includes(n)) { toast("Esse nome já está na lista"); return; }
       inp.value=""; saveCfg({...cfg, [key]: [...(cfg[key]||[]), n]}, n+" adicionado"); return;
     }
-    const dm = e.target.closest("[data-delmonth]"); if (dm) return deleteMonth(dm.dataset.delmonth);
+    const dm = e.target.closest("[data-delmonth]"); if (dm) return openDelMonth(dm.dataset.delmonth);
   });
 
   $("#saveCfg").addEventListener("click", () => saveCfg({...cfg, coordenacao:$("#cfgCoord").value.trim(), tipos:$("#cfgTipos").value.split(",").map(s=>s.trim().toUpperCase()).filter(Boolean)}));
@@ -103,39 +103,98 @@
     const now = new Date(); const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
     $("#nm_month").value = last ? nextYm(last) : today;
     $("#nm_err").textContent = "";
-    $("#nm_opts").hidden = !cur;
-    $("#nm_copyLbl").textContent = cur ? `Copiar a carteira de ${mLabel(cur).toLowerCase()}` : "Copiar a carteira atual";
-    document.querySelector('input[name="nm_src"][value="'+(cur?"copy":"blank")+'"]').checked = true;
+    $("#nmSave").disabled = false; $("#nmCancel").disabled = false; $("#nmSave").textContent = "Criar carteira";
+    const hasMonths = months.length > 0;
+    $("#nm_opts").hidden = !hasMonths;
+    const copySel = $("#nm_copyFrom");
+    if (months.length > 1) {
+      copySel.innerHTML = months.slice().reverse().map(m => `<option value="${m}">${mLabel(m)}</option>`).join("");
+      copySel.value = cur && months.includes(cur) ? cur : last;
+      copySel.hidden = false;
+      $("#nm_copyLbl").textContent = "Copiar clientes de uma carteira existente";
+    } else {
+      copySel.hidden = true;
+      const only = cur || months[0];
+      $("#nm_copyLbl").textContent = only ? `Copiar a carteira de ${mLabel(only).toLowerCase()}` : "Copiar a carteira atual";
+    }
+    document.querySelector('input[name="nm_src"][value="'+(hasMonths?"copy":"blank")+'"]').checked = true;
     $("#dlgMonth").showModal();
   }
+  $("#nm_copyFrom").addEventListener("focus", () => { document.querySelector('input[name="nm_src"][value="copy"]').checked = true; });
+  $("#nm_copyFrom").addEventListener("change", () => { document.querySelector('input[name="nm_src"][value="copy"]').checked = true; });
   $("#btnNewMonth").addEventListener("click", openNewMonth);
   $("#nmCancel").addEventListener("click", ()=>$("#dlgMonth").close());
   $("#frmMonth").addEventListener("submit", async e => {
     e.preventDefault();
-    const ym = $("#nm_month").value; if (!/^\d{4}-\d{2}$/.test(ym)) return;
+    const ym = ($("#nm_month").value || "").trim();
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym)) { $("#nm_err").textContent = "Informe um mês válido no formato AAAA-MM (ex.: 2026-11)."; return; }
     if (months.includes(ym)) { $("#nm_err").textContent = `Já existe uma carteira de ${mLabel(ym).toLowerCase()}. Selecione no topo para editar.`; return; }
-    const copy = cur && document.querySelector('input[name="nm_src"]:checked').value === "copy";
-    const src = copy ? active() : [];
-    const btn = $("#nmSave"); btn.disabled = true;
+    const copy = months.length > 0 && document.querySelector('input[name="nm_src"]:checked').value === "copy";
+    const srcYm = copy ? (months.length > 1 ? $("#nm_copyFrom").value : (cur || months[0])) : "";
+    const btn = $("#nmSave"), cancel = $("#nmCancel");
+    btn.disabled = true; cancel.disabled = true; $("#nm_err").textContent = "";
     try {
-      await db.doc("meses/"+ym).set({criadoEm:new Date().toISOString(), copiadoDe: copy ? cur : ""});
+      const src = copy && srcYm ? (await colRef(srcYm).get()).docs.map(d => ({id: d.id, ...d.data()})).filter(isOn) : [];
+      await db.doc("meses/"+ym).set({criadoEm:new Date().toISOString(), copiadoDe: copy ? srcYm : ""});
       for (let i=0;i<src.length;i+=5){
         btn.textContent = `Copiando ${Math.min(i+5,src.length)} de ${src.length}…`;
         await Promise.all(src.slice(i,i+5).map(c => colRef(ym).doc(c.id).set({...strip(c), status:"ativo", motivo:"", atualizadoEm:new Date().toISOString()})));
       }
       $("#dlgMonth").close(); selectMonth(ym); toast(`Carteira de ${mLabel(ym).toLowerCase()} criada`);
     } catch(err){ $("#nm_err").textContent = friendly(err); }
-    finally { btn.disabled = false; btn.textContent = "Criar carteira"; }
+    finally { btn.disabled = false; cancel.disabled = false; btn.textContent = "Criar carteira"; }
   });
-  async function deleteMonth(ym){
-    if (!confirm(`Excluir a carteira de ${mLabel(ym).toLowerCase()} com todos os clientes dela? Isso não pode ser desfeito. Os outros meses não mudam.`)) return;
+
+  let delMonthYm = null;
+  async function openDelMonth(ym){
+    if (!db || !ym || !months.includes(ym)) return;
+    if (!ehGestaoMe()) { toast("Apenas Mestre e Gestão podem remover carteiras."); return; }
+    delMonthYm = ym;
+    const snap = await colRef(ym).get();
+    const totalCli = snap.docs.length;
+    const ativosCli = snap.docs.filter(d => isOn(d.data())).length;
+    const retCli = totalCli - ativosCli;
+    const nomeMes = mLabel(ym).toLowerCase();
+    $("#dmTitle").textContent = "Remover carteira de " + nomeMes;
+    $("#dmDesc").innerHTML = totalCli
+      ? `A carteira de <b>${esc(nomeMes)}</b> possui <b>${totalCli} cliente${totalCli === 1 ? "" : "s"}</b> (${ativosCli} ativo${ativosCli === 1 ? "" : "s"}${retCli ? ` e ${retCli} retirado${retCli === 1 ? "" : "s"}` : ""}). Essa ação não pode ser desfeita. As carteiras dos outros meses não mudam.`
+      : `A carteira de <b>${esc(nomeMes)}</b> está sem clientes cadastrados e será excluída permanentemente. As carteiras dos outros meses não mudam.`;
+    $("#dm_confirm").checked = false;
+    $("#dm_err").textContent = "";
+    $("#dmSave").disabled = true;
+    $("#dmSave").textContent = "Remover carteira";
+    $("#dmCancel").disabled = false;
+    $("#dlgDelMonth").showModal();
+  }
+  $("#btnDelMonth").addEventListener("click", () => { if (cur) openDelMonth(cur); });
+  $("#dm_confirm").addEventListener("change", e => { $("#dmSave").disabled = !e.target.checked; });
+  $("#dmCancel").addEventListener("click", () => { delMonthYm = null; $("#dlgDelMonth").close(); });
+  $("#frmDelMonth").addEventListener("submit", async e => {
+    e.preventDefault();
+    const ym = delMonthYm;
+    if (!ym || !db) return;
+    if (!ehGestaoMe()) { $("#dm_err").textContent = "Apenas Mestre e Gestão podem remover carteiras."; return; }
+    if (!$("#dm_confirm").checked) { $("#dm_err").textContent = "Confirme na caixa acima antes de remover a carteira."; return; }
+    const btn = $("#dmSave"), cancel = $("#dmCancel");
+    btn.disabled = true; cancel.disabled = true; btn.textContent = "Removendo…";
+    $("#dm_err").textContent = "";
     try {
       const snap = await colRef(ym).get();
-      for (let i=0;i<snap.docs.length;i+=5) await Promise.all(snap.docs.slice(i,i+5).map(d=>colRef(ym).doc(d.id).delete()));
       await db.doc("meses/"+ym).delete();
-      toast("Carteira excluída");
-    } catch { toast("Não deu para excluir a carteira."); }
-  }
+      for (let i=0;i<snap.docs.length;i+=10) {
+        await Promise.all(snap.docs.slice(i,i+10).map(d => colRef(ym).doc(d.id).delete()));
+      }
+      delMonthYm = null;
+      $("#dlgDelMonth").close();
+      toast(`Carteira de ${mLabel(ym).toLowerCase()} removida`);
+    } catch(err){
+      $("#dm_err").textContent = friendly(err);
+      btn.disabled = !$("#dm_confirm").checked;
+    } finally {
+      cancel.disabled = false;
+      btn.textContent = "Remover carteira";
+    }
+  });
 
   function selectMonth(ym){
     cur = ym || null;
