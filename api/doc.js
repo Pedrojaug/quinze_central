@@ -1,5 +1,6 @@
 import { sql, requireSession, checkPath, canPath, ehGestao } from "./_lib.js";
 import { soApi } from "./_modules.js";
+import { auditar } from "./_mdados.js";
 
 // Grava (PUT) ou apaga (DELETE) um documento, respeitando as permissões do usuário.
 // Caminhos "só pela API" (ex.: m/administrativo/...) são recusados aqui: use a rota do módulo.
@@ -9,6 +10,7 @@ export default async function handler(req, res) {
   if (req.method === "PUT") {
     const { path, data, merge } = req.body || {};
     if (!checkPath(path) || !data || typeof data !== "object" || Array.isArray(data)) return res.status(400).json({ code: "bad_request" });
+    if (/^meses\/[^/]+$/.test(path) && !/^meses\/\d{4}-(0[1-9]|1[0-2])$/.test(path)) return res.status(400).json({ code: "bad_request" });
     if (soApi(path) || !canPath(u, path, true)) return res.status(403).json({ code: "invalid_argument" });
     // Equipe e ajustes (config/geral) é do Mestre e da gestão (instrução 10). Os demais só acrescentam nomes às listas
     // de atendimentos e social medias (ex.: ao inserir um cliente na Carteira) e gravam os links do onboarding.
@@ -37,17 +39,27 @@ export default async function handler(req, res) {
     const r = await sql`INSERT INTO docs (path, parent, id, data) VALUES (${path}, ${parent}, ${id}, ${json}::jsonb)
                         ON CONFLICT (path) DO UPDATE SET data = EXCLUDED.data, deleted = false, updated_at = now(), seq = nextval('docs_seq')
                         RETURNING data, seq`;
+    if (/^meses\/\d{4}-(0[1-9]|1[0-2])$/.test(path)) {
+      await auditar(u, "atendimento", "carteira.criar", id, { copiadoDe: data.copiadoDe || null });
+    }
     return res.status(200).json({ data: r[0].data, seq: Number(r[0].seq) });
   }
   if (req.method === "DELETE") {
     const path = req.query.path;
     if (!checkPath(path)) return res.status(400).json({ code: "bad_request" });
     if (soApi(path) || !canPath(u, path, true)) return res.status(403).json({ code: "invalid_argument" });
-    // Excluir uma carteira mensal inteira é ajuste de equipe (Mestre e gestão).
-    if (/^meses\/\d{4}-\d{2}$/.test(path) && !ehGestao(u)) return res.status(403).json({ code: "sem_acesso" });
+    // Excluir uma carteira mensal inteira (e seus clientes vinculados) é restrito a Mestre e Gestão.
+    if (/^meses\/\d{4}-\d{2}$/.test(path)) {
+      if (!ehGestao(u)) return res.status(403).json({ code: "sem_acesso" });
+      const ym = path.slice(6);
+      const r = await sql`UPDATE docs SET deleted = true, data = '{}'::jsonb, updated_at = now(), seq = nextval('docs_seq')
+                          WHERE (path = ${path} OR path LIKE ${path + "/%"}) AND NOT deleted RETURNING path`;
+      await auditar(u, "atendimento", "carteira.excluir", ym, { documentos: r.length });
+      return res.status(200).json({ ok: true });
+    }
     // Onboarding se exclui só pela rota própria (onb/excluir: Mestre e gestão, com cópia restaurável).
     if (/^onboarding\/[^/]+$/.test(path)) return res.status(403).json({ code: "sem_acesso", error: "Use \"Excluir onboarding\" (Mestre e gestão)." });
-    await sql`UPDATE docs SET deleted = true, data = '{}'::jsonb, updated_at = now(), seq = nextval('docs_seq') WHERE path = ${path}`;
+    await sql`UPDATE docs SET deleted = true, data = '{}'::jsonb, updated_at = now(), seq = nextval('docs_seq') WHERE path = ${path} AND NOT deleted`;
     return res.status(200).json({ ok: true });
   }
   return res.status(405).json({ code: "method" });

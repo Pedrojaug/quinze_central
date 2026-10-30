@@ -25,7 +25,8 @@ header.top{background:var(--card);border-bottom:1px solid var(--line);position:s
 .brand .sep{width:1px;height:34px;background:var(--line)}
 h1{font:700 21px/1.1 var(--display);margin:0;letter-spacing:-.01em}
 .sub{color:var(--ink2);font-size:13px;margin-top:3px}
-.month{display:flex;align-items:center;gap:8px}
+.month{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.month .btn{min-height:40px}
 .month select{font:700 16px var(--display);border:1px solid var(--line);border-radius:8px;padding:6px 32px 6px 12px;min-height:40px;background:#fff;cursor:pointer;appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23586275' stroke-width='1.6' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 .navbtn{border:1px solid var(--line);background:#fff;border-radius:8px;width:40px;height:40px;cursor:pointer;font-size:18px;color:var(--ink2)}
@@ -100,6 +101,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);outline:none;bo
 .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
 .btn.primary:hover{background:var(--blue-dk)}
 .btn.danger{color:var(--danger)}
+.btn.danger:not(:disabled):hover{border-color:#F1B9B4;background:var(--danger-soft)}
+.btn.danger-solid{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.danger-solid:not(:disabled):hover{background:#A31F14;border-color:#A31F14}
 .btn.small{padding:4px 10px;min-height:30px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:default}
 .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}

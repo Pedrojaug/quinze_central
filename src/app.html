@@ -25,10 +25,11 @@
         </div>
       </div>
       <div class="month" id="monthBox">
-        <button class="navbtn" id="prevM" aria-label="Mês anterior">‹</button>
+        <button class="navbtn" id="prevM" type="button" aria-label="Mês anterior">‹</button>
         <select id="monthSel" aria-label="Mês da carteira"></select>
-        <button class="navbtn" id="nextM" aria-label="Próximo mês">›</button>
-        <button class="btn" id="btnNewMonth">Nova carteira</button>
+        <button class="navbtn" id="nextM" type="button" aria-label="Próximo mês">›</button>
+        <button class="btn primary" id="btnNewMonth" type="button">+ Nova carteira</button>
+        <button class="btn danger" id="btnDelMonth" type="button" hidden title="Remover a carteira mensal selecionada">Remover carteira</button>
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
@@ -239,7 +240,7 @@
           <div><label class="f" for="cfgTipos">Tipos de contrato (separados por vírgula)</label><input id="cfgTipos" style="width:100%"></div>
           <button class="btn primary lockable" id="saveCfg">Salvar ajustes</button>
         </div>
-        <div class="panel months-list"><h2>Carteiras mensais</h2><div id="monthsList"></div></div>
+        <div class="panel months-list"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px"><h2 style="margin:0">Carteiras mensais</h2><button class="btn small primary lockable" type="button" data-open-newmonth>+ Nova carteira</button></div><div id="monthsList"></div></div>
       </div>
     </div>
   </section>
@@ -305,16 +306,33 @@
 
 <dialog id="dlgMonth">
   <form method="dialog" id="frmMonth">
-    <div class="m-head"><h2 style="margin:0">Nova carteira mensal</h2></div>
+    <div class="m-head"><h2 style="margin:0">Nova carteira mensal</h2><div class="hint">Selecione o mês e defina se deseja copiar os clientes ativos ou iniciar vazia.</div></div>
     <div class="m-body">
-      <div class="full"><label class="f" for="nm_month">Mês</label><input id="nm_month" type="month" required></div>
+      <div class="full"><label class="f" for="nm_month">Mês</label><input id="nm_month" type="month" placeholder="AAAA-MM" required></div>
       <div class="full stack" id="nm_opts">
-        <label class="radio"><input type="radio" name="nm_src" value="copy" checked><span><b id="nm_copyLbl">Copiar a carteira atual</b><br><span class="hint">Leva os clientes ativos com a mesma divisão. Depois é só ajustar o que mudou.</span></span></label>
+        <label class="radio"><input type="radio" name="nm_src" value="copy" checked><span style="flex:1"><b id="nm_copyLbl">Copiar a carteira atual</b><br><span class="hint">Leva os clientes ativos com a mesma divisão. Depois é só ajustar o que mudou.</span><select id="nm_copyFrom" aria-label="Carteira de origem para cópia" style="margin-top:8px" hidden></select></span></label>
         <label class="radio"><input type="radio" name="nm_src" value="blank"><span><b>Começar vazia</b><br><span class="hint">Você adiciona os clientes um por um.</span></span></label>
       </div>
       <div class="full hint" id="nm_err" style="color:var(--danger)"></div>
     </div>
     <div class="m-foot"><button type="button" class="btn" id="nmCancel">Cancelar</button><button type="submit" class="btn primary" id="nmSave">Criar carteira</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgDelMonth">
+  <form method="dialog" id="frmDelMonth">
+    <div class="m-head"><h2 style="margin:0" id="dmTitle">Remover carteira mensal</h2><div class="hint">Exclusão permanente restrita aos perfis Mestre e Gestão.</div></div>
+    <div class="m-body">
+      <div class="full note warn" id="dmDesc"></div>
+      <div class="full">
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer">
+          <input type="checkbox" id="dm_confirm" style="min-height:0;width:16px;height:16px;margin-top:3px;flex:none" required>
+          <span>Estou ciente de que esta carteira e todos os clientes vinculados a este mês serão removidos permanentemente.</span>
+        </label>
+      </div>
+      <div class="full hint" id="dm_err" style="color:var(--danger)"></div>
+    </div>
+    <div class="m-foot"><button type="button" class="btn" id="dmCancel">Cancelar</button><button type="submit" class="btn danger-solid" id="dmSave" disabled>Remover carteira</button></div>
   </form>
 </dialog>
 

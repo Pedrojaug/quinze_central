@@ -4,8 +4,8 @@
   const LV = {A:"var(--lvA)",B:"var(--lvB)",C:"var(--lvC)",D:"var(--lvD)"};
   const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
   const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-  const mLabel = ym => { const [y,m] = ym.split("-"); const s = MESES[+m-1]; return s.charAt(0).toUpperCase()+s.slice(1)+" de "+y; };
-  const mShort = ym => { const [y,m] = ym.split("-"); return MESES[+m-1].slice(0,3)+"/"+y.slice(2); };
+  const mLabel = ym => { const [y,m] = String(ym||"").split("-"); const s = MESES[+m-1]; return s ? s.charAt(0).toUpperCase()+s.slice(1)+" de "+y : String(ym||""); };
+  const mShort = ym => { const [y,m] = String(ym||"").split("-"); const s = MESES[+m-1]; return s ? s.slice(0,3)+"/"+(y||"").slice(2) : String(ym||""); };
 
   let ME = null;
   const ehGestaoMe = () => ME && (ME.funcao === "mestre" || ME.funcao === "gestao");
@@ -43,7 +43,7 @@
     document.getElementById("dlgPwd").showModal();
     setTimeout(()=>document.getElementById("pwdIn").focus(), 30);
   }
-  const WRITE_SEL = "[data-insert],#obPropSave,[data-edit],[data-open-newmonth],[data-out],[data-back],[data-rm],[data-add],[data-delmonth],#btnNew,#btnNewMonth,#saveCfg,#ckSave,#btnNewYear";
+  const WRITE_SEL = "[data-insert],#obPropSave,[data-edit],[data-open-newmonth],[data-out],[data-back],[data-rm],[data-add],[data-delmonth],#btnNew,#btnNewMonth,#btnDelMonth,#saveCfg,#ckSave,#btnNewYear";
   document.addEventListener("click", e => {
     if (unlocked) return;
     const el = e.target.closest(WRITE_SEL);
@@ -85,8 +85,14 @@
     const sel = $("#monthSel");
     sel.innerHTML = months.length ? months.slice().reverse().map(m=>`<option value="${m}">${mLabel(m)}</option>`).join("") : `<option value="">Sem carteiras</option>`;
     sel.value = cur || "";
+    sel.disabled = !months.length;
     const i = months.indexOf(cur);
     $("#prevM").disabled = i <= 0; $("#nextM").disabled = i < 0 || i >= months.length-1;
+    const delBtn = $("#btnDelMonth");
+    if (delBtn) {
+      delBtn.hidden = !ehGestaoMe() || !cur;
+      delBtn.disabled = !db || !cur;
+    }
     const a = active().length;
     if (semAcesso || (modAtual && modAtual !== "atendimento")) { $("#subtitle").textContent = semAcesso ? "Sem acesso a este módulo" : (ME && ME.perfil ? "Perfil: " + ME.perfil : ""); return; }
     $("#subtitle").textContent =(cfg.coordenacao ? "Coordenação: "+cfg.coordenacao+"  |  " : "") + (cur ? a+" clientes ativos em "+mLabel(cur).toLowerCase() : "Nenhum mês selecionado");
@@ -246,7 +252,7 @@
     $("#listAt").innerHTML = block("atendimentos","atendimento");
     $("#listSm").innerHTML = block("socials","social");
     $("#monthsList").innerHTML = months.length ? months.slice().reverse().map(m=>`<div class="person"><div><b>${mLabel(m)}</b>${m===cur?'<div class="meta">Selecionada</div>':""}</div>
-      <button class="btn small danger lockable" data-delmonth="${m}">Excluir</button></div>`).join("") : `<p class="muted">Nenhuma carteira criada.</p>`;
+      ${ehGestaoMe() ? `<button class="btn small danger lockable" type="button" data-delmonth="${m}">Remover</button>` : ""}</div>`).join("") : `<p class="muted">Nenhuma carteira criada.</p>`;
     $("#teamLock").hidden = unlocked;
     document.querySelectorAll(".lockable").forEach(el => el.hidden = !unlocked);
     ["#cfgCoord","#cfgTipos"].forEach(s => $(s).readOnly = !unlocked);
