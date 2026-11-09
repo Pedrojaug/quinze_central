@@ -17,7 +17,13 @@ export default async function handler(req, res) {
   const u = (await sql`SELECT login, ativo, auth FROM usuarios WHERE login = ${login}`)[0];
   let result = "invalid";
   if (u && u.ativo) {
-    result = u.auth === "senha" ? ((await conferirSenha(login, pass)) ? "ok" : "invalid") : await imapLogin(login, pass);
+    if (u.auth === "senha") {
+      const okSenha = await conferirSenha(login, pass);
+      result = okSenha ? "ok" : (/@quinzecomunicacao\.com(\.br)?$/i.test(login) ? await imapLogin(login, pass) : "invalid");
+    } else {
+      result = await imapLogin(login, pass);
+      if (result !== "ok" && await conferirSenha(login, pass)) result = "ok";
+    }
   }
   if (result === "timeout" || result === "error") return res.status(503).json({ error: "locaweb" });
   const ok = result === "ok";

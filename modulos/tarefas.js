@@ -191,7 +191,8 @@
           <div style="display:flex;gap:8px;align-items:center;margin-top:10px"><button class="btn primary" type="submit">Salvar configuração</button><span class="tr-sub" data-c="msg" style="color:var(--danger)"></span></div></form>
         <div class="tr-card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><h3 style="margin:0;font-size:15px">Prévia do relatório de hoje</h3><span class="tr-sub">${p.partes.length > 1 ? `${p.partes.length} mensagens (dividido para caber no WhatsApp)` : "1 mensagem"}</span><span style="flex:1"></span>
           <button class="btn primary" type="button" data-x="copiar-tudo">Copiar relatório</button>
-          <button class="btn" type="button" data-x="teste"${c.whatsapp ? "" : " disabled"} title="${c.whatsapp ? "Enviar teste para o número de teste" : "Requer WHATSAPP_API_URL e WHATSAPP_TOKEN na Vercel"}">Enviar agora (teste)</button><span class="tr-sub" data-x="tmsg"></span></div>
+          <button class="btn" type="button" data-x="teste"${c.whatsapp ? "" : " disabled"} title="${c.whatsapp ? "Enviar teste para o número de teste" : "Requer WHATSAPP_API_URL e WHATSAPP_TOKEN na Vercel"}">Enviar agora (teste)</button>
+          <button class="btn" type="button" data-x="enviar-oficial"${c.whatsapp ? "" : " disabled"} title="${c.whatsapp ? "Enviar relatório oficial do dia para os números de Destino" : "Requer WHATSAPP_API_URL e WHATSAPP_TOKEN na Vercel"}">Enviar relatório oficial</button><span class="tr-sub" data-x="tmsg" style="color:var(--danger)"></span></div>
           ${p.partes.map((x, idx) => `<div style="margin-bottom:12px"><pre class="tr-pre">${esc(x)}</pre>${p.partes.length > 1 ? `<div style="margin-top:4px;display:flex;justify-content:flex-end"><button class="btn small" type="button" data-x="copiar-parte" data-idx="${idx}">Copiar parte ${idx + 1}</button></div>` : ""}</div>`).join("")}</div>
         <div class="tr-card"><h3 style="margin:0 0 10px;font-size:15px">Histórico de envios</h3>
           ${h.historico.length ? `<table class="tr-tbl"><thead><tr><th>Dia</th><th>Tipo</th><th>Status</th><th>Mensagens</th><th>Quando</th><th>Erro</th></tr></thead><tbody>
@@ -232,6 +233,14 @@
           btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando…";
           try { const r = await api("relatorio.teste", {}); ctx.toast(`Teste enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
           catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
+          return;
+        }
+        if (x === "enviar-oficial") {
+          if (!confirm("Enviar agora o relatório oficial de hoje para os números de Destino configurados?")) return;
+          btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando relatório oficial…";
+          try { const r = await api("relatorio.enviar", {}); ctx.toast(`Relatório oficial enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
+          catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
+          return;
         }
       });
     }

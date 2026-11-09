@@ -268,9 +268,10 @@ export async function executarRelatorio({ agoraData = new Date(), forcar = false
   const reg = { data: hoje, status: "enviando", origem, inicio: new Date().toISOString() };
   let pego = await criarSeNovo(M, "relatorio_envios", hoje, reg);
   if (!pego) {
-    // Só um envio que falhou por completo pode ser tentado de novo no mesmo dia.
+    // Permite nova tentativa se o envio anterior falhou, ficou parcial ou travou em "enviando" (ou quando forçado manualmente).
     const r = await sql`UPDATE docs SET data = ${JSON.stringify({ ...reg, tentativaNova: true })}::jsonb, updated_at = now(), seq = nextval('docs_seq')
-                        WHERE path = ${`m/${M}/relatorio_envios/${hoje}`} AND data->>'status' = 'falha' RETURNING id`;
+                        WHERE path = ${`m/${M}/relatorio_envios/${hoje}`}
+                          AND (${forcar} OR COALESCE(data->>'status', '') IN ('falha', 'parcial', 'enviando')) RETURNING id`;
     pego = r.length > 0;
   }
   if (!pego) return { enviado: false, motivo: "ja_enviado_hoje" };
@@ -290,11 +291,18 @@ export async function executarRelatorio({ agoraData = new Date(), forcar = false
   return { enviado: status !== "falha", status, erro, partes: rel.partes.length };
 }
 
-async function relatorioCron(req, res) {
+function cronAutorizado(req) {
   const segredo = process.env.CRON_SECRET || "";
   const veio = String(req.headers.authorization || "");
-  const ok = segredo && veio.length === `Bearer ${segredo}`.length && crypto.timingSafeEqual(Buffer.from(veio), Buffer.from(`Bearer ${segredo}`));
-  if (!ok) return res.status(401).json({ code: "unauthorized" });
+  if (segredo) {
+    return veio.length === `Bearer ${segredo}`.length && crypto.timingSafeEqual(Buffer.from(veio), Buffer.from(`Bearer ${segredo}`));
+  }
+  const ua = String(req.headers["user-agent"] || "");
+  return ua.startsWith("vercel-cron/") || req.headers["x-vercel-cron"] === "1";
+}
+
+async function relatorioCron(req, res) {
+  if (!cronAutorizado(req)) return res.status(401).json({ code: "unauthorized" });
   // Fora da produção (preview e teste local), dá para simular o horário com ?agora=<ISO> para testar o disparo das 20h.
   const simulado = process.env.VERCEL_ENV !== "production" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(req.query.agora || "")) ? new Date(req.query.agora) : null;
   return res.json({ ok: true, ...(await executarRelatorio(simulado && !isNaN(simulado) ? { agoraData: simulado } : {})) });
@@ -341,6 +349,18 @@ async function relTeste(u, req, res) {
   await gravar(M, "relatorio_testes", novoId(), { data: rel.hoje, em: agora(), por: quem(u), status: ok ? "enviado" : "falha", partes: rel.partes.length, resultados });
   return res.status(ok ? 200 : 502).json({ ok, partes: rel.partes.length, resultados, msg: ok ? "" : "O envio falhou: " + (resultados.find(x => !x.ok)?.erro || "") });
 }
+// "Enviar relatório oficial": dispara o relatório oficial do dia para os números de Destino e grava no histórico diário.
+async function relEnviar(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  if (!veTodas(u)) return negado(res);
+  if (!whatsappConfigurado()) return res.status(503).json({ code: "whatsapp", msg: "WhatsApp não configurado: faltam WHATSAPP_API_URL e WHATSAPP_TOKEN na Vercel." });
+  const cfg = await configRelatorio();
+  const dest = await destinos(cfg);
+  if (!dest.lista.length) return res.status(400).json({ code: "sem_destino", msg: dest.teste ? "Informe o número de teste na configuração (ambiente de preview)." : "Informe os números de destino na configuração (ou WHATSAPP_DESTINO na Vercel)." });
+  const r = await executarRelatorio({ forcar: true, origem: "manual (" + (quem(u).nome || u.login) + ")" });
+  if (!r.enviado) return res.status(502).json({ ok: false, ...r, msg: "O envio falhou: " + (r.erro || r.motivo || "erro desconhecido") });
+  return res.json({ ok: true, ...r });
+}
 async function relHistorico(u, req, res) {
   if (!veTodas(u)) return negado(res);
   const envios = (await listar(M, "relatorio_envios")).map(e => ({ ...e, tipo: "diario" }));
@@ -352,6 +372,6 @@ async function relHistorico(u, req, res) {
 export const rotas = {
   inicio, tarefas, "tarefa.salvar": salvar, "tarefa.concluir": concluir, "tarefa.reabrir": reabrir, "tarefa.excluir": excluir,
   "relatorio.config": relConfig, "relatorio.config.salvar": relConfigSalvar, "relatorio.previa": relPrevia,
-  "relatorio.teste": relTeste, "relatorio.historico": relHistorico,
+  "relatorio.teste": relTeste, "relatorio.enviar": relEnviar, "relatorio.historico": relHistorico,
 };
 export const publicas = { "relatorio.cron": relatorioCron };

@@ -59,7 +59,7 @@
   async function usrApi(method, body, q){
     const r = await fetch("/api/users" + (q || ""), {method, credentials:"same-origin", headers:{"content-type":"application/json"}, body: body ? JSON.stringify(body) : undefined});
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error && j.error.length > 12 ? j.error : "Não deu para salvar. Tente de novo.");
+    if (!r.ok) throw new Error(j.error || "Não deu para salvar. Tente de novo.");
     return j;
   }
   async function loadUsers(){
@@ -93,10 +93,10 @@
     const souMestre = ME && ME.funcao === "mestre";
     $("#usrRows").innerHTML = usrList.map(u => {
       const m = u.funcao === "mestre", proprio = u.auth === "senha", travado = m && !souMestre;
-      const tipo = proprio ? `<div class="hint">${u.senhaTemporaria ? "Senha temporária (troca no próximo acesso)" : "Usuário com senha própria"}</div>` : "";
-      const pwd = proprio && !travado ? (usrPwdArm === u.login
+      const tipo = `<div class="hint">${proprio ? (u.senhaTemporaria ? "Senha temporária (troca no próximo acesso)" : "Usuário com senha própria") : "E-mail Locaweb"}</div>`;
+      const pwd = !travado ? (usrPwdArm === u.login
         ? `<input data-unewpwd type="password" autocomplete="new-password" placeholder="Nova senha temporária" style="width:170px;min-height:30px;padding:4px 8px"><button class="btn small primary" type="button" data-upwdsave>Gravar senha</button>`
-        : `<button class="btn small" type="button" data-upwd>Redefinir senha</button>`) : "";
+        : `<button class="btn small" type="button" data-upwd>${proprio ? "Redefinir senha" : "Definir senha"}</button>`) : "";
       return `<tr data-usr="${esc(u.login)}" class="${u.ativo ? "" : "out"}">
         <td><input data-unome value="${esc(u.nome)}" aria-label="Nome" style="width:100%;min-width:150px"${travado ? " disabled" : ""}></td>
         <td>${esc(u.login)}${m ? ' <span class="tag fee">Mestre</span>' : ""}${tipo}</td>
@@ -118,23 +118,39 @@
     $("#usr_email").focus(); toast("Complete o e-mail ou usuário e crie o acesso");
   });
   if (IS_SITE) {
-    const senhaBox = () => { const v = $("#usr_email").value.trim(); $("#usr_senhaBox").hidden = !v || v.includes("@"); };
-    $("#usr_email").addEventListener("input", senhaBox);
+    const normLogin = raw => {
+      const s = String(raw || "").trim().toLowerCase();
+      if (!s || s.includes("@")) return s;
+      return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ".").replace(/[^a-z0-9._-]/g, "").replace(/^[^a-z0-9]+/, "").slice(0, 40);
+    };
+    const ehEmailQuinze = v => /@quinzecomunicacao\.com(\.br)?$/i.test(v);
+    const senhaBox = () => {
+      const v = $("#usr_email").value.trim().toLowerCase();
+      const qz = ehEmailQuinze(v);
+      const lbl = $("#usr_senhaLbl"), hint = $("#usr_senhaHint"), inp = $("#usr_senha");
+      if (lbl) lbl.textContent = qz ? "Senha temporária (opcional para e-mail Quinze)" : "Senha temporária";
+      if (inp) inp.placeholder = qz ? "Em branco = usa senha da Locaweb" : `Pelo menos ${SENHA_MIN} caracteres`;
+      if (hint) hint.textContent = qz
+        ? "Deixe em branco para validar na Locaweb, ou defina uma senha própria para entrar direto na Central."
+        : "Passe à pessoa; ela cria a própria senha no primeiro acesso.";
+    };
+    senhaBox();
+    $("#usr_email").addEventListener("input", () => { $("#usrMsg").textContent = ""; senhaBox(); });
     $("#usrAdd").addEventListener("click", async () => {
-      const login = $("#usr_email").value.trim().toLowerCase(), nome = $("#usr_nome").value.trim();
-      const funcao = $("#usr_funcao").value, comEmail = login.includes("@"), senha = $("#usr_senha").value;
+      const login = normLogin($("#usr_email").value), nome = $("#usr_nome").value.trim();
+      if (!login.includes("@") && login !== $("#usr_email").value.trim().toLowerCase()) $("#usr_email").value = login;
+      const funcao = $("#usr_funcao").value, comEmail = login.includes("@"), qzEmail = ehEmailQuinze(login), senha = $("#usr_senha").value.trim();
       const abas = [...document.querySelectorAll("#usr_abas [data-newtab]:checked")].map(x => x.dataset.newtab);
-      if (!login) { $("#usrMsg").textContent = "Informe o e-mail da Locaweb ou um nome de usuário."; return; }
+      if (!login) { $("#usrMsg").textContent = "Informe o e-mail ou um nome de usuário."; return; }
       if (comEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login)) { $("#usrMsg").textContent = "Esse e-mail não parece válido."; return; }
-      if (!comEmail && !/^[a-z0-9][a-z0-9._-]{2,39}$/.test(login)) { $("#usrMsg").textContent = "Usuário: de 3 a 40 letras minúsculas, números, ponto, hífen ou sublinhado (sem espaços e sem acentos)."; return; }
-      if (!comEmail && senha.length < SENHA_MIN) { $("#usrMsg").textContent = `Defina uma senha temporária com pelo menos ${SENHA_MIN} caracteres.`; return; }
+      if (!comEmail && !/^[a-z0-9][a-z0-9._-]{2,39}$/.test(login)) { $("#usrMsg").textContent = "Usuário: use pelo menos 3 letras ou números (ex.: joao.silva)."; return; }
+      if ((!qzEmail || senha.length > 0) && senha.length < SENHA_MIN) { $("#usrMsg").textContent = `Defina uma senha temporária com pelo menos ${SENHA_MIN} caracteres.`; return; }
       if (funcao === "personalizado" && !abas.length) { $("#usrMsg").textContent = "Marque pelo menos um módulo ou aba."; return; }
-      if (usrList.some(u => u.login === login)) { $("#usrMsg").textContent = "Esse login já está cadastrado. Ajuste na tabela abaixo."; return; }
       $("#usrAdd").disabled = true;
       try {
-        const j = await usrApi("POST", {login, nome, funcao, abas, ativo:true, podeEnviarPecas: $("#usr_pecas").checked, senha: comEmail ? undefined : senha});
+        const j = await usrApi("POST", {login, nome, funcao, abas, ativo:true, podeEnviarPecas: $("#usr_pecas").checked, senha: senha || undefined});
         ["#usr_email","#usr_nome","#usr_senha"].forEach(s => $(s).value = ""); $("#usr_pecas").checked = false; senhaBox(); $("#usrMsg").textContent = "";
-        toast(`${nome || login} adicionado como ${(PERFIS[funcao] || funcao).toLowerCase()}${j.compartilhadoDesativado ? ". O login compartilhado foi desativado" : ""}`);
+        toast(`${nome || login} ${j.criado === false ? "atualizado" : "adicionado"} como ${(PERFIS[funcao] || funcao).toLowerCase()}${j.compartilhadoDesativado ? ". O login compartilhado foi desativado" : ""}`);
         loadUsers();
       } catch(e) { $("#usrMsg").textContent = e.message; }
       finally { $("#usrAdd").disabled = false; }

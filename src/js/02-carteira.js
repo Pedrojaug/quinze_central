@@ -30,9 +30,14 @@
     }
     const rm = e.target.closest("[data-rm]"); if (rm) {
       const key = rm.dataset.rm, n = rm.dataset.name, field = key==="socials"?"social":"atendimento";
-      const busy = active().filter(c=>c[field]===n).length;
-      if (busy && !confirm(`${n} ainda tem ${busy} cliente(s) ativo(s) neste mês. Remover da lista mesmo assim? Os clientes continuam com esse nome até você trocar.`)) return;
-      saveCfg({...cfg, [key]: (cfg[key]||[]).filter(x=>x!==n)}, n+" removido da lista"); return;
+      const alvo = String(n || "").trim().toUpperCase();
+      const vinculados = clients.filter(c => String(c[field] || "").trim().toUpperCase() === alvo);
+      const busy = vinculados.filter(isOn).length;
+      if (vinculados.length && !confirm(`${n} ainda tem ${busy || vinculados.length} cliente(s) vinculado(s) neste mês. Confirmar a remoção da lista e desvincular esses clientes?`)) return;
+      for (const c of vinculados) {
+        try { await colRef(cur).doc(c.id).set({...strip(c), [field]: "", atualizadoEm: new Date().toISOString()}); c[field] = ""; } catch {}
+      }
+      saveCfg({...cfg, [key]: (cfg[key]||[]).filter(x => String(x || "").trim().toUpperCase() !== alvo)}, n+" removido da lista"); return;
     }
     const add = e.target.closest("[data-add]"); if (add) {
       const key = add.dataset.add, inp = key==="socials"?$("#newSm"):$("#newAt"); const n = inp.value.trim().toUpperCase(); if (!n) return;
@@ -60,8 +65,8 @@
     $("#dlgCliMonth").textContent = "Carteira de " + mLabel(cur).toLowerCase();
     $("#btnSave").textContent = c ? "Salvar alterações" : "Adicionar cliente";
     $("#btnDel").hidden = !c;
-    fillSelect($("#i_at"), people("atendimentos","atendimento"), "Sem atendimento", c?.atendimento||"");
-    fillSelect($("#i_sm"), people("socials","social"), "Sem social media", c?.social||"");
+    fillSelect($("#i_at"), [...new Set([...people("atendimentos","atendimento"), c?.atendimento].filter(Boolean))], "Sem atendimento", c?.atendimento||"");
+    fillSelect($("#i_sm"), [...new Set([...people("socials","social"), c?.social].filter(Boolean))], "Sem social media", c?.social||"");
     const tipos = [...new Set([...(cfg.tipos||[]), c?.tipo].filter(Boolean))];
     fillSelect($("#i_tipo"), tipos, null, c?.tipo || tipos[0] || "");
     $("#i_nome").value=c?.nome||""; $("#i_nivel").value=c?.nivel||"C";

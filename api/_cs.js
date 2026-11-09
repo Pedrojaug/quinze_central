@@ -301,7 +301,10 @@ async function formsSync(u, req, res) {
 async function formsCron(req, res) {
   const segredo = process.env.CRON_SECRET || "";
   const veio = String(req.headers.authorization || "");
-  const ok = segredo && veio.length === `Bearer ${segredo}`.length && crypto.timingSafeEqual(Buffer.from(veio), Buffer.from(`Bearer ${segredo}`));
+  const ua = String(req.headers["user-agent"] || "");
+  const ok = segredo
+    ? (veio.length === `Bearer ${segredo}`.length && crypto.timingSafeEqual(Buffer.from(veio), Buffer.from(`Bearer ${segredo}`)))
+    : (ua.startsWith("vercel-cron/") || req.headers["x-vercel-cron"] === "1");
   if (!ok) return res.status(401).json({ code: "unauthorized" });
   if (!googleConfigurado()) return res.json({ ok: true, ignorado: "google_nao_configurado" });
   return res.json({ ok: true, ...(await sincronizarForms("")) });

@@ -10,9 +10,13 @@ async function addToTeam(nome, funcao) {
   const key = funcao === "atendimento" ? "atendimentos" : funcao === "social" ? "socials" : null;
   const first = String(nome || "").trim().split(/\s+/)[0].toUpperCase();
   if (!key || !first || first.includes("@")) return;
-  await sql`UPDATE docs SET data = jsonb_set(data, ${"{" + key + "}"}::text[], coalesce(data->${key}, '[]'::jsonb) || to_jsonb(${first}::text), true),
-            updated_at = now(), seq = nextval('docs_seq')
-            WHERE path = 'config/geral' AND NOT deleted AND NOT (coalesce(data->${key}, '[]'::jsonb) ? ${first})`;
+  try {
+    await sql`UPDATE docs SET data = jsonb_set(data, ${"{" + key + "}"}::text[],
+                (CASE WHEN jsonb_typeof(data->${key}) = 'array' THEN data->${key} ELSE '[]'::jsonb END) || to_jsonb(${first}::text), true),
+              updated_at = now(), seq = nextval('docs_seq')
+              WHERE path = 'config/geral' AND NOT deleted
+                AND NOT ((CASE WHEN jsonb_typeof(data->${key}) = 'array' THEN data->${key} ELSE '[]'::jsonb END) ? ${first})`;
+  } catch (e) { console.error("[users] addToTeam:", e?.message || e); }
 }
 
 // Cadastro de usuários: só Mestre e Gestão (conferido aqui no servidor).
@@ -47,11 +51,11 @@ export default async function handler(req, res) {
     const alvoMestre = cur && (cur.papel === "master" || cur.funcao === "mestre");
     if (alvoMestre && !souMestre) return res.status(403).json({ error: "Só o Mestre altera o próprio cadastro." });
 
-    // Redefinir senha (usuários sem e-mail). A nova senha é temporária: a pessoa troca no próximo acesso.
+    // Redefinir/definir senha (qualquer usuário). A nova senha é temporária: a pessoa troca no próximo acesso.
     if (b.acao === "senha") {
       if (!cur) return res.status(404).json({ error: "Usuário não encontrado." });
-      if (cur.auth !== "senha") return res.status(400).json({ error: "Este usuário entra com o e-mail da Locaweb; a senha é trocada na Locaweb." });
       if (!senhaValida(b.senha)) return res.status(400).json({ error: `A senha precisa ter pelo menos ${SENHA_MIN} caracteres.` });
+      if (cur.auth !== "senha") await sql`UPDATE usuarios SET auth = 'senha', atualizado_em = now() WHERE login = ${login}`;
       await gravarSenha(login, b.senha, !alvoMestre);
       return res.status(200).json({ ok: true });
     }
@@ -63,27 +67,33 @@ export default async function handler(req, res) {
     if (funcao === "mestre" && !alvoMestre) return res.status(400).json({ error: "Só existe um Mestre." });
     const abas = funcao === "personalizado" && Array.isArray(b.abas) ? [...new Set(b.abas.filter(t => ESCOLHAS.includes(t)))] : [];
     if (funcao === "personalizado" && !abas.length) return res.status(400).json({ error: "Marque pelo menos um módulo ou aba." });
+    const temSenha = typeof b.senha === "string" && b.senha.trim().length > 0;
+    const senhaLimpa = temSenha ? b.senha.trim() : "";
 
     if (cur) {
+      if (temSenha && !senhaValida(senhaLimpa)) return res.status(400).json({ error: `A senha precisa ter pelo menos ${SENHA_MIN} caracteres.` });
       if (alvoMestre) {
-        await sql`UPDATE usuarios SET nome = ${nome || login}, pode_enviar_pecas = ${pecas}, atualizado_em = now() WHERE login = ${login}`;
+        await sql`UPDATE usuarios SET nome = ${nome || login}, pode_enviar_pecas = ${pecas}, auth = ${temSenha ? "senha" : cur.auth}, atualizado_em = now() WHERE login = ${login}`;
       } else {
         await sql`UPDATE usuarios SET nome = ${nome || login}, funcao = ${funcao}, abas = ${JSON.stringify(abas)}::jsonb, ativo = ${ativo},
-                  pode_enviar_pecas = ${pecas}, atualizado_em = now() WHERE login = ${login}`;
+                  auth = ${temSenha ? "senha" : cur.auth}, pode_enviar_pecas = ${pecas}, atualizado_em = now() WHERE login = ${login}`;
         if (funcao !== cur.funcao) await addToTeam(nome, funcao);
       }
+      if (temSenha) await gravarSenha(login, senhaLimpa, !alvoMestre);
       forgetUser(login);
       return res.status(200).json({ ok: true, criado: false });
     }
 
-    // Novo usuário: com e-mail (Locaweb) ou com nome de usuário e senha temporária.
+    // Novo usuário: com e-mail da Quinze (Locaweb ou senha própria) ou com usuário/outro e-mail e senha temporária.
     const comEmail = login.includes("@");
+    const qzEmail = /@quinzecomunicacao\.com(\.br)?$/i.test(login);
+    const usaSenha = !qzEmail || temSenha;
     if (comEmail && !EMAIL.test(login)) return res.status(400).json({ error: "Informe um e-mail válido." });
     if (!comEmail && !USUARIO.test(login)) return res.status(400).json({ error: "O usuário deve ter de 3 a 40 letras minúsculas, números, ponto, hífen ou sublinhado." });
-    if (!comEmail && !senhaValida(b.senha)) return res.status(400).json({ error: `Defina uma senha temporária com pelo menos ${SENHA_MIN} caracteres.` });
+    if (usaSenha && !senhaValida(senhaLimpa)) return res.status(400).json({ error: `Defina uma senha temporária com pelo menos ${SENHA_MIN} caracteres.` });
     await sql`INSERT INTO usuarios (login, nome, papel, funcao, abas, ativo, auth, pode_enviar_pecas, criado_por)
-              VALUES (${login}, ${nome || login}, 'usuario', ${funcao}, ${JSON.stringify(abas)}::jsonb, ${ativo}, ${comEmail ? "locaweb" : "senha"}, ${pecas}, ${me.login})`;
-    if (!comEmail) await gravarSenha(login, b.senha, true);
+              VALUES (${login}, ${nome || login}, 'usuario', ${funcao}, ${JSON.stringify(abas)}::jsonb, ${ativo}, ${usaSenha ? "senha" : "locaweb"}, ${pecas}, ${me.login})`;
+    if (usaSenha) await gravarSenha(login, senhaLimpa, true);
     await addToTeam(nome, funcao);
     // Primeiro usuário individual criado: o login compartilhado antigo deixa de funcionar.
     const off = await sql`UPDATE usuarios SET ativo = false, atualizado_em = now() WHERE login = ${LEGADO} AND ativo RETURNING login`;
