@@ -98,9 +98,9 @@
     $("#subtitle").textContent =(cfg.coordenacao ? "Coordenação: "+cfg.coordenacao+"  |  " : "") + (cur ? a+" clientes ativos em "+mLabel(cur).toLowerCase() : "Nenhum mês selecionado");
   }
 
-  function people(key, field){
-    const set = new Set(cfg[key] || []);
-    clients.forEach(c => { if (c[field]) set.add(c[field]); });
+  function people(key, field, includeClients){
+    const set = new Set((cfg[key] || []).filter(Boolean));
+    if (includeClients && field) clients.forEach(c => { if (c[field]) set.add(c[field]); });
     return [...set];
   }
   function fillSelect(sel, list, first, current){
@@ -109,8 +109,8 @@
     sel.value = list.includes(v) || v==="" ? v : "";
   }
   function renderSelects(){
-    fillSelect($("#fAt"), people("atendimentos","atendimento"), "Todo atendimento");
-    fillSelect($("#fSm"), people("socials","social"), "Toda social media");
+    fillSelect($("#fAt"), people("atendimentos","atendimento",true), "Todo atendimento");
+    fillSelect($("#fSm"), people("socials","social",true), "Toda social media");
     fillSelect($("#fTipo"), [...new Set([...(cfg.tipos||[]), ...clients.map(c=>c.tipo).filter(Boolean)])], "Todos os tipos");
     $("#cidades").innerHTML = [...new Set([...clients,...prevClients].map(c=>c.cidade).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt")).map(l=>`<option value="${esc(l)}">`).join("");
   }

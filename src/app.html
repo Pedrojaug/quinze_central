@@ -175,19 +175,19 @@
 
   <section id="tab-users" hidden>
     <div class="toolbar">
-      <div style="flex:1;min-width:200px"><h2 style="margin:0">Usuários</h2><div class="muted" style="font-size:13px">Quem tem e-mail da Quinze entra com o e-mail e a senha da Locaweb (nada é guardado aqui). Quem não tem e-mail entra com usuário e senha própria: você define uma senha temporária e a pessoa troca no primeiro acesso.</div></div>
+      <div style="flex:1;min-width:200px"><h2 style="margin:0">Usuários</h2><div class="muted" style="font-size:13px">Quem tem e-mail da Quinze pode entrar com a senha da Locaweb ou com senha própria definida aqui. Quem usa usuário ou outro e-mail entra com senha própria: você define uma senha temporária e a pessoa troca no primeiro acesso.</div></div>
     </div>
     <div class="panel" style="margin-bottom:18px">
       <h2 style="font-size:16px">Adicionar usuário</h2>
       <div class="fgrid">
         <div><label class="f" for="usr_nome">Nome</label><input id="usr_nome" placeholder="Ex.: Laís Marinho"></div>
-        <div><label class="f" for="usr_email">E-mail da Locaweb ou usuário</label><input id="usr_email" placeholder="nome@quinzecomunicacao.com.br ou joao.silva" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
-        <div id="usr_senhaBox" hidden><label class="f" for="usr_senha">Senha temporária</label><input id="usr_senha" type="password" autocomplete="new-password" placeholder="Pelo menos 8 caracteres"><div class="hint">Passe à pessoa; ela cria a própria senha no primeiro acesso.</div></div>
+        <div><label class="f" for="usr_email">E-mail ou usuário</label><input id="usr_email" placeholder="nome@quinzecomunicacao.com.br ou joao.silva" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+        <div id="usr_senhaBox"><label class="f" for="usr_senha" id="usr_senhaLbl">Senha temporária</label><input id="usr_senha" type="password" autocomplete="new-password" placeholder="Pelo menos 8 caracteres"><div class="hint" id="usr_senhaHint">Passe à pessoa; ela cria a própria senha no primeiro acesso.</div></div>
         <div><label class="f" for="usr_funcao">Perfil</label><select id="usr_funcao"></select></div>
         <div class="full"><label style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer"><input type="checkbox" id="usr_pecas" style="min-height:0;width:16px;height:16px"> Pode enviar peças (módulo Aprovação de peças)</label></div>
         <div class="full"><label class="f">Módulos e abas que pode acessar</label><div class="chk" id="usr_abas"></div><div class="hint" id="usr_funcHint"></div></div>
       </div>
-      <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="usrAdd">Adicionar usuário</button><span class="hint" id="usrMsg" style="margin:0"></span></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="usrAdd">Adicionar usuário</button><span class="hint" id="usrMsg" style="margin:0;color:var(--danger);font-weight:600"></span></div>
     </div>
     <div class="table-wrap"><table class="list" style="min-width:1200px">
       <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Acesso</th><th>Envia peças</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead>
