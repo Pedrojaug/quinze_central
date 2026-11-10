@@ -48,7 +48,7 @@ const TODOS = ["mestre", "gestao", "atendimento", "coordenador", "social", "dire
 const GESTAO = ["mestre", "gestao"];
 
 export const AREAS = [
-  { id: "atendimento", nome: "01 Atendimento", ordem: 10, funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
+  { id: "atendimento", nome: "01 Atendimento", ordem: 10, entrada: "tarefas", funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
     descricao: "Carteira de clientes, onboarding, propostas e agenda" },
   { id: "pecas", nome: "02 Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: true,
     descricao: "Envio de peças, fila de aprovação, números do mês e dados consolidados" },
@@ -74,8 +74,8 @@ export const MODULOS = [
     colecoes: ["propostas/"] },
   { id: "agenda", modulo: "atendimento", nome: "Agenda", ordem: 50,
     colecoes: ["agenda/", "config/agenda"] },
-  { id: "and", modulo: "atendimento", nome: "Andamento de produção", ordem: 60,
-    colecoes: ["config/geral"] },
+
+
 
   // Instruções 07 e 08: dados em m/atendimento/..., só pela /api/m (o módulo também abre para o social media,
   // que não vê tarefas nem pendências; a rota confere o perfil).

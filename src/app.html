@@ -39,7 +39,7 @@
         <button role="tab" data-tab="onb" aria-selected="false">Onboarding</button>
         <button role="tab" data-tab="prop" aria-selected="false">Propostas</button>
         <button role="tab" data-tab="agenda" aria-selected="false">Agenda</button>
-        <button role="tab" data-tab="and" aria-selected="false">Andamento de produção</button>
+
         <button role="tab" data-tab="prod" aria-selected="false">Dados consolidados</button>
         <button role="tab" data-tab="team" aria-selected="false">Equipe e ajustes</button>
         <button role="tab" data-tab="users" aria-selected="false" hidden>Usuários</button>
@@ -193,21 +193,6 @@
       <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Acesso</th><th>Envia peças</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead>
       <tbody id="usrRows"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody>
     </table></div>
-  </section>
-
-  <section id="tab-and" hidden>
-    <div class="panel linkcard">
-      <div>
-        <h2 style="margin:0 0 4px">Andamento de produção</h2>
-        <p class="muted" style="margin:0 0 6px">Quadro de produção no ClickUp, com as tarefas em andamento. Não muda conforme a carteira selecionada.</p>
-        <div class="u" id="ckUrlTxt"></div>
-      </div>
-      <a class="btn primary" id="ckOpen" href="#" target="_blank" rel="noopener">Abrir quadro no ClickUp</a>
-    </div>
-    <div class="panel">
-      <p class="muted" style="margin:0 0 10px">O ClickUp não permite que o quadro seja exibido dentro de outra página, por isso ele abre em uma nova aba. Se você gerar um link público do quadro no ClickUp, pode trocá-lo aqui.</p>
-      <div class="addrow lockable" style="margin:0"><input id="ckUrl" placeholder="https://app.clickup.com/..." style="flex:1"><button class="btn" id="ckSave">Salvar link</button></div>
-    </div>
   </section>
 
   <section id="tab-prod" hidden>

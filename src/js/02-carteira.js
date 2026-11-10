@@ -218,19 +218,6 @@
   $("#nextM").addEventListener("click", () => { const i=months.indexOf(cur); if (i>=0 && i<months.length-1) selectMonth(months[i+1]); });
   function onLost(){ $("#syncDot").classList.remove("on"); $("#syncTxt").textContent="Conexão perdida, recarregue a página"; }
 
-  // ---------- Andamento de produção ----------
-  function renderClickUp(){
-    const url = (cfg.clickup || CK_DEFAULT);
-    $("#ckUrlTxt").textContent = url;
-    $("#ckOpen").href = url;
-    if (document.activeElement !== $("#ckUrl")) $("#ckUrl").value = url;
-  }
-  $("#ckSave").addEventListener("click", () => {
-    const u = $("#ckUrl").value.trim();
-    if (u && !/^https?:\/\//i.test(u)) { toast("O link precisa começar com https://"); return; }
-    saveCfg({...cfg, clickup: u || CK_DEFAULT}, "Link salvo");
-  });
-
   // ---------- Dados consolidados de produção ----------
   const pctFmt = v => v==null ? "" : v.toLocaleString("pt-BR",{maximumFractionDigits:2}) + "%";
   const parsePct = s => { const v = parseFloat(String(s).replace("%","").replace(",",".").trim()); return Number.isFinite(v) && v>=0 ? Math.min(v,100) : null; };
