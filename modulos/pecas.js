@@ -350,38 +350,191 @@
   // ======================================================================
   function dash(ctx) {
     const el = ctx.el;
-    el.innerHTML = `<div class="pc-h"><div><h2>Dashboard mensal</h2><div class="pc-sub">Contagens do mês, gravadas a cada envio e decisão. Não zeram quando os arquivos expiram.</div></div><span class="sp"></span>
-      <label class="pc-sub">Mês <select data-x="mes"></select></label></div>
+    el.innerHTML = `<div class="pc-h"><div><h2>Dashboard mensal</h2><div class="pc-sub">Contagens do mês, gravadas a cada envio e decisão. Não zeram quando os arquivos expiram.</div></div><span class="sp"></span></div>
+      <div class="pc-card" style="padding:12px 14px;margin-bottom:14px">
+        <div class="pc-filtros" style="margin-bottom:0">
+          <label>Mês<select data-x="mes"></select></label>
+          <label style="flex:1;min-width:210px">Cliente<select data-x="f-cli"><option value="">Todos os clientes</option></select></label>
+          <label>Tipo de cliente<select data-x="f-tipo"><option value="">Todos os tipos</option></select></label>
+          <label>Nível<select data-x="f-nivel"><option value="">Todos</option><option value="A">Nível A</option><option value="B">Nível B</option><option value="C">Nível C</option></select></label>
+          <label>Atendimento<select data-x="f-at"><option value="">Todos</option></select></label>
+          <button class="btn small" type="button" data-x="limpar-filtros" hidden>Limpar filtros</button>
+        </div>
+        <div data-box="aviso-filtro"></div>
+      </div>
       <div class="pc-kpis" data-box="kpis"></div>
+      <div class="pc-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div><h3 style="margin:0;font-size:15px">Envios e desempenho por cliente</h3><div class="pc-sub">Quantidade de peças enviadas, decisões e taxa de aprovação para cada cliente.</div></div>
+        <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" data-x="mostrar-zerados" style="min-height:0;width:14px;height:14px"> Mostrar clientes sem envios no mês</label>
+      </div><div data-box="cli-barras" style="margin-bottom:14px"></div><div data-box="cli-tabela" style="overflow-x:auto"></div></div>
       <div class="pc-2"><div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Peças enviadas por usuário</h3><div data-box="barras"></div></div>
         <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Decisões por aprovador</h3><div data-box="dec"></div></div></div>
       <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Envios por usuário</h3><div data-box="env"></div></div>
       <div data-box="limpeza"></div>`;
-    const box = n => el.querySelector(`[data-box="${n}"]`), sel = el.querySelector('[data-x="mes"]');
+    const box = n => el.querySelector(`[data-box="${n}"]`), qx = n => el.querySelector(`[data-x="${n}"]`);
+    const sel = qx("mes");
+    let dados = null;
+    const preencherSelect = (s, pares) => {
+      const atual = s.value;
+      s.innerHTML = s.options[0].outerHTML + pares.map(([k, rot]) => `<option value="${esc(k)}">${esc(rot)}</option>`).join("");
+      s.value = pares.some(([k]) => k === atual) ? atual : "";
+    };
+    function agregarFiltrados(clientesFiltrados) {
+      let pecas = 0, versoes = 0, aprovada = 0, reprovada = 0, alteracao_solicitada = 0, v1d = 0, v1a = 0;
+      const porU = {}, porC = {};
+      for (const c of clientesFiltrados) {
+        pecas += c.pecas || 0;
+        versoes += c.versoes || 0;
+        aprovada += c.aprovada || 0;
+        reprovada += c.reprovada || 0;
+        alteracao_solicitada += c.alteracao_solicitada || 0;
+        v1d += c.primeiraDecididas || 0;
+        v1a += c.primeiraAprovadas || 0;
+        for (const u of c.enviadas || []) {
+          const x = (porU[u.login] ||= { login: u.login, nome: u.nome, pecas: 0, versoes: 0 });
+          x.pecas += u.pecas || 0;
+          x.versoes += u.versoes || 0;
+        }
+        for (const d of c.decisoes || []) {
+          const x = (porC[d.login] ||= { login: d.login, nome: d.nome, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, total: 0 });
+          x.aprovada += d.aprovada || 0;
+          x.reprovada += d.reprovada || 0;
+          x.alteracao_solicitada += d.alteracao_solicitada || 0;
+          x.total += d.total || 0;
+        }
+      }
+      return {
+        totais: {
+          pecas, versoes, aprovada, reprovada, alteracao_solicitada,
+          primeiraDecididas: v1d, primeiraAprovadas: v1a,
+          taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null,
+        },
+        enviadas: Object.values(porU).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes),
+        decisoes: Object.values(porC).sort((a, b) => b.total - a.total),
+      };
+    }
+    function renderDash() {
+      if (!dados) return;
+      const fCli = qx("f-cli").value, fTipo = qx("f-tipo").value, fNivel = qx("f-nivel").value, fAt = qx("f-at").value;
+      const mostrarZerados = qx("mostrar-zerados").checked;
+      const temFiltro = !!(fCli || fTipo || fNivel || fAt);
+      qx("limpar-filtros").hidden = !temFiltro;
+
+      const todosClientes = dados.clientes || [];
+      const clientesFiltrados = todosClientes.filter(c =>
+        (!fCli || c.id === fCli) &&
+        (!fTipo || c.tipo === fTipo) &&
+        (!fNivel || c.nivel === fNivel) &&
+        (!fAt || c.atendimento === fAt)
+      );
+
+      if (temFiltro) {
+        const partes = [];
+        if (fCli) { const cl = todosClientes.find(x => x.id === fCli); partes.push(`Cliente: ${cl ? cl.nome : fCli}`); }
+        if (fTipo) partes.push(`Tipo: ${fTipo}`);
+        if (fNivel) partes.push(`Nível ${fNivel}`);
+        if (fAt) partes.push(`Atendimento: ${fAt}`);
+        box("aviso-filtro").innerHTML = `<div style="margin-top:10px;padding:7px 11px;border-radius:8px;background:var(--blue-soft);color:var(--blue-dk);font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <span><b>Filtro ativo:</b> ${esc(partes.join(" · "))} (${clientesFiltrados.length} cliente${clientesFiltrados.length === 1 ? "" : "s"})</span>
+          <button class="btn small" type="button" data-x="limpar-filtros">Ver todos os clientes</button>
+        </div>`;
+      } else {
+        box("aviso-filtro").innerHTML = "";
+      }
+
+      const escopo = temFiltro ? agregarFiltrados(clientesFiltrados) : { totais: dados.totais, enviadas: dados.enviadas, decisoes: dados.decisoes };
+      const t = escopo.totais;
+      const clientesComEnvio = clientesFiltrados.filter(c => c.pecas > 0 || c.versoes > 0);
+      box("kpis").innerHTML = [
+        [t.pecas, "Peças enviadas", `${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"} com envios`],
+        [t.versoes, "Versões enviadas"],
+        [t.aprovada, "Aprovadas"],
+        [t.alteracao_solicitada, "Alteração solicitada"],
+        [t.reprovada, "Reprovadas"],
+        [t.taxaPrimeira == null ? "—" : t.taxaPrimeira.toLocaleString("pt-BR") + "%", "Aprovação na 1ª versão", t.primeiraDecididas ? `${t.primeiraAprovadas} de ${t.primeiraDecididas} peças decididas na 1ª versão` : "nenhuma decisão na 1ª versão"],
+      ].map(([v, r, e]) => `<div class="pc-kpi"><b>${v}</b><span>${r}</span>${e ? `<em>${e}</em>` : ""}</div>`).join("");
+
+      // Barras e tabela de Clientes
+      const listaCliVisivel = (fCli || mostrarZerados) ? clientesFiltrados : clientesComEnvio;
+      const maxCli = Math.max(1, ...clientesComEnvio.map(c => c.pecas));
+      box("cli-barras").innerHTML = clientesComEnvio.length
+        ? `<div class="pc-barras">${clientesComEnvio.slice(0, 15).map(c => `<div class="l">
+            <span class="nm" title="${esc(c.nome)}${c.tipo ? " · " + esc(c.tipo) : ""}"><a href="#" data-x="filtrar-cli" data-cid="${esc(c.id)}" style="color:inherit;text-decoration:none;font-weight:500">${esc(c.nome)}</a></span>
+            <span class="b"><i style="width:${c.pecas / maxCli * 100}%"></i></span>
+            <b class="num">${c.pecas}</b>
+          </div>`).join("")}</div>`
+        : "";
+
+      box("cli-tabela").innerHTML = listaCliVisivel.length
+        ? `<table class="pc-tbl"><thead><tr>
+            <th>Cliente</th><th>Tipo / Nível</th><th>Atendimento</th>
+            <th class="num">Peças</th><th class="num">Versões</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Pendentes</th><th class="num">1ª versão</th><th style="text-align:right">Filtro</th>
+          </tr></thead><tbody>
+          ${listaCliVisivel.map(c => {
+            const ativo = fCli === c.id;
+            return `<tr style="${ativo ? "background:var(--blue-soft)" : ""}">
+              <td><b>${esc(c.nome)}</b></td>
+              <td>${c.tipo ? `<span class="pc-cli" style="margin-right:4px">${esc(c.tipo)}</span>` : ""}${c.nivel ? `<span class="pc-badge-opc">Nível ${esc(c.nivel)}</span>` : (!c.tipo ? `<span class="pc-sub">—</span>` : "")}</td>
+              <td>${esc(c.atendimento || "—")}</td>
+              <td class="num"><b>${c.pecas}</b>${c.metaConteudos ? `<span class="pc-sub" title="Meta contratada na Carteira"> / ${c.metaConteudos}</span>` : ""}</td>
+              <td class="num">${c.versoes}</td>
+              <td class="num">${c.aprovada}</td>
+              <td class="num">${c.alteracao_solicitada}</td>
+              <td class="num">${c.reprovada}</td>
+              <td class="num">${c.pendente || 0}</td>
+              <td class="num">${c.taxaPrimeira == null ? "—" : c.taxaPrimeira.toLocaleString("pt-BR") + "%"}</td>
+              <td style="text-align:right;white-space:nowrap"><button class="btn small${ativo ? " primary" : ""}" type="button" data-x="filtrar-cli" data-cid="${esc(c.id)}">${ativo ? "Limpar" : "Filtrar"}</button></td>
+            </tr>`;
+          }).join("")}
+          </tbody></table>`
+        : `<div class="pc-vazio">${temFiltro ? "Nenhum cliente encontrado com esses filtros." : "Nenhum cliente teve peças enviadas neste mês ainda (marque a opção acima para ver todos os clientes da carteira)."}</div>`;
+
+      // Seções de Usuários e Aprovadores (mantidas e sensíveis ao filtro)
+      const max = Math.max(1, ...escopo.enviadas.map(u => u.pecas));
+      box("barras").innerHTML = escopo.enviadas.length ? `<div class="pc-barras">${escopo.enviadas.map(u => `<div class="l"><span class="nm" title="${esc(u.nome)}">${esc(u.nome)}</span><span class="b"><i style="width:${u.pecas / max * 100}%"></i></span><b class="num">${u.pecas}</b></div>`).join("")}</div>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
+      box("dec").innerHTML = escopo.decisoes.length ? `<table class="pc-tbl"><thead><tr><th>Quem decidiu</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Total</th></tr></thead><tbody>
+        ${escopo.decisoes.map(c => `<tr><td>${esc(c.nome)}</td><td class="num">${c.aprovada}</td><td class="num">${c.alteracao_solicitada}</td><td class="num">${c.reprovada}</td><td class="num"><b>${c.total}</b></td></tr>`).join("")}</tbody></table>` : `<div class="pc-vazio">Sem decisões no período/filtro selecionado.</div>`;
+      box("env").innerHTML = escopo.enviadas.length ? `<table class="pc-tbl"><thead><tr><th>Usuário</th><th class="num">Peças novas</th><th class="num">Versões enviadas</th></tr></thead><tbody>
+        ${escopo.enviadas.map(u => `<tr><td>${esc(u.nome)}</td><td class="num">${u.pecas}</td><td class="num">${u.versoes}</td></tr>`).join("")}
+        <tr><td><b>Total</b></td><td class="num"><b>${t.pecas}</b></td><td class="num"><b>${t.versoes}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
+    }
     async function carregar() {
       let d;
       try { await carregarBase(); d = await api("dashboard" + (sel.value ? "&mes=" + sel.value : "")); } catch (e) { box("kpis").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      dados = d;
       sel.innerHTML = d.meses.map(m => `<option value="${m}"${m === d.mes ? " selected" : ""}>${mesBr(m)}</option>`).join("");
-      const t = d.totais;
-      box("kpis").innerHTML = [[t.pecas, "Peças enviadas"], [t.versoes, "Versões enviadas"], [t.aprovada, "Aprovadas"], [t.alteracao_solicitada, "Alteração solicitada"], [t.reprovada, "Reprovadas"],
-        [t.taxaPrimeira == null ? "—" : t.taxaPrimeira.toLocaleString("pt-BR") + "%", "Aprovação na 1ª versão", t.primeiraDecididas ? `${t.primeiraAprovadas} de ${t.primeiraDecididas} peças decididas na 1ª versão` : "nenhuma decisão na 1ª versão"]]
-        .map(([v, r, e]) => `<div class="pc-kpi"><b>${v}</b><span>${r}</span>${e ? `<em>${e}</em>` : ""}</div>`).join("");
-      const max = Math.max(1, ...d.enviadas.map(u => u.pecas));
-      box("barras").innerHTML = d.enviadas.length ? `<div class="pc-barras">${d.enviadas.map(u => `<div class="l"><span class="nm" title="${esc(u.nome)}">${esc(u.nome)}</span><span class="b"><i style="width:${u.pecas / max * 100}%"></i></span><b class="num">${u.pecas}</b></div>`).join("")}</div>` : `<div class="pc-vazio">Sem envios no mês.</div>`;
-      box("dec").innerHTML = d.decisoes.length ? `<table class="pc-tbl"><thead><tr><th>Quem decidiu</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Total</th></tr></thead><tbody>
-        ${d.decisoes.map(c => `<tr><td>${esc(c.nome)}</td><td class="num">${c.aprovada}</td><td class="num">${c.alteracao_solicitada}</td><td class="num">${c.reprovada}</td><td class="num"><b>${c.total}</b></td></tr>`).join("")}</tbody></table>` : `<div class="pc-vazio">Sem decisões no mês.</div>`;
-      box("env").innerHTML = d.enviadas.length ? `<table class="pc-tbl"><thead><tr><th>Usuário</th><th class="num">Peças novas</th><th class="num">Versões enviadas</th></tr></thead><tbody>
-        ${d.enviadas.map(u => `<tr><td>${esc(u.nome)}</td><td class="num">${u.pecas}</td><td class="num">${u.versoes}</td></tr>`).join("")}
-        <tr><td><b>Total</b></td><td class="num"><b>${t.pecas}</b></td><td class="num"><b>${t.versoes}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no mês.</div>`;
+      const clisOrdenados = [...(d.clientes || [])].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      preencherSelect(qx("f-cli"), clisOrdenados.map(c => [c.id, c.pecas ? `${c.nome} (${c.pecas})` : c.nome]));
+      preencherSelect(qx("f-tipo"), (d.tiposCliente || []).map(tp => [tp, tp]));
+      preencherSelect(qx("f-at"), (d.atendimentosCliente || []).map(at => [at, at]));
+      renderDash();
       box("limpeza").innerHTML = base.veTodas ? `<p class="pc-sub">Arquivos com mais de ${base.retencaoDias} dias são apagados automaticamente todo dia. <button class="btn" type="button" data-x="limpar" style="padding:2px 10px;min-height:0">Rodar a limpeza agora</button> <span data-box="lmsg"></span></p>` : "";
     }
-    sel.addEventListener("change", carregar);
+    el.addEventListener("change", ev => {
+      const x = ev.target.dataset.x;
+      if (x === "mes") carregar();
+      else if (["f-cli", "f-tipo", "f-nivel", "f-at", "mostrar-zerados"].includes(x)) renderDash();
+    });
     el.addEventListener("click", async ev => {
-      if (ev.target.dataset.x !== "limpar") return;
-      ev.target.disabled = true;
+      const btn = ev.target.closest("[data-x]"); if (!btn) return;
+      const x = btn.dataset.x;
+      if (x === "limpar-filtros") {
+        qx("f-cli").value = ""; qx("f-tipo").value = ""; qx("f-nivel").value = ""; qx("f-at").value = "";
+        renderDash();
+        return;
+      }
+      if (x === "filtrar-cli") {
+        ev.preventDefault();
+        const cid = btn.dataset.cid || "";
+        qx("f-cli").value = qx("f-cli").value === cid ? "" : cid;
+        renderDash();
+        return;
+      }
+      if (x !== "limpar") return;
+      btn.disabled = true;
       try { const r = await api("limpeza.executar", {}); box("lmsg").textContent = `${r.arquivosApagados + r.orfaosApagados} arquivo(s) apagado(s), ${r.pecasRemovidas} peça(s) saíram da fila.`; }
       catch (e) { box("lmsg").textContent = e.message; }
-      ev.target.disabled = false;
+      btn.disabled = false;
     });
     return carregar;
   }

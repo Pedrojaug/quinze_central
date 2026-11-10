@@ -42,7 +42,17 @@ export async function auditar(u, modulo, acao, alvo, detalhe) {
 export async function clientesCarteira() {
   const r = await sql`SELECT parent, id, data FROM docs WHERE parent LIKE 'meses/%/clientes' AND NOT deleted`;
   const porMes = {};
-  r.forEach(x => (porMes[x.parent.split("/")[1]] ||= []).push({ id: x.id, nome: x.data.nome || x.id, status: x.data.status || "" }));
+  r.forEach(x => (porMes[x.parent.split("/")[1]] ||= []).push({
+    id: x.id,
+    nome: x.data.nome || x.id,
+    status: x.data.status || "",
+    tipo: x.data.tipo || "",
+    nivel: x.data.nivel || "",
+    atendimento: x.data.atendimento || "",
+    social: x.data.social || "",
+    conteudos: Number(x.data.conteudos) || 0,
+    motions: Number(x.data.motions) || 0,
+  }));
   const mes = Object.keys(porMes).sort().pop();
   return (mes ? porMes[mes] : []).filter(c => c.status !== "inativo").sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
