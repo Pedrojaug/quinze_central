@@ -220,7 +220,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     e.preventDefault();
     const err = $("#pwdErr"); err.hidden = true;
     const atual = $("#pwAtual").value, nova = $("#pwNova").value;
-    if (nova.length < 8) { err.textContent = "A nova senha precisa ter pelo menos 8 caracteres."; err.hidden = false; return; }
+    if (nova.length < 6) { err.textContent = "A nova senha precisa ter pelo menos 6 caracteres."; err.hidden = false; return; }
     if (nova !== $("#pwConf").value) { err.textContent = "As duas senhas novas não são iguais."; err.hidden = false; return; }
     const b = $("#pwGo"); b.disabled = true;
     try {

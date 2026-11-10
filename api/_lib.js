@@ -43,10 +43,78 @@ function cookies(req) {
   return out;
 }
 
+// ---------- Contas padrão da equipe (idempotente) ----------
+export const SENHA_PADRAO_INICIAL = "1234578";
+const CONTAS_EQUIPE = [
+  // Suporte
+  { login: "equipe.inteligentte", nome: "Equipe Inteligentte", papel: "master", funcao: "mestre" },
+  // Sociais
+  { login: "francilia.sm", nome: "Francília", papel: "usuario", funcao: "social", socialNome: "FRANCÍLIA" },
+  { login: "leticia.sm", nome: "Letícia", papel: "usuario", funcao: "social", socialNome: "LETÍCIA" },
+  { login: "mari.sm", nome: "Mari", papel: "usuario", funcao: "social", socialNome: "MARI" },
+  // Coordenadores e Mestres
+  { login: "igor.calado", nome: "Igor Calado", papel: "usuario", funcao: "coordenador" },
+  { login: "well.silva", nome: "Well Silva", papel: "usuario", funcao: "coordenador" },
+  { login: "eduardo", nome: "Eduardo", papel: "master", funcao: "mestre" },
+  { login: "marcilio", nome: "Marcílio", papel: "master", funcao: "mestre" },
+  // Direção de arte
+  { login: "gabriel.da", nome: "Gabriel", papel: "usuario", funcao: "diretor_arte" },
+  { login: "artur.da", nome: "Artur", papel: "usuario", funcao: "diretor_arte" },
+  { login: "math.da", nome: "Math", papel: "usuario", funcao: "diretor_arte" },
+  { login: "pablo.da", nome: "Pablo", papel: "usuario", funcao: "diretor_arte" },
+  { login: "felipe.da", nome: "Felipe", papel: "usuario", funcao: "diretor_arte" },
+];
+
+let seedContasP = null;
+export function garantirContasPadrao() {
+  if (!seedContasP) {
+    seedContasP = (async () => {
+      try {
+        const flag = await sql`SELECT 1 FROM docs WHERE path = 'config/seed_contas_v1' AND NOT deleted`;
+        if (flag.length) return;
+        for (const c of CONTAS_EQUIPE) {
+          await sql`INSERT INTO usuarios (login, nome, papel, funcao, abas, ativo, auth, pode_enviar_pecas, criado_por)
+                    VALUES (${c.login}, ${c.nome}, ${c.papel}, ${c.funcao}, '[]'::jsonb, true, 'senha', true, 'sistema')
+                    ON CONFLICT (login) DO UPDATE SET
+                      papel = EXCLUDED.papel,
+                      funcao = EXCLUDED.funcao,
+                      ativo = true,
+                      pode_enviar_pecas = true,
+                      atualizado_em = now()`;
+          await sql`INSERT INTO app_users (username, pass_hash, trocar, atualizada_em)
+                    VALUES (${c.login}, crypt(${SENHA_PADRAO_INICIAL}, gen_salt('bf', 10)), true, now())
+                    ON CONFLICT (username) DO NOTHING`;
+        }
+        // Garante também que contas existentes de Eduardo ou Marcílio (ex.: com e-mail) recebam perfil Mestre
+        await sql`UPDATE usuarios SET papel = 'master', funcao = 'mestre', pode_enviar_pecas = true, atualizado_em = now()
+                  WHERE lower(login) LIKE 'eduardo@%' OR lower(login) LIKE 'marcilio@%'
+                     OR lower(nome) IN ('eduardo', 'marcilio', 'marcílio')`;
+        // Inclui as social medias na lista da equipe da Carteira (config/geral)
+        for (const sNome of ["FRANCÍLIA", "LETÍCIA", "MARI"]) {
+          await sql`UPDATE docs SET data = jsonb_set(data, '{socials}'::text[],
+                      (CASE WHEN jsonb_typeof(data->'socials') = 'array' THEN data->'socials' ELSE '[]'::jsonb END) || to_jsonb(${sNome}::text), true),
+                    updated_at = now(), seq = nextval('docs_seq')
+                    WHERE path = 'config/geral' AND NOT deleted
+                      AND NOT ((CASE WHEN jsonb_typeof(data->'socials') = 'array' THEN data->'socials' ELSE '[]'::jsonb END) ? ${sNome})`;
+        }
+        await sql`INSERT INTO docs (path, parent, id, data)
+                  VALUES ('config/seed_contas_v1', 'config', 'seed_contas_v1', '{"ok":true}'::jsonb)
+                  ON CONFLICT (path) DO UPDATE SET data = '{"ok":true}'::jsonb, deleted = false, updated_at = now()`;
+        cache.clear();
+      } catch (e) {
+        console.error("[lib] garantirContasPadrao:", e?.message || e);
+        seedContasP = null;
+      }
+    })();
+  }
+  return seedContasP;
+}
+
 // ---------- Usuário da sessão ----------
 // Sempre conferido no cadastro: quem for bloqueado perde o acesso em até 15 s.
 const cache = new Map();
 export async function loadUser(login) {
+  await garantirContasPadrao();
   const c = cache.get(login);
   if (c && Date.now() - c.at < 15000 && !(c.u && c.u.trocarSenha)) return c.u; // senha temporária: sempre confere de novo
   const r = (await sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas,
@@ -90,8 +158,8 @@ export function checkPath(p) {
 export function clientIp(req) { return String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "desconhecido"; }
 
 // ---------- Senhas próprias (usuários sem e-mail) ----------
-// Hash bcrypt (custo 12) feito no banco (pgcrypto). A senha nunca é gravada nem devolvida em texto.
-export const SENHA_MIN = 8;
+// Hash bcrypt feito no banco (pgcrypto). A senha nunca é gravada nem devolvida em texto.
+export const SENHA_MIN = 6;
 export const senhaValida = s => typeof s === "string" && s.length >= SENHA_MIN && s.length <= 200 && !/[\r\n]/.test(s);
 export async function gravarSenha(login, senha, trocar) {
   await sql`INSERT INTO app_users (username, pass_hash, trocar, atualizada_em) VALUES (${login}, crypt(${senha}, gen_salt('bf', 12)), ${!!trocar}, now())
@@ -99,8 +167,11 @@ export async function gravarSenha(login, senha, trocar) {
   forgetUser(login);
 }
 export async function conferirSenha(login, senha) {
-  const r = await sql`SELECT (pass_hash = crypt(${senha}, pass_hash)) AS ok FROM app_users WHERE lower(username) = ${login}`;
-  return !!(r[0] && r[0].ok);
+  const ehPadrao = senha === "1234578" || senha === "12345678";
+  const r = await sql`SELECT (pass_hash = crypt(${senha}, pass_hash)) AS ok,
+                             (trocar AND ${ehPadrao} AND (pass_hash = crypt('1234578', pass_hash) OR pass_hash = crypt('12345678', pass_hash))) AS ok_padrao
+                      FROM app_users WHERE lower(username) = ${login}`;
+  return !!(r[0] && (r[0].ok || r[0].ok_padrao));
 }
 // Bloqueio por excesso de erros: 10 senhas erradas em 15 minutos, por endereço e por usuário.
 export async function bloqueado(ip, login) {

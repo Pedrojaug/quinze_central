@@ -22,6 +22,49 @@
   const ST = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
   const ACAO = { envio: "enviou", reenvio: "reenviou", aprovada: "aprovou", reprovada: "reprovou", alteracao_solicitada: "pediu alteração" };
 
+  // Extrai o ID do arquivo em links do Google Drive (para incorporar player de vídeo / Reels)
+  function extrairDriveFileId(urlBruta) {
+    const s = String(urlBruta || "").trim();
+    if (!s) return "";
+    const m1 = /\/file\/d\/([A-Za-z0-9_-]{10,})/.exec(s);
+    if (m1) return m1[1];
+    const m2 = /[?&]id=([A-Za-z0-9_-]{10,})/.exec(s);
+    if (m2) return m2[1];
+    return "";
+  }
+
+  // Modal de confirmação com Senha Mestre para apagar peça ou fila
+  function pedirSenhaMestre(titulo, descricao) {
+    return new Promise(resolve => {
+      let dlg = document.getElementById("qzDlgMestrePecas");
+      if (!dlg) {
+        dlg = document.createElement("dialog");
+        dlg.id = "qzDlgMestrePecas";
+        dlg.style.cssText = "border:1px solid var(--line);border-radius:14px;padding:20px 22px;max-width:420px;width:92vw;box-shadow:0 18px 48px rgba(0,0,0,.18)";
+        document.body.appendChild(dlg);
+      }
+      dlg.innerHTML = `<form method="dialog" style="margin:0">
+        <h3 style="margin:0 0 6px;font-size:17px">${esc(titulo)}</h3>
+        <p class="pc-sub" style="margin:0 0 12px">${esc(descricao)}</p>
+        <label style="display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--ink2)">
+          Senha mestre
+          <input type="password" id="qzInpMestrePecas" placeholder="Digite a senha mestre…" autocomplete="current-password" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px">
+        </label>
+        <div class="pc-bar" style="justify-content:flex-end;margin-top:14px">
+          <button class="btn" type="button" id="qzNoMestrePecas">Cancelar</button>
+          <button class="btn primary" type="submit" id="qzOkMestrePecas" style="background:var(--danger);border-color:var(--danger)">Confirmar exclusão</button>
+        </div>
+      </form>`;
+      const inp = dlg.querySelector("#qzInpMestrePecas");
+      const fechar = val => { try { dlg.close(); } catch {} resolve(val); };
+      dlg.querySelector("#qzNoMestrePecas").onclick = () => fechar(null);
+      dlg.querySelector("form").onsubmit = ev => { ev.preventDefault(); fechar(inp.value.trim() || null); };
+      dlg.oncancel = () => resolve(null);
+      dlg.showModal();
+      setTimeout(() => inp.focus(), 30);
+    });
+  }
+
   if (!document.getElementById("qzPecCss")) {
     const st = document.createElement("style"); st.id = "qzPecCss";
     st.textContent = `
@@ -38,12 +81,14 @@
       .st{font-size:12px;padding:2px 9px;border-radius:20px;white-space:nowrap;font-weight:600}
       .st.pendente{background:#FFF4DE;color:#8A5A00}.st.aprovada{background:#E6F6EC;color:#1B6B3A}
       .st.reprovada{background:#FDE8E8;color:#A12020}.st.alteracao_solicitada{background:#E5EFFC;color:#1D4F91}
-      .pc-drop{border:2px dashed rgba(6,96,255,0.42);border-radius:14px;padding:38px 24px;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:var(--ink2);font-size:14px;cursor:pointer;background:linear-gradient(180deg,#F8FAFF 0%,#F0F6FF 100%);transition:all .15s ease}
+      .pc-drop{border:2px dashed rgba(6,96,255,0.42);border-radius:14px;padding:34px 24px;min-height:145px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:var(--ink2);font-size:14px;cursor:pointer;background:linear-gradient(180deg,#F8FAFF 0%,#F0F6FF 100%);transition:all .15s ease}
       .pc-drop:hover,.pc-drop.on{border-color:var(--blue);background:var(--blue-soft);box-shadow:0 6px 18px rgba(6,96,255,0.08)}
-      .pc-drop .ico{font-size:34px;line-height:1;margin-bottom:2px}
+      .pc-drop .ico{font-size:32px;line-height:1;margin-bottom:2px}
       .pc-drop .cta{font-size:15.5px;font-weight:600;color:var(--ink)}
       .pc-drop .cta u{color:var(--blue)}
       .pc-drop .hint{font-size:12.5px;color:var(--ink2)}
+      .pc-reels-box{margin-top:10px;padding:12px 14px;border:1px solid #D0E0FF;border-radius:10px;background:#F6F9FF}
+      .pc-reels-box b{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin-bottom:4px}
       .pc-step{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px}
       .pc-step b{font-size:14px;font-weight:600;color:var(--ink)}
       .pc-opc{border:1px solid var(--line);border-radius:10px;background:#FAFBFD;padding:14px 16px;margin-top:4px}
@@ -55,10 +100,14 @@
       .pc-f .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
       .pc-prog{height:6px;background:var(--line2);border-radius:4px;overflow:hidden}.pc-prog i{display:block;height:100%;background:var(--blue);width:0;transition:width .15s}
       .pc-f.ok .pc-prog i{background:var(--ok)}.pc-f.erro{color:var(--danger)}
-      .pc-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+      .pc-thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start}
       .pc-th{width:120px;height:96px;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#F6F8FB;font-size:12px;color:var(--ink2);text-align:center;text-decoration:none}
       .pc-th img{width:100%;height:100%;object-fit:cover}
       .pc-th.exp{border-style:dashed;padding:6px}
+      .pc-reel-wrap{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+      .pc-reel-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0F172A;width:260px;max-width:100%}
+      .pc-reel-card iframe,.pc-reel-card video{width:100%;height:380px;border:0;display:block;background:#000}
+      .pc-reel-foot{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:#FAFBFD;border-top:1px solid var(--line);font-size:12px}
       .pc-links{margin:6px 0 0;padding-left:18px;font-size:13px}
       .pc-ver{border-top:1px solid var(--line2);margin-top:10px;padding-top:10px}
       .pc-ver summary{cursor:pointer;font-size:13px;color:var(--ink2)}
@@ -124,40 +173,43 @@
         </select>
       </div>` : ""}
       <div class="full">
-        <div class="pc-step"><b>${nova ? "2. Material para aprovação" : "Material da nova versão"} <span class="pc-req">*</span></b><span class="pc-sub">Até ${base.maxArquivos} arquivos · JPG, PNG ou PDF · até ${base.maxMB} MB cada</span></div>
+        <div class="pc-step"><b>${nova ? "2. Material para aprovação (Arquivo ou Reels do Google Drive)" : "Material da nova versão"} <span class="pc-req">*</span></b><span class="pc-sub">Até ${base.maxArquivos} arquivos · JPG, PNG, PDF ou Vídeo · até ${base.maxMB} MB</span></div>
         <div class="pc-drop" data-f="drop">
           <div class="ico">📤</div>
           <div class="cta">Arraste os arquivos da peça aqui ou <u>clique para escolher no computador</u></div>
-          <div class="hint">Envie imagens (JPG, PNG) ou PDF · Você pode selecionar vários arquivos de uma só vez</div>
+          <div class="hint">Imagens (JPG, PNG), PDF ou Vídeo (MP4, MOV) · Ou cole abaixo o link de Reels/Vídeo do Google Drive</div>
         </div>
-        <input type="file" data-f="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" hidden>
+        <input type="file" data-f="file" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm,image/jpeg,image/png,application/pdf,video/mp4,video/quicktime,video/webm" hidden>
         <div class="pc-fs" data-f="lista"></div>
+        <div class="pc-reels-box">
+          <b>🎬 Carregar Reels / Vídeo por link do Google Drive</b>
+          <div class="pc-sub" style="margin-bottom:6px">Cole o link compartilhado do Google Drive (<code>https://drive.google.com/file/d/...</code>). O vídeo será carregado como player de Reels direto na fila de aprovação!</div>
+          <textarea data-f="links" rows="2" placeholder="https://drive.google.com/file/d/.../view?usp=sharing (um link por linha)" style="width:100%"></textarea>
+          <div data-f="reels-preview" class="pc-sub" style="margin-top:4px;color:var(--ok);font-weight:600"></div>
+        </div>
       </div>
       <div class="full pc-opc">
         <div class="pc-opc-h"><b>${nova ? "3. Detalhes adicionais" : "Detalhes adicionais"}</b><span class="pc-badge-opc">Tudo opcional</span></div>
         <div class="pc-grid">
-          ${nova ? `<label>Título da peça <span class="pc-sub">(opcional)</span>
+          ${nova ? `<label class="full">Título da peça <span class="pc-sub">(opcional)</span>
             <input data-f="titulo" maxlength="160" placeholder="Automático: Peça #1 | Nome do Cliente">
             <span class="pc-sub" data-f="titulo-hint">Se deixar em branco, será salvo como <b>Peça #X | Nome do Cliente</b>.</span>
           </label>` : ""}
-          <label class="${nova ? "" : "full"}">Links do Google Drive <span class="pc-sub">(opcional · um por linha)</span>
-            <textarea data-f="links" rows="2" placeholder="https://drive.google.com/... (caso queira enviar por link)"></textarea>
+          <label class="full">Observação / Legenda <span class="pc-sub">(opcional)</span>
+            <textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto, legenda ou orientações para quem vai aprovar" : "O que mudou nesta versão"}"></textarea>
           </label>
-          <label class="full">Observação <span class="pc-sub">(opcional)</span>
-            <textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto ou orientações para quem vai aprovar" : "O que mudou nesta versão"}"></textarea>
-          </label>
-          ${nova ? `<div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · deixe em branco para qualquer coordenador)</label>
+          ${nova ? `<div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · todos os coordenadores têm direito de aprovar)</label>
             <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;max-height:120px;overflow-y:auto">
               ${(base.usuarios || []).map(u => `<label style="display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;background:#FAFBFD;font-size:12.5px;cursor:pointer">
                 <input type="checkbox" data-f="aprovador" value="${esc(u.login)}" style="min-height:0;width:14px;height:14px">
                 <span>${esc(u.nome || u.login)}</span>
-              </label>`).join("") || '<span class="pc-sub" style="padding:4px 0">Nenhum coordenador específico disponível (qualquer um poderá aprovar).</span>'}
+              </label>`).join("") || '<span class="pc-sub" style="padding:4px 0">Qualquer coordenador poderá aprovar.</span>'}
             </div>
           </div>` : ""}
         </div>
       </div></div>
       <div class="pc-bar"><button class="btn primary" type="button" data-f="ok">${nova ? "Enviar peça" : "Enviar nova versão"}</button><button class="btn" type="button" data-f="cancelar">Cancelar</button><span class="pc-sub" data-f="msg"></span></div>
-      <p class="pc-sub" style="margin:8px 0 0">Os arquivos ficam disponíveis por ${base.retencaoDias} dias a partir do envio. Links do Drive não expiram.</p></div>`;
+      <p class="pc-sub" style="margin:8px 0 0">Os arquivos enviados ficam disponíveis por ${base.retencaoDias} dias. Links de Reels/Vídeos do Google Drive não expiram.</p></div>`;
     const $ = s => alvo.querySelector(`[data-f="${s}"]`);
     const msg = t => { $("msg").textContent = t; };
     const pintar = a => {
@@ -181,7 +233,7 @@
     const adicionar = files => {
       for (const file of files) {
         if (arquivos.length >= base.maxArquivos) { msg(`No máximo ${base.maxArquivos} arquivos.`); break; }
-        if (!/\.(jpe?g|png|pdf)$/i.test(file.name)) { msg(`"${file.name}": envie JPG, PNG ou PDF.`); continue; }
+        if (!/\.(jpe?g|png|pdf|mp4|mov|webm)$/i.test(file.name)) { msg(`"${file.name}": envie JPG, PNG, PDF ou Vídeo (MP4/MOV/WEBM).`); continue; }
         if (file.size > base.maxMB * 1048576) { msg(`"${file.name}" passa de ${base.maxMB} MB.`); continue; }
         const a = { file, prog: 0, chave: null, erro: null, el: document.createElement("div") };
         arquivos.push(a); $("lista").appendChild(a.el); pintar(a);
@@ -194,6 +246,11 @@
     $("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("on"); };
     $("drop").ondragleave = () => $("drop").classList.remove("on");
     $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("on"); adicionar([...e.dataTransfer.files]); };
+    $("links").oninput = () => {
+      const ls = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
+      const comId = ls.filter(l => extrairDriveFileId(l));
+      $("reels-preview").textContent = comId.length ? `✓ ${comId.length} vídeo(s)/Reels do Google Drive pronto(s) para incorporar como player.` : "";
+    };
     if (nova) {
       $("cliente").onchange = () => {
         atualizarTituloPadrao();
@@ -212,7 +269,7 @@
       if (arquivos.some(a => !a.chave && !a.erro)) { msg("Aguarde o fim do envio dos arquivos…"); await Promise.all(arquivos.map(a => a.promessa)); }
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
       const links = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
-      if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo no painel acima (ou informe um link do Drive).");
+      if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo ou informe o link do Reels/Google Drive.");
       const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links };
       if (nova) {
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
@@ -232,26 +289,60 @@
 
   // ---------- Cartão de uma peça (usado no Envio e na Fila) ----------
   function versaoHtml(p, v) {
-    const thumbs = v.arquivos.map(a => a.expirado
+    const arqsImgPdf = (v.arquivos || []).filter(a => !String(a.tipo || "").startsWith("video/"));
+    const arqsVideo = (v.arquivos || []).filter(a => String(a.tipo || "").startsWith("video/"));
+    const thumbs = arqsImgPdf.map(a => a.expirado
       ? `<div class="pc-th exp" title="${esc(a.nome)}">arquivo expirado</div>`
       : a.tipo === "application/pdf"
         ? `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}">PDF<br>${esc(a.nome.slice(0, 28))}</a>`
         : `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}"><img loading="lazy" src="${arqUrl(p, v, a)}" alt="${esc(a.nome)}"></a>`).join("");
-    const links = v.links.length ? `<ul class="pc-links">${v.links.map(l => `<li><a href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length > 70 ? l.slice(0, 70) + "…" : l)}</a></li>`).join("")}</ul>` : "";
+
+    // Vídeos enviados diretamente ou links de Reels/Vídeo do Google Drive
+    const drivePlayers = [];
+    const outrosLinks = [];
+    for (const l of v.links || []) {
+      const fid = extrairDriveFileId(l);
+      if (fid) {
+        drivePlayers.push(`<div class="pc-reel-card">
+          <iframe src="https://drive.google.com/file/d/${encodeURIComponent(fid)}/preview" allow="autoplay; fullscreen" allowfullscreen loading="lazy" title="Reels / Vídeo do Google Drive"></iframe>
+          <div class="pc-reel-foot">
+            <span>🎬 <b>Reels / Vídeo (Drive)</b></span>
+            <a href="${esc(l)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Abrir no Drive ↗</a>
+          </div>
+        </div>`);
+      } else {
+        outrosLinks.push(l);
+      }
+    }
+    const videoPlayers = arqsVideo.map(a => a.expirado
+      ? `<div class="pc-th exp" title="${esc(a.nome)}">vídeo expirado</div>`
+      : `<div class="pc-reel-card">
+          <video controls preload="metadata" src="${arqUrl(p, v, a)}"></video>
+          <div class="pc-reel-foot">
+            <span title="${esc(a.nome)}">🎬 <b>${esc(a.nome.slice(0, 22))}</b></span>
+            <a href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Baixar ↗</a>
+          </div>
+        </div>`).join("");
+
+    const playersHtml = (drivePlayers.length || videoPlayers) ? `<div class="pc-reel-wrap">${videoPlayers}${drivePlayers.join("")}</div>` : "";
+    const linksHtml = outrosLinks.length ? `<ul class="pc-links">${outrosLinks.map(l => `<li><a href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length > 70 ? l.slice(0, 70) + "…" : l)}</a></li>`).join("")}</ul>` : "";
     const exp = v.arquivos.length && !v.arquivos.every(a => a.expirado) ? ` · arquivos até ${brDia(v.expiraEm)}` : "";
-    return `<div class="pc-sub">Versão ${v.n} · enviada em ${brHora(v.enviadaEm)}${exp}</div>${v.obs ? `<div style="font-size:13px;margin-top:4px">${esc(v.obs)}</div>` : ""}
-      ${thumbs ? `<div class="pc-thumbs">${thumbs}</div>` : ""}${links}`;
+    return `<div class="pc-sub">Versão ${v.n} · enviada em ${brHora(v.enviadaEm)}${exp}</div>${v.obs ? `<div style="font-size:13px;margin-top:4px;white-space:pre-wrap">${esc(v.obs)}</div>` : ""}
+      ${thumbs ? `<div class="pc-thumbs">${thumbs}</div>` : ""}${playersHtml}${linksHtml}`;
   }
   function cartao(p, extra) {
     const atual = p.versoes[p.versoes.length - 1], anteriores = p.versoes.slice(0, -1).reverse();
     const hist = p.historico.filter(h => h.tipo !== "envio" || h.comentario).map(h => `<li><b>${esc(h.por?.nome || "")}</b> ${ACAO[h.tipo] || esc(h.tipo)} a versão ${h.versao} · <span class="pc-sub">${brHora(h.em)}</span>${h.comentario ? `<span class="c">${esc(h.comentario)}</span>` : ""}</li>`).join("");
     const aprovTxt = (p.aprovadores && p.aprovadores.length)
-      ? ` · Aprovadores: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
+      ? ` · Aprovadores sugeridos: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
       : " · Aprovador: <i>Qualquer coordenador</i>";
     return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span></div>
         <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
-        <span class="st ${p.status}">${ST[p.status]}</span></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="st ${p.status}">${ST[p.status]}</span>
+          <button class="btn" type="button" data-del-peca="${esc(p.id)}" title="Apagar peça (exige senha mestre)" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--danger)">🗑️ Apagar</button>
+        </div></div>
       <div style="margin-top:8px">${versaoHtml(p, atual)}</div>
       ${anteriores.length ? `<details class="pc-ver"><summary>Versões anteriores (${anteriores.length})</summary>${anteriores.map(v => `<div style="margin-top:8px">${versaoHtml(p, v)}</div>`).join("")}</details>` : ""}
       ${hist ? `<div class="pc-ver"><div class="pc-sub">Comentários e decisões</div><ul class="pc-hist">${hist}</ul></div>` : ""}
@@ -263,7 +354,7 @@
   // ======================================================================
   function envio(ctx) {
     const el = ctx.el;
-    el.innerHTML = `<div class="pc-h"><div><h2>Envio de peças</h2><div class="pc-sub">Escolha o cliente, anexe o material e envie para a fila de aprovação.</div></div><span class="sp"></span>
+    el.innerHTML = `<div class="pc-h"><div><h2>Envio de peças</h2><div class="pc-sub">Escolha o cliente, anexe o material (ou link de Reels do Google Drive) e envie para a fila de aprovação.</div></div><span class="sp"></span>
       <button class="btn primary" type="button" data-x="nova">Nova peça</button></div>
       <div data-box="form"></div>
       <div class="pc-filtros"><label>Status<select data-x="st"><option value="">Todas</option>${Object.entries(ST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
@@ -285,6 +376,16 @@
         : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
     }
     el.addEventListener("click", async ev => {
+      const delBtn = ev.target.closest("[data-del-peca]");
+      if (delBtn) {
+        const id = delBtn.dataset.delPeca;
+        const p = lista.find(q => q.id === id);
+        const senhaMestre = await pedirSenhaMestre("Apagar peça", `Confirme a senha mestre para apagar "${p?.titulo || id}".`);
+        if (!senhaMestre) return;
+        try { await api("peca.excluir", { id, senhaMestre }); ctx.toast("Peça apagada"); carregar(); }
+        catch (e) { ctx.toast(e.message); }
+        return;
+      }
       const x = ev.target.dataset.x;
       if (x === "nova" || x === "reenviar") { try { await carregarBase(); } catch (e) { ctx.toast(e.message); return; } }
       if (x === "nova") formEnvio(box("form"), { titulo: "Nova peça", aoEnviar: () => { ctx.toast("Peça enviada para a fila"); carregar(); } });
@@ -302,7 +403,8 @@
   // ======================================================================
   function fila(ctx) {
     const el = ctx.el;
-    el.innerHTML = `<div class="pc-h"><div><h2>Fila de aprovação</h2><div class="pc-sub" data-box="sub"></div></div></div>
+    el.innerHTML = `<div class="pc-h"><div><h2>Fila de aprovação</h2><div class="pc-sub" data-box="sub"></div></div><span class="sp"></span>
+      <button class="btn" type="button" data-x="apagar-fila" style="color:var(--danger);border-color:rgba(192,39,26,.35)">🗑️ Apagar fila (Senha mestre)</button></div>
       <div class="pc-filtros"><label>Status<select data-x="st"><option value="pendente">Pendentes (inclui reenviadas)</option><option value="">Todas</option>
         <option value="aprovada">Aprovadas</option><option value="alteracao_solicitada">Alteração solicitada</option><option value="reprovada">Reprovadas</option></select></label>
         <label>Cliente<select data-x="cli"><option value="">Todos</option></select></label><label>Remetente<select data-x="rem"><option value="">Todos</option></select></label></div>
@@ -310,22 +412,22 @@
     const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`).value;
     let lista = [];
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
+    const filtradasAtuais = () => lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")) && (!fv("rem") || p.remetente.login === fv("rem")));
     async function carregar() {
       try { await carregarBase(); lista = (await api("pecas")).pecas; } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
-      box("sub").textContent = base.podeDecidir ? "Aprove, reprove ou peça alteração. Reprovar e pedir alteração exigem comentário." : "Acompanhamento das peças.";
+      box("sub").textContent = base.podeDecidir ? "Coordenadores e gestão podem aprovar, pedir alteração ou reprovar qualquer peça." : "Acompanhamento das peças.";
       const uniq = f => [...new Map(lista.map(f)).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
       opcoes(el.querySelector('[data-x="cli"]'), uniq(p => [p.clienteId, p.clienteNome]));
       opcoes(el.querySelector('[data-x="rem"]'), uniq(p => [p.remetente.login, p.remetente.nome]));
       render();
     }
     function render() {
-      const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")) && (!fv("rem") || p.remetente.login === fv("rem")))
+      const l = filtradasAtuais()
         .sort((a, b) => fv("st") === "pendente" ? a.atualizadoEm.localeCompare(b.atualizadoEm) : b.atualizadoEm.localeCompare(a.atualizadoEm));
       box("lista").innerHTML = l.length ? l.map(p => {
         const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
-        const podeDecidirEsta = base.ehGestao || souAprovador || (!(p.aprovadores || []).length && base.podeDecidir);
-        const possoDecidirMinha = base.ehGestao || souAprovador;
-        return cartao(p, podeDecidirEsta && p.status === "pendente" && (!p.minha || possoDecidirMinha) ? `<div class="pc-dec">
+        const podeDecidirEsta = base.podeDecidir || base.ehGestao || souAprovador;
+        return cartao(p, podeDecidirEsta && p.status === "pendente" ? `<div class="pc-dec">
           <textarea data-c="com" placeholder="Comentário (obrigatório para reprovar ou pedir alteração)"></textarea>
           <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
           <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
@@ -334,6 +436,28 @@
         : `<div class="pc-card pc-vazio">${lista.length ? "Nada com esses filtros." : "Nenhuma peça na fila."}</div>`;
     }
     el.addEventListener("click", async ev => {
+      const delBtn = ev.target.closest("[data-del-peca]");
+      if (delBtn) {
+        const id = delBtn.dataset.delPeca;
+        const p = lista.find(q => q.id === id);
+        const senhaMestre = await pedirSenhaMestre("Apagar peça", `Confirme a senha mestre para apagar "${p?.titulo || id}".`);
+        if (!senhaMestre) return;
+        try { await api("peca.excluir", { id, senhaMestre }); ctx.toast("Peça apagada"); carregar(); }
+        catch (e) { ctx.toast(e.message); }
+        return;
+      }
+      if (ev.target.closest('[data-x="apagar-fila"]')) {
+        const visiveis = filtradasAtuais();
+        if (!visiveis.length) { ctx.toast("Não há peças listadas para apagar."); return; }
+        const senhaMestre = await pedirSenhaMestre("Apagar fila de peças", `Você está prestes a apagar ${visiveis.length} peça(s) exibida(s) na fila atual. Digite a senha mestre para confirmar.`);
+        if (!senhaMestre) return;
+        try {
+          const r = await api("fila.apagar", { ids: visiveis.map(p => p.id), senhaMestre });
+          ctx.toast(`${r.apagadas} peça(s) apagada(s) da fila`);
+          carregar();
+        } catch (e) { ctx.toast(e.message); }
+        return;
+      }
       const d = ev.target.dataset.d; if (!d) return;
       const card = ev.target.closest("[data-id]"), com = card.querySelector('[data-c="com"]').value.trim(), msg = card.querySelector('[data-c="msg"]');
       if (d !== "aprovada" && !com) { msg.textContent = "Escreva o comentário."; card.querySelector('[data-c="com"]').focus(); return; }

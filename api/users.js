@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     const ativo = b.ativo !== false;
     const pecas = !!b.podeEnviarPecas;
     let funcao = Object.keys(PERFIS).includes(b.funcao) ? b.funcao : "personalizado";
-    if (funcao === "mestre" && !alvoMestre) return res.status(400).json({ error: "Só existe um Mestre." });
+    if (funcao === "mestre" && !alvoMestre && !souMestre) return res.status(400).json({ error: "Só o Mestre pode definir outro Mestre." });
     const abas = funcao === "personalizado" && Array.isArray(b.abas) ? [...new Set(b.abas.filter(t => ESCOLHAS.includes(t)))] : [];
     if (funcao === "personalizado" && !abas.length) return res.status(400).json({ error: "Marque pelo menos um módulo ou aba." });
     const temSenha = typeof b.senha === "string" && b.senha.trim().length > 0;
