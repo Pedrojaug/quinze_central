@@ -1,4 +1,4 @@
-import { sql, setSession, clientIp, forgetUser, conferirSenha, bloqueado, registrarTentativa } from "./_lib.js";
+import { sql, setSession, clientIp, forgetUser, conferirSenha, bloqueado, registrarTentativa, garantirContasPadrao } from "./_lib.js";
 import { imapLogin } from "./_imap.js";
 
 // Login híbrido:
@@ -13,6 +13,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "invalid" });
   }
   const login = user.trim().toLowerCase();
+  await garantirContasPadrao();
   if (await bloqueado(ip, login)) return res.status(429).json({ error: "too_many" });
   const u = (await sql`SELECT login, ativo, auth FROM usuarios WHERE login = ${login}`)[0];
   let result = "invalid";

@@ -2,7 +2,7 @@
 // Dados em m/pecas/<colecao>/<id>, servidos só por aqui (fora da sincronização geral). Permissões sempre conferidas aqui:
 //   enviar e reenviar: todos os usuários ativos (vê só as suas peças)
 //   decidir e ver todas: coordenador, mestre e gestão
-//   dashboard: mestre, gestão e atendimento (atendimento não vê as peças)
+//   dashboard: mestre, gestão, coordenador e atendimento
 // Arquivos: o navegador envia direto ao Vercel Blob com um token do servidor; ficam 7 dias e são apagados pela rotina diária.
 // Os contadores mensais (m/pecas/contadores/<AAAA-MM>) são atualizados a cada envio e decisão e nunca são apagados.
 import crypto from "node:crypto";
@@ -16,10 +16,19 @@ const M = "pecas";
 export const RETENCAO_DIAS = 7;
 export const MAX_ARQUIVOS = 10, MAX_LINKS = 10;
 export const MAX_BYTES = 100 * 1024 * 1024;   // por arquivo (envio direto ao armazenamento, sem passar pela função)
-const TIPOS = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", pdf: "application/pdf" };
+const TIPOS = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  pdf: "application/pdf",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
 export const STATUS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
 const DECISOES = ["aprovada", "reprovada", "alteracao_solicitada"];
 const DIA = 864e5;
+const MASTER_PASS_HASH = "a8698d96861f332be3627b5461c3d4ac120295ae33c8e26b9c0db82afa657084";
 
 const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
 const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
@@ -31,10 +40,27 @@ const mesAtual = () => hojeSP().slice(0, 7);
 export const podeEnviar = u => podeEnviarPecas(u);
 export const podeDecidir = u => ["coordenador", "mestre", "gestao"].includes(perfilDe(u));
 export const veTodas = u => ["coordenador", "mestre", "gestao"].includes(perfilDe(u));
-export const veDash = u => ["mestre", "gestao", "atendimento"].includes(perfilDe(u));
+export const veDash = u => ["mestre", "gestao", "coordenador", "atendimento"].includes(perfilDe(u));
 const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login === u.login) || (p.aprovadores || []).some(a => a.login === u.login);
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;
+
+// Confere a senha mestre (aceita a senha mestre global da plataforma OU a senha de qualquer usuário Mestre ativo)
+async function conferirSenhaMestre(senhaRaw) {
+  const s = String(senhaRaw || "").trim();
+  if (!s || s.length > 200) return false;
+  const hash = crypto.createHash("sha256").update(s).digest("hex");
+  if (hash === MASTER_PASS_HASH) return true;
+  try {
+    const r = await sql`SELECT 1 FROM app_users a
+                        JOIN usuarios u ON lower(a.username) = u.login
+                        WHERE u.ativo AND (u.papel = 'master' OR u.funcao = 'mestre')
+                          AND a.pass_hash = crypt(${s}, a.pass_hash)
+                        LIMIT 1`;
+    if (r.length > 0) return true;
+  } catch {}
+  return false;
+}
 
 // ---------- Contadores mensais (atualizados no momento de cada evento, numa só instrução: sem perder contagem) ----------
 async function contar(mes, inc, nomes) {
@@ -228,7 +254,7 @@ async function uploadToken(u, req, res) {
   if (!podeEnviar(u)) return negado(res, "Seu usuário não envia peças.");
   const b = corpo(req);
   const nome = txt(b.nome, 160), ext = extensao(nome), tamanho = Number(b.tamanho);
-  if (!TIPOS[ext]) return res.status(400).json({ code: "tipo_invalido", msg: "Envie JPG, PNG ou PDF." });
+  if (!TIPOS[ext]) return res.status(400).json({ code: "tipo_invalido", msg: "Envie JPG, PNG, PDF ou vídeo (MP4/MOV/WEBM)." });
   if (!(tamanho > 0)) return res.status(400).json({ code: "arquivo_vazio", msg: "O arquivo está vazio." });
   if (tamanho > MAX_BYTES) return res.status(400).json({ code: "arquivo_grande", msg: `O arquivo passa de ${MAX_BYTES / 1048576} MB.` });
   const dia = hojeSP().replace(/-/g, "");
@@ -247,9 +273,9 @@ async function pecaEnviar(u, req, res) {
   if (!cli) return res.status(400).json({ code: "cliente", msg: "Escolha o cliente da Carteira." });
   const a = await conferirArquivos(u, b.arquivos); if (a.erro) return res.status(400).json({ code: "arquivos", msg: a.erro });
   const l = conferirLinks(b.links); if (l.erro) return res.status(400).json({ code: "links", msg: l.erro });
-  if (!a.arquivos.length && !l.links.length) return res.status(400).json({ code: "vazio", msg: "Anexe pelo menos um arquivo ou um link do Drive." });
+  if (!a.arquivos.length && !l.links.length) return res.status(400).json({ code: "vazio", msg: "Anexe pelo menos um arquivo ou um link do Google Drive." });
 
-  // Aprovadores selecionados (opcional; pode ser vazio/em branco - restrito a quem pode aprovar)
+  // Aprovadores selecionados (opcional; coordenadores e gestão sempre têm direito de aprovar)
   const todos = await usuariosAtivos();
   const loginsAprovadores = Array.isArray(b.aprovadores) ? b.aprovadores.map(s => String(s).trim()) : [];
   const aprovadores = todos.filter(x => loginsAprovadores.includes(x.login) && podeDecidir(x)).map(quem);
@@ -274,12 +300,12 @@ async function pecaReenviar(u, req, res) {
   const b = corpo(req);
   const p = await ler(M, "pecas", b.id);
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada (pode ter expirado)." });
-  if (p.remetente?.login !== u.login) return negado(res, "Só quem enviou a peça pode reenviar.");
+  if (p.remetente?.login !== u.login && !podeDecidir(u)) return negado(res, "Só quem enviou a peça pode reenviar.");
   if (!["reprovada", "alteracao_solicitada"].includes(p.status)) return res.status(409).json({ code: "status", msg: "Só dá para reenviar peças reprovadas ou com alteração solicitada." });
   const obs = txt(b.obs, 2000);
   const a = await conferirArquivos(u, b.arquivos); if (a.erro) return res.status(400).json({ code: "arquivos", msg: a.erro });
   const l = conferirLinks(b.links); if (l.erro) return res.status(400).json({ code: "links", msg: l.erro });
-  if (!a.arquivos.length && !l.links.length) return res.status(400).json({ code: "vazio", msg: "Anexe pelo menos um arquivo ou um link do Drive." });
+  if (!a.arquivos.length && !l.links.length) return res.status(400).json({ code: "vazio", msg: "Anexe pelo menos um arquivo ou um link do Google Drive." });
   const em = agora(), n = p.versao + 1;
   p.versoes.push({ n, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links });
   p.historico.push({ tipo: "reenvio", versao: n, em, por: quem(u), comentario: obs });
@@ -305,12 +331,9 @@ async function pecaDecidir(u, req, res) {
   const p = await ler(M, "pecas", b.id);
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada (pode ter expirado)." });
   const souAprovador = (p.aprovadores || []).some(a => a.login === u.login);
-  const temAprovadores = (p.aprovadores || []).length > 0;
-  const autorizado = ehGestao(u) || souAprovador || (!temAprovadores && podeDecidir(u));
-  if (!autorizado) return negado(res, "Você não está na lista de aprovadores desta peça.");
-  if (p.remetente?.login === u.login && !ehGestao(u) && !souAprovador) {
-    return negado(res, "Você não pode decidir uma peça que você mesmo enviou.");
-  }
+  // Coordenadores, Mestre e Gestão têm direito de aprovar qualquer peça
+  const autorizado = podeDecidir(u) || souAprovador;
+  if (!autorizado) return negado(res, "Apenas coordenadores e gestão podem aprovar ou decidir peças.");
   if (p.status !== "pendente") return res.status(409).json({ code: "status", msg: "Esta peça já foi decidida." });
   const em = agora();
   p.historico.push({ tipo: decisao, versao: p.versao, em, por: quem(u), comentario });
@@ -327,6 +350,50 @@ async function pecaDecidir(u, req, res) {
   if (p.versao === 1) { inc.v1_decididas = 1; if (decisao === "aprovada") inc.v1_aprovadas = 1; }
   await contar(mesAtual(), inc, nomesDec);
   return res.json({ ok: true, peca: publica(p, u) });
+}
+
+// Excluir uma peça individual mediante senha mestre
+async function pecaExcluir(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  const b = corpo(req);
+  if (!(await conferirSenhaMestre(b.senhaMestre))) {
+    return res.status(403).json({ code: "senha_mestre", msg: "Senha mestre incorreta." });
+  }
+  const p = await ler(M, "pecas", String(b.id || ""));
+  if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada." });
+  const chaves = [];
+  for (const v of p.versoes || []) {
+    for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
+  }
+  if (chaves.length) { try { await apagarArquivos(chaves); } catch {} }
+  await apagar(M, "pecas", p.id);
+  return res.json({ ok: true });
+}
+
+// Apagar a fila de peças (todas ou filtradas) mediante senha mestre
+async function filaApagar(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  const b = corpo(req);
+  if (!(await conferirSenhaMestre(b.senhaMestre))) {
+    return res.status(403).json({ code: "senha_mestre", msg: "Senha mestre incorreta." });
+  }
+  const todas = await listar(M, "pecas");
+  const idsFiltro = Array.isArray(b.ids) && b.ids.length ? new Set(b.ids.map(String)) : null;
+  const alvos = todas.filter(p => {
+    if (idsFiltro) return idsFiltro.has(p.id);
+    if (b.status && p.status !== b.status) return false;
+    if (b.clienteId && p.clienteId !== b.clienteId) return false;
+    return true;
+  });
+  const chaves = [];
+  for (const p of alvos) {
+    for (const v of p.versoes || []) {
+      for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
+    }
+    await apagar(M, "pecas", p.id);
+  }
+  if (chaves.length) { try { await apagarArquivos(chaves); } catch {} }
+  return res.json({ ok: true, apagadas: alvos.length });
 }
 
 async function pecas(u, req, res) {
@@ -352,9 +419,8 @@ async function pecaArquivo(u, req, res) {
 }
 
 async function dashboard(u, req, res) {
-  if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão e do atendimento.");
+  if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão, coordenação e atendimento.");
   const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.mes || "")) ? req.query.mes : mesAtual();
-
 
   const [c, carteira, todasPecas, rMeses] = await Promise.all([
     ler(M, "contadores", mes),
@@ -407,6 +473,7 @@ async function pecasCron(req, res) {
 
 export const rotas = {
   inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
+  "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
   pecas, "peca.arquivo": pecaArquivo, dashboard, "limpeza.executar": limpezaExecutar,
 };
 export const publicas = { "pecas.cron": pecasCron };
