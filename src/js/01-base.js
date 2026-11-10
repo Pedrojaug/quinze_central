@@ -43,7 +43,7 @@
     document.getElementById("dlgPwd").showModal();
     setTimeout(()=>document.getElementById("pwdIn").focus(), 30);
   }
-  const WRITE_SEL = "[data-insert],#obPropSave,[data-edit],[data-open-newmonth],[data-out],[data-back],[data-rm],[data-add],[data-delmonth],#btnNew,#btnNewMonth,#btnDelMonth,#saveCfg,#ckSave,#btnNewYear";
+  const WRITE_SEL = "[data-insert],#obPropSave,button[data-edit],[data-open-newmonth],[data-out],[data-back],[data-rm],[data-add],[data-delmonth],#btnNew,#btnNewMonth,#btnDelMonth,#saveCfg,#ckSave,#btnNewYear";
   document.addEventListener("click", e => {
     if (unlocked) return;
     const el = e.target.closest(WRITE_SEL);

@@ -64,7 +64,7 @@ const idDeOrigem = origem => "o-" + crypto.createHash("sha1").update(String(orig
 export async function garantirTarefaOrigem({ origem, dono, titulo, descricao, clienteId, clienteNome, prazo }) {
   const id = idDeOrigem(origem);
   const t = await ler(M, "tarefas", id);
-  if (t && t.status === "concluida") return t;
+  if (t && (t.status === "concluida" || t.editadaManualmente)) return t;
   const em = agora();
   const nova = { titulo: txt(titulo, 200), descricao: txt(descricao, 2000), clienteId: clienteId || "", clienteNome: clienteNome || "",
     prazo: prazo || "", prioridade: "alta", repetir: "", status: "pendente", dono, origem,
@@ -73,6 +73,13 @@ export async function garantirTarefaOrigem({ origem, dono, titulo, descricao, cl
   return gravar(M, "tarefas", id, nova);
 }
 // Conclui automaticamente a tarefa ligada à origem (se existir e estiver pendente).
+export async function atualizarPrazoOrigem(origem, prazo) {
+  const id = idDeOrigem(origem);
+  const t = await ler(M, "tarefas", id);
+  if (!t || t.status !== "pendente") return false;
+  await gravar(M, "tarefas", id, { ...t, prazo: prazo || "", atualizadoEm: agora() });
+  return true;
+}
 export async function concluirTarefaOrigem(origem, motivo) {
   const id = idDeOrigem(origem);
   const t = await ler(M, "tarefas", id);
@@ -123,13 +130,21 @@ async function salvar(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!usaTarefas(u)) return negado(res);
   const b = corpo(req);
+
+  const t = b.id ? await lerTarefaPermitida(u, b.id, res) : null;
+  if (b.id && !t) return;
   const titulo = txt(b.titulo, 200);
   if (!titulo) return res.status(400).json({ code: "titulo", msg: "Escreva o título da tarefa." });
   const prioridade = PRIORIDADES.includes(b.prioridade) ? b.prioridade : "normal";
   const repetir = REPETICOES.includes(b.repetir || "") ? b.repetir || "" : "";
   const prazo = b.prazo === "" || b.prazo === null ? "" : dataIso(b.prazo) || hojeLocal();
   let cliente = { id: "", nome: "" };
-  if (b.clienteId) { const c = (await clientesCarteira()).find(x => x.id === b.clienteId); if (!c) return res.status(400).json({ code: "cliente", msg: "Cliente não está na Carteira." }); cliente = c; }
+  if (b.clienteId) {
+    const c = (await clientesCarteira()).find(x => x.id === b.clienteId);
+    if (c) cliente = c;
+    else if (t && t.clienteId === b.clienteId) cliente = { id: t.clienteId, nome: t.clienteNome || "" };
+    else return res.status(400).json({ code: "cliente", msg: "Cliente não está na Carteira." });
+  }
   
   // Dono: se não informado ou se for o próprio usuário, o dono é quem está criando;
   // se gestão/coordenação escolher outra pessoa, valida na lista de usuários ativos.
@@ -137,21 +152,27 @@ async function salvar(u, req, res) {
   if (veTodas(u) && b.dono && b.dono !== u.login) {
     const pessoas = await pessoasTarefas();
     const alvo = pessoas.find(p => p.login === b.dono);
-    if (!alvo) return res.status(400).json({ code: "dono", msg: "Pessoa responsável não encontrada." });
-    dono = { login: alvo.login, nome: alvo.nome };
+    if (alvo) dono = { login: alvo.login, nome: alvo.nome };
+    else if (t && t.dono?.login === b.dono) dono = t.dono;
+    else return res.status(400).json({ code: "dono", msg: "Pessoa responsável não encontrada." });
+
   } else if (!veTodas(u) && b.dono && b.dono !== u.login) {
     return negado(res, "Você só cria tarefas para você.");
   }
   const em = agora();
   if (b.id) {
-    const t = await lerTarefaPermitida(u, b.id, res); if (!t) return;
+    if (t.origem?.startsWith("pendencia:") && prazo && prazo !== t.prazo) {
+      const penId = t.origem.slice("pendencia:".length);
+      const pen = await ler(M, "pendencias", penId);
+      if (pen && pen.status === "aguardando_retorno") await gravar(M, "pendencias", penId, { ...pen, prazo, atualizadoEm: em });
+    }
     const novo = { ...t, titulo, descricao: txt(b.descricao, 2000), clienteId: cliente.id, clienteNome: cliente.nome, prazo, prioridade, repetir,
-      dono: veTodas(u) ? dono : t.dono, atualizadoEm: em };
+      dono: veTodas(u) ? dono : t.dono, editadaManualmente: true, atualizadoEm: em };
     return res.json({ ok: true, tarefa: publica(await gravar(M, "tarefas", t.id, novo)) });
   }
-  const t = { titulo, descricao: txt(b.descricao, 2000), clienteId: cliente.id, clienteNome: cliente.nome, prazo, prioridade, repetir,
+  const nova = { titulo, descricao: txt(b.descricao, 2000), clienteId: cliente.id, clienteNome: cliente.nome, prazo, prioridade, repetir,
     status: "pendente", dono, origem: "manual", criadoPor: quem(u), criadoEm: em, atualizadoEm: em };
-  return res.json({ ok: true, tarefa: publica(await gravar(M, "tarefas", novoId(), t)) });
+  return res.json({ ok: true, tarefa: publica(await gravar(M, "tarefas", novoId(), nova)) });
 }
 
 async function concluir(u, req, res) {
@@ -318,6 +339,7 @@ async function relConfigSalvar(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!veTodas(u)) return negado(res);
   const b = corpo(req);
+
   const dias = [...new Set((Array.isArray(b.dias) ? b.dias : []).map(Number).filter(n => n >= 0 && n <= 6))].sort();
   if (!dias.length) return res.status(400).json({ code: "dias", msg: "Escolha pelo menos um dia." });
   if (!HORAS.includes(b.hora)) return res.status(400).json({ code: "hora", msg: "Horário inválido." });

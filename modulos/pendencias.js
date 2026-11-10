@@ -20,7 +20,7 @@
       let ok = false; try { ok = document.execCommand("copy"); } catch { /* sem cópia */ } t.remove(); return ok; }
   }
   const ACAO = { rascunho: "criou o rascunho", aguardando_retorno: "aprovou e copiou a mensagem", respondida: "registrou: respondida", aprovada: "registrou: aprovada",
-    recusada: "registrou: recusada", cancelada: "cancelou", cobranca: "gerou cobrança" };
+    recusada: "registrou: recusada", cancelada: "cancelou", cobranca: "gerou cobrança", reprogramada: "reprogramou o prazo" };
 
   if (!document.getElementById("qzPenCss")) {
     const st = document.createElement("style"); st.id = "qzPenCss";
@@ -136,7 +136,7 @@
       const cob = cobranca[p.id];
       const acoes = !p.podeEditar ? `<p class="pn-sub">Só quem criou, o responsável, o Mestre e a gestão alteram esta pendência.</p>`
         : p.status === "rascunho" ? `<div class="pn-bar"><button class="btn primary" type="button" data-x="continuar">Continuar o rascunho</button></div>`
-        : p.status === "aguardando_retorno" ? `<div class="pn-grid" style="margin-top:10px"><label>Retorno do cliente<select data-r="status"><option value="respondida">Respondida</option><option value="aprovada">Aprovada</option><option value="recusada">Recusada</option><option value="cancelada">Cancelar pendência</option></select></label>
+        : p.status === "aguardando_retorno" ? `<div class="pn-bar" style="margin-top:10px;padding-bottom:8px;border-bottom:1px dashed var(--line2)"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)">Prazo de retorno <input type="date" data-r="prazo" value="${esc(p.prazo || "")}"></label><button class="btn" type="button" data-x="reprogramar-prazo">Reprogramar data</button></div><div class="pn-grid" style="margin-top:10px"><label>Retorno do cliente<select data-r="status"><option value="respondida">Respondida</option><option value="aprovada">Aprovada</option><option value="recusada">Recusada</option><option value="cancelada">Cancelar pendência</option></select></label>
             <label>Data do retorno<input type="date" data-r="data" value="${hoje}"></label><label class="full">O que o cliente respondeu (nota)<textarea data-r="nota" rows="2"></textarea></label></div>
             <div class="pn-bar"><button class="btn primary" type="button" data-x="retorno">Registrar</button><button class="btn" type="button" data-x="cobrar">Gerar cobrança</button><span class="pn-sub" data-r="msg"></span></div>
             ${cob ? `<div style="margin-top:10px"><div class="pn-sub">Mensagem de cobrança (registrada no histórico):</div><textarea class="pn-msg" style="min-height:120px" data-r="cob">${esc(cob)}</textarea><div class="pn-bar"><button class="btn" type="button" data-x="copiar-cob">Copiar cobrança</button></div></div>` : ""}`
@@ -245,6 +245,7 @@
           ctx.toast(st === "cancelada" ? "Pendência cancelada" : "Retorno registrado"); delete cobranca[id]; carregar(); return;
         }
         if (x === "reabrir") { travar(true); await api("retorno", { id, status: "aguardando_retorno", nota: "Reaberta" }); ctx.toast("Pendência reaberta"); carregar(); return; }
+        if (x === "reprogramar-prazo") { travar(true); const r = await api("prazo.salvar", { id, prazo: $('[data-r="prazo"]').value }); lista = lista.map(q => q.id === id ? r.pendencia : q); ctx.toast(`Prazo reprogramado para ${brd(r.pendencia.prazo)}`); render(); return; }
         if (x === "cobrar") { travar(true); const r = await api("cobranca", { id }); cobranca[id] = r.mensagem; lista = lista.map(q => q.id === id ? r.pendencia : q); render(); return; }
         if (x === "copiar-cob") { const ok = await copiar($('[data-r="cob"]').value); ctx.toast(ok ? "Cobrança copiada" : "Copie manualmente"); return; }
         if (x === "csv") {
