@@ -353,6 +353,20 @@
     if (a.drive_status === "erro") return `<div class="adm-sub" style="color:var(--danger)">Drive: erro · ${esc(a.drive_erro || "")}</div><button class="btn" data-a="drive" style="margin-top:4px">Tentar de novo</button>`;
     return `<div class="adm-sub">${g.configurado ? "Drive: ainda não enviado" : "Drive: aguardando a integração com o Google"}</div>${g.configurado ? `<button class="btn" data-a="drive" style="margin-top:4px">Enviar ao Drive</button>` : ""}`;
   };
+  const seloValidacao = a => {
+    if (!a.assinado) return "";
+    const v = a.validacao;
+    if (!v) return `<div style="margin-top:4px"><button class="btn" type="button" data-a="cert" style="padding:2px 8px;min-height:0;font-size:12px">🛡️ Validar / Gerar certificado</button></div>`;
+    const cor = v.nivel === "criptografica" ? "assinado" : v.nivel === "alerta_igual_original" ? "vencido" : v.nivel === "plataforma" ? "renovado_automaticamente" : "vigente";
+    const rot = v.nivel === "criptografica" ? "🛡️ Assinatura Criptográfica (ICP/PAdES)"
+      : v.nivel === "plataforma" ? `✓ Assinatura Eletrônica (${(v.plataformas || []).join(", ")})`
+      : v.nivel === "alerta_igual_original" ? "⚠️ Igual ao arquivo original"
+      : "✓ Integridade SHA-256 validada";
+    return `<div style="margin-top:5px;display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+      <span class="st ${cor}" style="font-size:11.5px">${esc(rot)}</span>
+      <span class="adm-sub">Certificado: <code style="font-size:11.5px">${esc(v.codigo)}</code>${v.protocoloExterno ? ` · Prot.: <b>${esc(v.protocoloExterno)}</b>` : ""}</span>
+    </div>`;
+  };
   function assinaturas(ctx) {
     const el = ctx.el; let dados = null;
     el.innerHTML = `
@@ -372,9 +386,99 @@
         <td><b>${esc(a.titulo)}</b><div class="adm-sub">enviado por ${esc(a.original?.por?.nome || "")} em ${brHora(a.original?.em)}</div>${a.obs ? `<div class="adm-sub">${esc(a.obs)}</div>` : ""}</td>
         <td>${br(a.prazo)}</td><td><span class="st ${a.status}">${ST_A[a.status]}</span>${driveCel(a, dados.google || {})}</td>
         <td>${link(`assinatura.arquivo&id=${encodeURIComponent(a.id)}`, "Baixar")}</td>
-        <td>${a.assinadoArquivo ? `${link(`assinatura.arquivo&qual=assinado&id=${encodeURIComponent(a.id)}`, "Baixar")}<div class="adm-sub">${esc(a.assinadoArquivo.nome)}<br>por ${esc(a.assinadoPor?.nome || "")} em ${brHora(a.assinadoEm)}</div>` : "—"}</td>
-        <td class="acts"><button class="btn" data-a="up">${a.assinado ? "Trocar assinado" : "Subir assinado"}</button><button class="btn" data-a="del">Excluir</button></td></tr>`).join("")
+        <td>${a.assinadoArquivo ? `${link(`assinatura.arquivo&qual=assinado&id=${encodeURIComponent(a.id)}`, "Baixar")}<div class="adm-sub">${esc(a.assinadoArquivo.nome)}<br>por ${esc(a.assinadoPor?.nome || "")} em ${brHora(a.assinadoEm)}</div>${seloValidacao(a)}` : "—"}</td>
+        <td class="acts">${a.assinado ? `<button class="btn" data-a="cert">Certificado</button>` : ""}<button class="btn" data-a="up">${a.assinado ? "Trocar assinado" : "Subir assinado"}</button><button class="btn" data-a="del">Excluir</button></td></tr>`).join("")
         : vazio(6, "Nenhum documento para assinar.");
+    }
+    function mostrarCertificado(a) {
+      const v = a.validacao || {};
+      const certs = Array.isArray(v.certificados) ? v.certificados : [];
+      const plats = Array.isArray(v.plataformas) ? v.plataformas : [];
+      const corSt = v.nivel === "alerta_igual_original" ? "vencido" : v.nivel === "criptografica" ? "assinado" : "vigente";
+      const tituloSt = v.nivel === "criptografica" ? "🛡️ Assinatura Digital Criptográfica Verificada"
+        : v.nivel === "plataforma" ? `✓ Assinatura Eletrônica Identificada (${plats.join(", ")})`
+        : v.nivel === "alerta_igual_original" ? "⚠️ Alerta: Arquivo idêntico ao original sem assinatura"
+        : "✓ Documento Assinado Registrado com Hash SHA-256";
+      $("#aForm").innerHTML = `<div class="adm-form" style="border-color:var(--blue)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <div>
+            <h3 style="margin:0">Certificado de Validação · ${esc(a.titulo)}</h3>
+            <div class="adm-sub" style="margin-top:3px">${esc(v.resumo || "")}</div>
+          </div>
+          <span class="st ${corSt}" style="font-size:12.5px;padding:4px 10px">${esc(tituloSt)}</span>
+        </div>
+        <div class="adm-grid" style="background:#FAFBFD;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+          <div><div class="adm-sub">Código do Certificado Quinze</div><div style="font-weight:700;font-size:15px;font-family:monospace;margin-top:2px">${esc(v.codigo || "—")} <button class="btn" type="button" id="vCopyCod" style="padding:2px 8px;min-height:0;font-size:11.5px;margin-left:4px">Copiar</button></div></div>
+          <div><div class="adm-sub">Assinado enviado por</div><div style="font-weight:600;margin-top:2px">${esc(a.assinadoPor?.nome || "—")} em ${brHora(a.assinadoEm)}</div></div>
+          <div><div class="adm-sub">Validação realizada em</div><div style="font-weight:600;margin-top:2px">${brHora(v.validadoEm)}</div></div>
+          <div class="full"><div class="adm-sub">Hash Criptográfico SHA-256 do Arquivo Assinado (${esc(a.assinadoArquivo?.nome || "")})</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
+              <code style="font-size:12px;background:#fff;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;word-break:break-all">${esc(v.hashSha256 || "—")}</code>
+              <button class="btn" type="button" id="vCopyHash" style="padding:2px 8px;min-height:0;font-size:11.5px">Copiar Hash</button>
+            </div>
+          </div>
+          ${v.hashOriginal ? `<div class="full"><div class="adm-sub">Comparação com o Arquivo Original</div>
+            <div style="font-size:12.5px;margin-top:2px">${v.igualOriginal
+              ? `<span style="color:var(--danger);font-weight:600">⚠️ O arquivo enviado possui exatamente o mesmo hash SHA-256 do documento original (verifique se subiu o arquivo correto).</span>`
+              : `<span style="color:var(--ok);font-weight:600">✓ Confirmado: o arquivo assinado foi modificado/assinado em relação ao original (SHA-256 original: ${esc(v.hashOriginal.slice(0, 16))}…).</span>`}</div>
+          </div>` : ""}
+          ${certs.length ? `<div class="full"><div class="adm-sub" style="margin-bottom:6px">Certificados Digitais X.509 extraídos do PDF (${certs.length})</div>
+            <div style="display:grid;gap:6px">${certs.map(c => `<div style="background:#fff;border:1px solid var(--line2);border-radius:6px;padding:8px 10px;font-size:12.5px">
+              <div><b>Signatário / Titular:</b> ${esc(c.titular || "—")} ${c.icpBrasil ? `<span class="st assinado" style="font-size:11px;margin-left:4px">ICP-Brasil / Gov.br</span>` : ""}</div>
+              <div class="adm-sub"><b>Emissor (AC):</b> ${esc(c.emissor || "—")} · <b>Serial:</b> <code>${esc(c.serial || "—")}</code></div>
+              ${c.validoDe || c.validoAte ? `<div class="adm-sub"><b>Validade do certificado:</b> ${esc(c.validoDe)} até ${esc(c.validoAte)}</div>` : ""}
+            </div>`).join("")}</div>
+          </div>` : ""}
+        </div>
+        <div class="adm-grid">
+          <label class="full">Código / Protocolo do Certificado Externo (opcional — ex.: código Gov.br, Clicksign, Autentique, ZapSign, DocuSign)
+            <input id="vProt" value="${esc(v.protocoloExterno || "")}" placeholder="Ex.: Protocolo ou código de verificação da plataforma de assinatura">
+          </label>
+        </div>
+        <div class="adm-bar">
+          <button class="btn primary" type="button" id="vSalvar">Salvar protocolo / Revalidar arquivo</button>
+          <button class="btn" type="button" id="vPrint">Imprimir Certificado</button>
+          <a class="btn" href="https://validar.iti.gov.br" target="_blank" rel="noopener" title="Portal oficial do Governo Federal (ITI) para validar assinaturas ICP-Brasil e Gov.br">Validar no ITI (Gov.br) ↗</a>
+          <span style="flex:1"></span>
+          <button class="btn" type="button" id="vFechar">Fechar</button>
+          <span id="vMsg" class="adm-sub"></span>
+        </div>
+      </div>`;
+      $("#aForm").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("#vFechar").onclick = () => { $("#aForm").innerHTML = ""; };
+      if ($("#vCopyCod")) $("#vCopyCod").onclick = async () => { try { await navigator.clipboard.writeText(v.codigo || ""); ctx.toast("Código copiado!"); } catch {} };
+      if ($("#vCopyHash")) $("#vCopyHash").onclick = async () => { try { await navigator.clipboard.writeText(v.hashSha256 || ""); ctx.toast("Hash SHA-256 copiado!"); } catch {} };
+      $("#vSalvar").onclick = async ev => {
+        ev.target.disabled = true; $("#vMsg").textContent = "Validando…";
+        try {
+          const r = await api("assinatura.validar", { id: a.id, protocoloExterno: $("#vProt").value });
+          ctx.toast("Certificado atualizado e validado!");
+          await carregar();
+          mostrarCertificado(r.assinatura);
+        } catch (e) { $("#vMsg").textContent = e.message; ev.target.disabled = false; }
+      };
+      $("#vPrint").onclick = () => {
+        const w = window.open("", "_blank");
+        if (!w) return ctx.toast("Permita pop-ups para imprimir o certificado.");
+        w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Certificado ${esc(v.codigo || a.titulo)}</title>
+          <style>body{font-family:system-ui,-apple-system,sans-serif;padding:36px;color:#111;max-width:760px;margin:0 auto;line-height:1.5}
+          .box{border:2px solid #0660FF;border-radius:12px;padding:28px}h1{margin:0 0 4px;font-size:20px;color:#0660FF}
+          .sub{color:#555;font-size:13px;margin-bottom:20px}.row{margin-bottom:12px;font-size:14px}
+          code{background:#F2F5F9;padding:3px 6px;border-radius:4px;font-size:12.5px;word-break:break-all}
+          .cert{border:1px solid #DCE3EE;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:13px}</style></head><body>
+          <div class="box"><h1>CERTIFICADO DE VALIDAÇÃO DE DOCUMENTO ASSINADO</h1>
+          <div class="sub">Central Quinze · Controle Administrativo de Assinaturas</div>
+          <div class="row"><b>Documento:</b> ${esc(a.titulo)}</div>
+          <div class="row"><b>Código do Certificado:</b> <code>${esc(v.codigo || "—")}</code></div>
+          ${v.protocoloExterno ? `<div class="row"><b>Protocolo / Verificador Externo:</b> ${esc(v.protocoloExterno)}</div>` : ""}
+          <div class="row"><b>Status da Validação:</b> ${esc(tituloSt)} — ${esc(v.resumo || "")}</div>
+          <div class="row"><b>Arquivo Assinado:</b> ${esc(a.assinadoArquivo?.nome || "—")} (enviado por ${esc(a.assinadoPor?.nome || "—")} em ${brHora(a.assinadoEm)})</div>
+          <div class="row"><b>Hash de Integridade (SHA-256):</b><br><code>${esc(v.hashSha256 || "—")}</code></div>
+          ${certs.length ? `<div class="row"><b>Certificados Digitais X.509 Identificados:</b>${certs.map(c => `<div class="cert"><b>Titular:</b> ${esc(c.titular)}<br><b>Emissor:</b> ${esc(c.emissor)}<br><b>Serial:</b> ${esc(c.serial)}</div>`).join("")}</div>` : ""}
+          <div class="row" style="margin-top:20px;font-size:12px;color:#666">Emitido em ${brHora(v.validadoEm || new Date().toISOString())}.</div>
+          </div><script>window.onload=()=>window.print()</` + `script></body></html>`);
+        w.document.close();
+      };
     }
     $("#aNovo").onclick = () => {
       $("#aForm").innerHTML = `<div class="adm-form"><h3>Novo documento a assinar</h3><div class="adm-grid">
@@ -402,6 +506,21 @@
         try { await api("assinatura.drive", { id }); ctx.toast("Enviado ao Drive"); } catch (e) { ctx.toast(e.message); }
         return carregar();
       }
+      if (a === "cert") {
+        const doc = dados.assinaturas.find(x => x.id === id);
+        if (!doc) return;
+        if (!doc.validacao) {
+          ev.target.disabled = true; ev.target.textContent = "Validando…";
+          try {
+            const r = await api("assinatura.validar", { id });
+            await carregar();
+            mostrarCertificado(r.assinatura);
+          } catch (e) { ctx.toast(e.message); ev.target.disabled = false; ev.target.textContent = "Certificado"; }
+          return;
+        }
+        mostrarCertificado(doc);
+        return;
+      }
       if (a === "up") { alvo = id; $("#aUp").value = ""; $("#aUp").click(); }
       if (a === "del") {
         if (armado !== id) { armado = id; ev.target.textContent = "Confirmar"; return; }
@@ -410,7 +529,12 @@
     });
     $("#aUp").addEventListener("change", async () => {
       const f = $("#aUp").files[0]; if (!f || !alvo) return;
-      try { const r = await api("assinatura.assinado", { id: alvo, arquivo: await lerArquivo(f) }); ctx.toast("Assinado registrado: " + r.assinatura.assinadoArquivo.nome + (r.assinatura.drive_status === "enviado" ? " · enviado ao Drive" : r.assinatura.drive_status === "erro" ? " · erro no envio ao Drive" : "")); carregar(); }
+      try {
+        const r = await api("assinatura.assinado", { id: alvo, arquivo: await lerArquivo(f) });
+        ctx.toast("Assinado validado (" + (r.assinatura.validacao?.codigo || "OK") + "): " + r.assinatura.assinadoArquivo.nome);
+        await carregar();
+        mostrarCertificado(r.assinatura);
+      }
       catch (e) { ctx.toast(e.message); }
     });
     return carregar;

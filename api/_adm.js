@@ -448,12 +448,101 @@ async function assinaturaSalvar(u, req, res) {
   if (erro) return res.status(400).json({ code: erro });
   const g = await guardar(`administrativo/assinaturas/${novoId()}-${nomeSeguro(nome)}`, buf, nome);
   const id = novoId();
-  const a = { titulo, prazo, obs: txt(b.obs, 2000), original: { chave: g.chave, nome, tamanho: g.tamanho, em: agora(), por: quem(u) },
+  const hashOrig = crypto.createHash("sha256").update(buf).digest("hex");
+  const a = { titulo, prazo, obs: txt(b.obs, 2000), original: { chave: g.chave, nome, tamanho: g.tamanho, hashSha256: hashOrig, em: agora(), por: quem(u) },
     assinado: false, drive_status: null, criadoEm: agora(), criadoPor: quem(u) };
   await gravar(M, "assinaturas", id, a);
   await auditar(u, M, "assinatura.criar", id);
   return res.json({ ok: true, assinatura: pubAssinatura({ ...a, id }) });
 }
+function extrairCertificadosX509(rawPdf) {
+  const certs = [], vistos = new Set();
+  if (!crypto.X509Certificate) return certs;
+  const rx = /\/Contents\s*<([0-9A-Fa-f\s]{128,262144})>/g;
+  let m;
+  while ((m = rx.exec(rawPdf)) && certs.length < 8) {
+    const hex = m[1].replace(/\s+/g, "");
+    if (hex.length < 128 || hex.length % 2 !== 0) continue;
+    const der = Buffer.from(hex, "hex");
+    for (let i = 0; i < der.length - 16; i++) {
+      if (der[i] === 0x30 && der[i + 1] === 0x82) {
+        const tam = (der[i + 2] << 8) | der[i + 3];
+        if (tam > 128 && i + 4 + tam <= der.length) {
+          try {
+            const x = new crypto.X509Certificate(der.subarray(i, i + 4 + tam));
+            if (x.serialNumber && !vistos.has(x.serialNumber)) {
+              vistos.add(x.serialNumber);
+              const cn = s => (/(?:^|\n)CN=([^\n]+)/.exec(String(s || ""))?.[1] || String(s || "").split("\n")[0] || "").trim();
+              certs.push({
+                titular: cn(x.subject),
+                emissor: cn(x.issuer),
+                serial: x.serialNumber,
+                validoDe: x.validFrom || "",
+                validoAte: x.validTo || "",
+                icpBrasil: /ICP-Brasil|Gov\.br|ITI|Serpro|Certisign|Soluti|Valid|Serasa|Safeweb/i.test(`${x.subject} ${x.issuer}`),
+                ca: !!x.ca,
+              });
+              i += 3 + tam;
+            }
+          } catch {}
+        }
+      }
+    }
+  }
+  const signatarios = certs.filter(c => !c.ca);
+  return signatarios.length ? signatarios : certs;
+}
+
+export function analisarAssinaturaDigital(buf, nome, hashOriginal, extra = {}) {
+  const hashSha256 = crypto.createHash("sha256").update(buf).digest("hex");
+  const igualOriginal = !!(hashOriginal && hashSha256 === hashOriginal);
+  const ext = extensao(nome);
+  const raw = ext === "pdf" || buf.subarray(0, 5).toString("latin1") === "%PDF-" ? buf.toString("latin1") : "";
+  const temByteRange = /\/ByteRange\s*\[/.test(raw) && /\/(Type\s*\/Sig|SubFilter\s*\/(adbe\.pkcs7|ETSI\.CAdES|ETSI\.RFC3161))/i.test(raw);
+  const certificados = raw ? extrairCertificadosX509(raw) : [];
+  const PLATAFORMAS = [
+    ["Gov.br / ICP-Brasil", /gov\.br|ICP-Brasil|validar\.iti\.gov\.br/i],
+    ["Clicksign", /clicksign/i],
+    ["Autentique", /autentique\.com\.br/i],
+    ["ZapSign", /zapsign/i],
+    ["D4Sign", /d4sign/i],
+    ["DocuSign", /docusign/i],
+    ["Adobe Sign", /Adobe Sign|EchoSign/i],
+    ["Contraktor", /contraktor/i],
+    ["Assinafy", /assinafy/i],
+  ];
+  const plataformas = raw ? PLATAFORMAS.filter(([, r]) => r.test(raw)).map(([n]) => n) : [];
+  const nivel = igualOriginal
+    ? "alerta_igual_original"
+    : (temByteRange || certificados.length)
+      ? "criptografica"
+      : plataformas.length
+        ? "plataforma"
+        : "registrado";
+  const resumo = igualOriginal
+    ? "Atenção: este arquivo possui o mesmo código SHA-256 do arquivo original sem assinatura."
+    : nivel === "criptografica"
+      ? `Assinatura digital criptográfica detectada no PDF${certificados.length ? ` (${certificados.map(c => c.titular).join(", ")})` : " (PAdES / PKCS#7)"}.`
+      : nivel === "plataforma"
+        ? `Assinatura eletrônica identificada (${plataformas.join(", ")}).`
+        : "Arquivo assinado registrado com código de validação e hash de integridade SHA-256.";
+  const hoje = hojeSP().replace(/-/g, "");
+  return {
+    codigo: extra.codigoExistente || `QZ-ASS-${hoje}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
+    protocoloExterno: txt(extra.protocoloExterno, 160),
+    nivel,
+    resumo,
+    temAssinaturaCriptografica: !!(temByteRange || certificados.length),
+    certificados,
+    plataformas,
+    hashSha256,
+    hashOriginal: hashOriginal || "",
+    igualOriginal,
+    validadoEm: agora(),
+    validadoPor: extra.por || null,
+  };
+}
+
 async function assinaturaAssinado(u, req, res) {
   if (!so(req, res, "POST")) return;
   const b = corpo(req);
@@ -466,7 +555,15 @@ async function assinaturaAssinado(u, req, res) {
   const usuario = nomeSeguro(u.login.split("@")[0]).toLowerCase();
   const nomePadrao = `${hoje}_${usuario}_${nomeSeguro(a.titulo)}.${ext}`;   // AAAA-MM-DD_usuario_documento.ext
   const g = await guardar(`administrativo/assinaturas/${novoId()}-${nomePadrao}`, buf, nomePadrao);
-  a.assinadoArquivo = { chave: g.chave, nome: nomePadrao, nomeOriginal: txt(b.arquivo.nome, 150), tamanho: g.tamanho, tipo: g.tipo, em: agora(), por: quem(u) };
+  let hashOrig = a.original?.hashSha256 || "";
+  if (!hashOrig && a.original?.chave) {
+    try { const bOrig = await lerArquivo(a.original.chave); if (bOrig) hashOrig = crypto.createHash("sha256").update(bOrig).digest("hex"); } catch {}
+  }
+  a.validacao = analisarAssinaturaDigital(buf, nomePadrao, hashOrig, {
+    protocoloExterno: b.protocoloExterno || a.validacao?.protocoloExterno || "",
+    por: quem(u),
+  });
+  a.assinadoArquivo = { chave: g.chave, nome: nomePadrao, nomeOriginal: txt(b.arquivo.nome, 150), tamanho: g.tamanho, tipo: g.tipo, hashSha256: a.validacao.hashSha256, em: agora(), por: quem(u) };
   a.assinado = true; a.assinadoEm = agora(); a.assinadoPor = quem(u);
   Object.assign(a, { drive_id: "", drive_link: "", drive_nome: "" }, await enviarParaDrive(a, buf));
   await gravar(M, "assinaturas", b.id, a);
@@ -479,6 +576,27 @@ async function assinaturaArquivo(u, req, res) {
   if (!f) return res.status(404).json({ code: "sem_arquivo" });
   return enviar(res, f.chave, f.nome, false);
 }
+async function assinaturaValidar(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  const b = corpo(req);
+  const a = await ler(M, "assinaturas", b.id);
+  if (!a || !a.assinado || !a.assinadoArquivo?.chave) return res.status(404).json({ code: "nao_encontrado", msg: "Documento assinado não encontrado." });
+  const buf = await lerArquivo(a.assinadoArquivo.chave);
+  if (!buf) return res.status(404).json({ code: "sem_arquivo", msg: "Arquivo assinado não encontrado no armazenamento." });
+  let hashOrig = a.original?.hashSha256 || "";
+  if (!hashOrig && a.original?.chave) {
+    try { const bOrig = await lerArquivo(a.original.chave); if (bOrig) hashOrig = crypto.createHash("sha256").update(bOrig).digest("hex"); } catch {}
+  }
+  a.validacao = analisarAssinaturaDigital(buf, a.assinadoArquivo.nome || "documento.pdf", hashOrig, {
+    codigoExistente: a.validacao?.codigo,
+    protocoloExterno: b.protocoloExterno !== undefined ? b.protocoloExterno : (a.validacao?.protocoloExterno || ""),
+    por: quem(u),
+  });
+  await gravar(M, "assinaturas", b.id, a);
+  await auditar(u, M, "assinatura.validar", b.id, { codigo: a.validacao.codigo, nivel: a.validacao.nivel });
+  return res.json({ ok: true, assinatura: pubAssinatura({ ...a, id: b.id }) });
+}
+
 async function assinaturaExcluir(u, req, res) {
   if (!so(req, res, "POST")) return;
   const { id } = corpo(req);
@@ -612,7 +730,7 @@ export const rotas = Object.fromEntries(Object.entries({
   "contrato.reajustar": contratoReajustar, "contrato.renovar": contratoRenovar, igpm,
   "contratos.importar": contratosImportar, "contrato.conferir": contratoConferir, "contrato.lerIA": contratoLerIA, "contrato.ler_ia": contratoLerIA,
   assinaturas, "assinatura.salvar": assinaturaSalvar, "assinatura.assinado": assinaturaAssinado,
-  "assinatura.arquivo": assinaturaArquivo, "assinatura.excluir": assinaturaExcluir,
+  "assinatura.arquivo": assinaturaArquivo, "assinatura.excluir": assinaturaExcluir, "assinatura.validar": assinaturaValidar,
   "assinatura.drive": assinaturaDrive, "assinatura.drive_lote": assinaturaDriveLote,
   pessoal, "pessoa.salvar": pessoaSalvar, "pessoa.excluir": pessoaExcluir, auditoria,
   ferias, "ferias.salvar": feriasSalvar, "ferias.excluir": feriasExcluir, "ics.link": icsLink,
