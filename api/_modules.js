@@ -48,7 +48,7 @@ const TODOS = ["mestre", "gestao", "atendimento", "coordenador", "social", "dire
 const GESTAO = ["mestre", "gestao"];
 
 export const AREAS = [
-  { id: "atendimento", nome: "01 Atendimento", ordem: 10, funcoes: ["mestre", "gestao", "atendimento", "social"],
+  { id: "atendimento", nome: "01 Atendimento", ordem: 10, funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
     descricao: "Carteira de clientes, onboarding, propostas e agenda" },
   { id: "pecas", nome: "02 Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: true,
     descricao: "Envio de peças, fila de aprovação, números do mês e dados consolidados" },
@@ -81,7 +81,7 @@ export const MODULOS = [
   // que não vê tarefas nem pendências; a rota confere o perfil).
   { id: "tarefas", modulo: "atendimento", nome: "Minhas tarefas", ordem: 15, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/tarefas.js", colecoes: [],
     card: { titulo: "Minhas tarefas", texto: "To-do do dia e relatório das 20h" } },
-  { id: "pendencias", modulo: "atendimento", nome: "Pendências de clientes", ordem: 16, funcoes: ["mestre", "gestao", "atendimento"], arquivo: "/modulos/pendencias.js", colecoes: [],
+  { id: "pendencias", modulo: "atendimento", nome: "Pendências de clientes", ordem: 16, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/pendencias.js", colecoes: [],
     card: { titulo: "Pendências de clientes", texto: "Envios aguardando retorno do cliente" } },
   { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: ["mestre", "gestao", "coordenador"], arquivo: "/modulos/tarefas.js", colecoes: [] },
   // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m. O "Envio" é liberado para todos os usuários ativos.
