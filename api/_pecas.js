@@ -98,12 +98,33 @@ function conferirLinks(lista) {
   return { links: arr };
 }
 
+async function lerSeqClientes() {
+  const doc = (await ler(M, "sequencia", "clientes")) || {};
+  const mapa = { ...(doc.porCliente || {}) };
+  for (const p of await listar(M, "pecas")) {
+    if (p.clienteId) mapa[p.clienteId] = (Number(mapa[p.clienteId]) || 0);
+  }
+  const cont = {};
+  for (const p of await listar(M, "pecas")) if (p.clienteId) cont[p.clienteId] = (cont[p.clienteId] || 0) + 1;
+  for (const [cid, n] of Object.entries(cont)) mapa[cid] = Math.max(Number(mapa[cid] || 0), n);
+  return mapa;
+}
+async function proximoNumeroPeca(clienteId) {
+  const doc = (await ler(M, "sequencia", "clientes")) || {};
+  const porCliente = { ...(doc.porCliente || {}) };
+  const atuais = (await listar(M, "pecas")).filter(p => p.clienteId === clienteId).length;
+  const prox = Math.max(Number(porCliente[clienteId] || 0), atuais) + 1;
+  porCliente[clienteId] = prox;
+  await gravar(M, "sequencia", "clientes", { porCliente, atualizadoEm: agora() });
+  return prox;
+}
+
 // ---------- Rotas ----------
 async function inicio(u, req, res) {
   const todos = await usuariosAtivos();
   const usuarios = todos.filter(podeDecidir).map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x) }));
   return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login,
-    clientes: podeEnviar(u) ? await clientesCarteira() : [], usuarios, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
+    clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
     retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
 }
 
@@ -126,8 +147,8 @@ async function pecaEnviar(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!podeEnviar(u)) return negado(res, "Seu usuário não envia peças.");
   const b = corpo(req);
-  const titulo = txt(b.titulo, 160), obs = txt(b.obs, 2000);
-  if (!titulo) return res.status(400).json({ code: "titulo", msg: "Informe o título da peça." });
+  const tituloInformado = txt(b.titulo, 160), obs = txt(b.obs, 2000);
+  // Título opcional: se não informado, gera automaticamente "Peça #X | Nome do Cliente" no momento do envio.
   const cli = (await clientesCarteira()).find(c => c.id === b.clienteId);
   if (!cli) return res.status(400).json({ code: "cliente", msg: "Escolha o cliente da Carteira." });
   const a = await conferirArquivos(u, b.arquivos); if (a.erro) return res.status(400).json({ code: "arquivos", msg: a.erro });
@@ -140,12 +161,14 @@ async function pecaEnviar(u, req, res) {
   const aprovadores = todos.filter(x => loginsAprovadores.includes(x.login) && podeDecidir(x)).map(quem);
 
   const em = agora(), id = novoId();
+  const numPeca = await proximoNumeroPeca(cli.id);
+  const titulo = tituloInformado || `Peça #${numPeca} | ${cli.nome}`;
   const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, remetente: quem(u), aprovadores, status: "pendente", versao: 1,
     versoes: [{ n: 1, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links }],
     historico: [{ tipo: "envio", versao: 1, em, por: quem(u), comentario: obs }], criadoEm: em, atualizadoEm: em };
   await gravar(M, "pecas", id, p);
   await contar(mesAtual(), { pecas: 1, versoes: 1, [`enviadas:${u.login}`]: 1, [`versoes:${u.login}`]: 1 }, { [u.login]: u.nome || u.login });
-  return res.json({ ok: true, peca: publica({ ...p, id }, u) });
+  return res.json({ ok: true, seqCliente: numPeca, peca: publica({ ...p, id }, u) });
 }
 
 async function pecaReenviar(u, req, res) {
