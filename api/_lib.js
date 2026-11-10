@@ -44,7 +44,7 @@ function cookies(req) {
 }
 
 // ---------- Contas padrão da equipe (idempotente) ----------
-export const SENHA_PADRAO_INICIAL = "1234578";
+export const SENHA_PADRAO_INICIAL = "12345678";
 const CONTAS_EQUIPE = [
   // Suporte
   { login: "equipe.inteligentte", nome: "Equipe Inteligentte", papel: "master", funcao: "mestre" },
@@ -70,7 +70,7 @@ export function garantirContasPadrao() {
   if (!seedContasP) {
     seedContasP = (async () => {
       try {
-        const flag = await sql`SELECT 1 FROM docs WHERE path = 'config/seed_contas_v1' AND NOT deleted`;
+        const flag = await sql`SELECT 1 FROM docs WHERE path = 'config/seed_contas_v2' AND NOT deleted`;
         if (flag.length) return;
         for (const c of CONTAS_EQUIPE) {
           await sql`INSERT INTO usuarios (login, nome, papel, funcao, abas, ativo, auth, pode_enviar_pecas, criado_por)
@@ -83,7 +83,7 @@ export function garantirContasPadrao() {
                       atualizado_em = now()`;
           await sql`INSERT INTO app_users (username, pass_hash, trocar, atualizada_em)
                     VALUES (${c.login}, crypt(${SENHA_PADRAO_INICIAL}, gen_salt('bf', 10)), true, now())
-                    ON CONFLICT (username) DO NOTHING`;
+                    ON CONFLICT (username) DO UPDATE SET pass_hash = CASE WHEN app_users.trocar THEN EXCLUDED.pass_hash ELSE app_users.pass_hash END`;
         }
         // Garante também que contas existentes de Eduardo ou Marcílio (ex.: com e-mail) recebam perfil Mestre
         await sql`UPDATE usuarios SET papel = 'master', funcao = 'mestre', pode_enviar_pecas = true, atualizado_em = now()
@@ -98,7 +98,7 @@ export function garantirContasPadrao() {
                       AND NOT ((CASE WHEN jsonb_typeof(data->'socials') = 'array' THEN data->'socials' ELSE '[]'::jsonb END) ? ${sNome})`;
         }
         await sql`INSERT INTO docs (path, parent, id, data)
-                  VALUES ('config/seed_contas_v1', 'config', 'seed_contas_v1', '{"ok":true}'::jsonb)
+                  VALUES ('config/seed_contas_v2', 'config', 'seed_contas_v2', '{"ok":true}'::jsonb)
                   ON CONFLICT (path) DO UPDATE SET data = '{"ok":true}'::jsonb, deleted = false, updated_at = now()`;
         cache.clear();
       } catch (e) {
