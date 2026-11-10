@@ -357,14 +357,14 @@
     <div class="m-head"><h2 style="margin:0" id="agDlgTitle">Nova reunião</h2></div>
     <div class="m-body">
       <div class="full"><label class="f" for="ag_titulo">Assunto</label><input id="ag_titulo" required placeholder="Ex.: Alinhamento de planejamento"></div>
-      <div><label class="f" for="ag_at">Atendimento</label><select id="ag_at"></select><input id="ag_atNovo" placeholder="Nome" style="margin-top:8px" hidden></div>
+      <div class="full"><label class="f">Participantes do time (selecione um ou mais)</label><div class="chk" id="ag_ats"></div><div class="row" style="gap:6px;margin-top:8px"><input id="ag_atNovo" placeholder="Adicionar outro nome…" style="flex:1"><button type="button" class="btn small" id="ag_atAdd">+ Incluir</button></div></div>
       <div><label class="f" for="ag_cli">Cliente (opcional)</label><input id="ag_cli" list="agClientes"><datalist id="agClientes"></datalist></div>
       <div><label class="f" for="ag_data">Data</label><input id="ag_data" type="date" required></div>
       <div class="row" style="gap:10px;flex-wrap:nowrap">
         <div style="flex:1"><label class="f" for="ag_ini">Início</label><input id="ag_ini" type="time" min="07:00" max="21:00" step="900" required style="width:100%"></div>
         <div style="flex:1"><label class="f" for="ag_fim">Fim</label><input id="ag_fim" type="time" min="07:00" max="21:00" step="900" required style="width:100%"></div>
       </div>
-      <div class="full"><label class="f" for="ag_local">Local ou link da reunião</label><input id="ag_local" placeholder="Ex.: Meet, sala da Quinze, endereço do cliente"></div>
+      <div class="full"><label class="f" for="ag_local">Local ou link da reunião</label><input id="ag_local" placeholder="Ex.: link do Meet, sala online, sala da Quinze ou endereço do cliente"><div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button type="button" class="btn small" id="ag_btnMeet" title="Abre o Google Meet para criar uma sala nova">🎥 Criar no Google Meet</button><button type="button" class="btn small" id="ag_btnAutoLink" title="Gera automaticamente um link de sala de vídeo online">⚡ Gerar link online automático</button><button type="button" class="btn small" id="ag_btnPaste" title="Colar link da área de transferência">📋 Colar link</button><a class="btn small primary" id="ag_btnOpenLink" href="#" target="_blank" rel="noopener" hidden>🔗 Abrir reunião online</a><button type="button" class="btn small" id="ag_btnCopyLink" hidden>Copiar link</button></div></div>
       <div class="full"><label class="f" for="ag_obs">Observações</label><textarea id="ag_obs" rows="2"></textarea></div>
       <div class="full hint" id="ag_err" style="color:var(--danger)"></div>
     </div>
