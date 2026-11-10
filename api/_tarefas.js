@@ -307,7 +307,7 @@ export async function executarRelatorio({ agoraData = new Date(), forcar = false
     status = ok === resultados.length ? "enviado" : ok ? "parcial" : "falha";
     erro = resultados.find(x => !x.ok)?.erro || "";
   }
-  const fim = { ...reg, status, erro, fim: new Date().toISOString(), partes: rel.partes.length, totais: rel.totais, resultados, somenteTeste: dest.teste };
+  const fim = { ...reg, status, erro, fim: new Date().toISOString(), partes: rel.partes.length, mensagens: rel.partes, totais: rel.totais, resultados, somenteTeste: dest.teste };
   await gravar(M, "relatorio_envios", hoje, fim);
   return { enviado: status !== "falha", status, erro, partes: rel.partes.length };
 }
@@ -368,7 +368,7 @@ async function relTeste(u, req, res) {
   const rel = await montarRelatorio();
   const resultados = await enviarPartes([n], rel.partes.map(p => "[TESTE]\n" + p));
   const ok = resultados.every(x => x.ok);
-  await gravar(M, "relatorio_testes", novoId(), { data: rel.hoje, em: agora(), por: quem(u), status: ok ? "enviado" : "falha", partes: rel.partes.length, resultados });
+  await gravar(M, "relatorio_testes", novoId(), { data: rel.hoje, em: agora(), por: quem(u), status: ok ? "enviado" : "falha", partes: rel.partes.length, mensagens: rel.partes, resultados });
   return res.status(ok ? 200 : 502).json({ ok, partes: rel.partes.length, resultados, msg: ok ? "" : "O envio falhou: " + (resultados.find(x => !x.ok)?.erro || "") });
 }
 // "Enviar relatório oficial": dispara o relatório oficial do dia para os números de Destino e grava no histórico diário.
@@ -390,10 +390,24 @@ async function relHistorico(u, req, res) {
   const lista = [...envios, ...testes].sort((a, b) => (b.fim || b.em || b.inicio || "").localeCompare(a.fim || a.em || a.inicio || "")).slice(0, 60);
   return res.json({ historico: lista });
 }
+async function relVer(u, req, res) {
+  if (!veTodas(u)) return negado(res);
+  const b = req.method === "POST" ? corpo(req) : req.query;
+  const col = b.tipo === "teste" ? "relatorio_testes" : "relatorio_envios";
+  const docId = String(b.id || b.data || "");
+  const doc = docId ? await ler(M, col, docId) : null;
+  if (doc && Array.isArray(doc.mensagens) && doc.mensagens.length) {
+    return res.json({ ok: true, mensagens: doc.mensagens, reconstruido: false });
+  }
+  const dia = dataIso(doc?.data || b.data) || hojeLocal();
+  const rel = await montarRelatorio(dia);
+  if (doc && docId) await gravar(M, col, docId, { ...doc, mensagens: rel.partes });
+  return res.json({ ok: true, mensagens: rel.partes, reconstruido: true });
+}
 
 export const rotas = {
   inicio, tarefas, "tarefa.salvar": salvar, "tarefa.concluir": concluir, "tarefa.reabrir": reabrir, "tarefa.excluir": excluir,
   "relatorio.config": relConfig, "relatorio.config.salvar": relConfigSalvar, "relatorio.previa": relPrevia,
-  "relatorio.teste": relTeste, "relatorio.enviar": relEnviar, "relatorio.historico": relHistorico,
+  "relatorio.teste": relTeste, "relatorio.enviar": relEnviar, "relatorio.historico": relHistorico, "relatorio.ver": relVer,
 };
 export const publicas = { "relatorio.cron": relatorioCron };
