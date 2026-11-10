@@ -11,7 +11,7 @@ import { listar, ler, gravar, apagar, novoId, clientesCarteira, txt, dataIso } f
 import { perguntarJSON, ErroIA, MSG_IA, iaDisponivel } from "./_ia.js";
 import { lerLink } from "./_linkleitor.js";
 import { hojeLocal, horaLocal, dataLocal, diasEntre, somarDiasUteis, br, brCurta } from "./_datas.js";
-import { garantirTarefaOrigem, concluirTarefaOrigem, registrarBlocoRelatorio, registrarSincronizador } from "./_tarefas.js";
+import { garantirTarefaOrigem, atualizarPrazoOrigem, concluirTarefaOrigem, registrarBlocoRelatorio, registrarSincronizador } from "./_tarefas.js";
 
 const M = "atendimento";
 export const TIPOS = { material_ooh_offline: "Material OOH/offline", orcamento: "Orçamento", retorno_necessario: "Retorno necessário" };
@@ -268,6 +268,21 @@ async function cobranca(u, req, res) {
   await gravar(M, "pendencias", p.id, p);
   return res.json({ mensagem, pendencia: publica(p, u) });
 }
+async function reprogramarPrazo(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  if (!usaPendencias(u)) return negado(res);
+  const b = corpo(req);
+  const p = await lerPermitida(u, b.id, res, { rascunho: false }); if (!p) return;
+  const novoPrazo = dataIso(b.prazo);
+  if (!novoPrazo) return res.status(400).json({ code: "prazo", msg: "Informe uma data válida." });
+  const em = agora(), antes = p.prazo;
+  p.prazo = novoPrazo;
+  p.atualizadoEm = em;
+  p.historico.push({ em, por: quem(u), acao: "reprogramada", nota: `Prazo: ${br(antes)} → ${br(novoPrazo)}` });
+  await gravar(M, "pendencias", p.id, p);
+  await atualizarPrazoOrigem(origemDe(p.id), novoPrazo);
+  return res.json({ pendencia: publica(p, u) });
+}
 async function configSalvar(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!ehGestao(u)) return negado(res, "Os prazos são configurados pelo Mestre e pela gestão.");
@@ -306,5 +321,5 @@ registrarBlocoRelatorio("pendencias", blocoRelatorio);
 
 export const rotas = {
   inicio, pendencias, interpretar, "rascunho.salvar": rascunhoSalvar, "mensagem.regerar": mensagemRegerar, aprovar, descartar,
-  retorno, cobranca, "config.salvar": configSalvar,
+  retorno, cobranca, "prazo.salvar": reprogramarPrazo, "config.salvar": configSalvar,
 };

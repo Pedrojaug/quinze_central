@@ -7,6 +7,21 @@
   const br = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : "");
   const brAno = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "");
   const dataHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Fortaleza", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+  const somarDias = (iso, n) => {
+    const dt = new Date((iso || new Date().toISOString().slice(0, 10)) + "T12:00:00Z");
+    dt.setUTCDate(dt.getUTCDate() + n);
+    return dt.toISOString().slice(0, 10);
+  };
+  const proximoDiaUtil = iso => {
+    let x = iso || new Date().toISOString().slice(0, 10);
+    do { x = somarDias(x, 1); } while ([0, 6].includes(new Date(x + "T12:00:00Z").getUTCDay()));
+    return x;
+  };
+  const proximaSegunda = iso => {
+    let x = iso || new Date().toISOString().slice(0, 10);
+    do { x = somarDias(x, 1); } while (new Date(x + "T12:00:00Z").getUTCDay() !== 1);
+    return x;
+  };
   async function copiar(txt) {
     try { await navigator.clipboard.writeText(txt); return true; } catch {}
     const ta = document.createElement("textarea"); ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
@@ -21,7 +36,10 @@
     return j;
   }
   let base = null;
-  const carregarBase = async () => (base ||= await api("inicio"));
+  const carregarBase = async (forcar = false) => {
+    if (!base || forcar) base = await api("inicio");
+    return base;
+  };
   const REP = { "": "Não repete", diaria: "Diária (dias úteis)", semanal: "Semanal", mensal: "Mensal" };
   const PRI = { baixa: "Baixa", normal: "Normal", alta: "Alta" };
   const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -46,13 +64,18 @@
       .tr-chk{width:22px;height:22px;border-radius:50%;border:2px solid #9AA8BF;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;padding:0}
       .tr-row.feita .tr-chk{background:var(--ok);border-color:var(--ok)}
       .tr-chk:hover{border-color:var(--blue)}
-      .tr-meta{font-size:12.5px;color:var(--ink2);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+      .tr-meta{font-size:12.5px;color:var(--ink2);display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
+      .tr-prazo-btn{border:1px solid transparent;background:transparent;color:var(--ink2);font:inherit;font-size:12.5px;padding:1px 6px;margin:-1px -6px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+      .tr-prazo-btn:hover{background:#EEF3FB;border-color:#D0DDF2;color:var(--blue)}
       .tr-tag{font-size:11.5px;padding:1px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
       .tr-tag.atr{background:#FDE8E8;color:#A12020}.tr-tag.alta{background:#FFF4DE;color:#8A5A00}.tr-tag.baixa{background:#EEF1F6;color:#56627A}
       .tr-tag.rep{background:#E5EFFC;color:#1D4F91}.tr-tag.dono{background:#F1ECFB;color:#55308F}.tr-tag.auto{background:#E6F6EC;color:#1B6B3A}
       .tr-act{display:flex;gap:6px}.tr-act .btn{padding:3px 10px;min-height:0;font-size:13px}
-      .tr-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;padding:10px 4px 12px 38px;border-top:1px dashed var(--line2)}
+      .tr-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;padding:12px 12px 12px 38px;border-top:1px dashed var(--line2);background:#FAFBFD;border-radius:0 0 8px 8px}
       .tr-edit label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink2)}.tr-edit .full{grid-column:1/-1}
+      .tr-atalhos-data{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:2px}
+      .tr-atalho-btn{border:1px solid var(--line);background:#fff;color:var(--ink2);font:inherit;font-size:11.5px;padding:2px 8px;border-radius:14px;cursor:pointer}
+      .tr-atalho-btn:hover{border-color:var(--blue);color:var(--blue);background:#F2F7FF}
       .tr-vazio{padding:22px;text-align:center;color:var(--ink2);font-size:14px}
       .tr-pre{white-space:pre-wrap;font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:#F7FAF7;border:1px solid #D7E8DA;border-radius:10px;padding:12px 14px;margin:0 0 10px}
       .tr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
@@ -70,13 +93,21 @@
   // ======================================================================
   function minhas(ctx) {
     const el = ctx.el;
-    let visao = "hoje", lista = [], aberta = null, apagar = null;
-    const opClientes = sel => `<option value="">Sem cliente</option>${base.clientes.map(c => `<option value="${esc(c.id)}"${c.id === sel ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}`;
-    const opPessoas = (sel, vazio) => `${vazio ? `<option value="">${vazio}</option>` : ""}${base.pessoas.map(p => `<option value="${esc(p.login)}"${p.login === sel ? " selected" : ""}>${esc(p.nome)}</option>`).join("")}`;
+    let visao = "hoje", lista = [], aberta = null, focoCampo = "titulo", apagar = null;
+    const opClientes = (sel, nomeAtual) => {
+      const tem = !sel || base.clientes.some(c => c.id === sel);
+      const extra = !tem ? `<option value="${esc(sel)}" selected>${esc(nomeAtual || sel)}</option>` : "";
+      return `<option value="">Sem cliente</option>${extra}${base.clientes.map(c => `<option value="${esc(c.id)}"${c.id === sel ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}`;
+    };
+    const opPessoas = (sel, vazio, nomeAtual) => {
+      const tem = !sel || base.pessoas.some(p => p.login === sel);
+      const extra = !tem ? `<option value="${esc(sel)}" selected>${esc(nomeAtual || sel)}</option>` : "";
+      return `${vazio ? `<option value="">${vazio}</option>` : ""}${extra}${base.pessoas.map(p => `<option value="${esc(p.login)}"${p.login === sel ? " selected" : ""}>${esc(p.nome)}</option>`).join("")}`;
+    };
     const opObj = (obj, sel) => Object.entries(obj).map(([k, v]) => `<option value="${k}"${k === sel ? " selected" : ""}>${v}</option>`).join("");
 
     async function montar() {
-      try { await carregarBase(); } catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      try { await carregarBase(true); } catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       const g = base.veTodas;
       el.innerHTML = `<div class="tr-h"><div><h2>Minhas tarefas</h2><div class="tr-sub">${g ? "Tarefas da equipe. Filtre por pessoa ou crie uma tarefa para alguém." : "Sua lista do dia. Tarefa atrasada continua aqui até ser concluída."}</div></div><span class="sp"></span>
         ${g ? `<label class="tr-sub">Pessoa <select data-x="pessoa">${opPessoas("", "Todas as pessoas")}</select></label>` : ""}
@@ -96,17 +127,41 @@
         if (!f("titulo").value.trim()) { f("titulo").focus(); return; }
         const b = { titulo: f("titulo").value, clienteId: f("cliente").value, prazo: f("prazo").value, prioridade: f("prioridade").value, repetir: f("repetir").value };
         if (g) b.dono = f("dono").value || fv("pessoa") || base.login;
-        try { await api("tarefa.salvar", b); f("titulo").value = ""; f("msg").textContent = ""; f("titulo").focus(); ctx.toast("Tarefa adicionada"); carregar(); }
-        catch (e) { f("msg").textContent = e.message; ctx.toast(e.message); }
+        try {
+          await api("tarefa.salvar", b);
+          f("titulo").value = ""; f("msg").textContent = ""; f("titulo").focus();
+          const msg = visao === "hoje" && b.prazo && b.prazo > base.hoje ? `Tarefa agendada para ${br(b.prazo)} (visível na aba Todas)` : "Tarefa adicionada";
+          ctx.toast(msg);
+          carregar();
+        } catch (e) { f("msg").textContent = e.message; ctx.toast(e.message); }
       });
       carregar();
     }
     const fv = n => el.querySelector(`[data-x="${n}"]`)?.value || "";
     async function carregar() {
       if (!base) return montar();
-      try { lista = (await api(`tarefas&visao=${visao}${fv("pessoa") ? "&pessoa=" + encodeURIComponent(fv("pessoa")) : ""}`)).tarefas; }
-      catch (e) { el.querySelector('[data-box="lista"]').innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      try {
+        const r = await api(`tarefas&visao=${visao}${fv("pessoa") ? "&pessoa=" + encodeURIComponent(fv("pessoa")) : ""}`);
+        if (r.hoje) base.hoje = r.hoje;
+        lista = r.tarefas;
+      } catch (e) { el.querySelector('[data-box="lista"]').innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       render();
+    }
+    function atalhosPrazoHtml() {
+      const h = base.hoje;
+      const amanha = somarDias(h, 1);
+      const proxUtil = proximoDiaUtil(h);
+      const proxSeg = proximaSegunda(h);
+      const mais7 = somarDias(h, 7);
+      const botoes = [
+        ["Hoje", h],
+        ["Amanhã", amanha],
+        ...(proxUtil !== amanha ? [[`Próx. dia útil (${br(proxUtil)})`, proxUtil]] : []),
+        ...(proxSeg !== amanha && proxSeg !== proxUtil ? [[`Próx. seg (${br(proxSeg)})`, proxSeg]] : []),
+        [`+7 dias (${br(mais7)})`, mais7],
+        ["Sem prazo", ""],
+      ];
+      return `<div class="tr-atalhos-data"><span class="tr-sub" style="font-size:11.5px">Reprogramar:</span>${botoes.map(([rotulo, val]) => `<button type="button" class="tr-atalho-btn" data-prazo-set="${val}">${rotulo}</button>`).join("")}</div>`;
     }
     function linha(t) {
       const feita = t.status === "concluida";
@@ -117,42 +172,74 @@
         t.origem && t.origem !== "manual" ? `<span class="tr-tag auto">Automática</span>` : "",
         base.veTodas ? `<span class="tr-tag dono">${esc(t.dono?.nome || "")}</span>` : "",
       ].join("");
-      const meta = [t.clienteNome ? esc(t.clienteNome) : "", t.prazo ? `Prazo ${br(t.prazo)}` : "Sem prazo", feita ? `Concluída em ${dataHora(t.concluidaEm)}` : ""].filter(Boolean).join(" · ");
+      const prazoBtn = `<button type="button" class="tr-prazo-btn" data-t="reprogramar" title="Clique para reprogramar a data">${t.prazo ? `Prazo ${br(t.prazo)}` : "Sem prazo"} ✎</button>`;
+      const meta = [t.clienteNome ? `<span>${esc(t.clienteNome)}</span>` : "", prazoBtn, feita ? `<span>Concluída em ${dataHora(t.concluidaEm)}</span>` : ""].filter(Boolean).join("<span>·</span>");
       return `<div class="tr-row${feita ? " feita" : ""}${t.atrasada ? " atrasada" : ""}" data-id="${esc(t.id)}">
         <button class="tr-chk" type="button" data-t="${feita ? "reabrir" : "concluir"}" title="${feita ? "Reabrir" : "Concluir"}" aria-label="${feita ? "Reabrir" : "Concluir"} ${esc(t.titulo)}">${feita ? "✓" : ""}</button>
         <div><div class="tt">${esc(t.titulo)}</div><div class="tr-meta">${meta}${tags}</div>${t.descricao ? `<div class="tr-sub" style="margin-top:3px;white-space:pre-wrap">${esc(t.descricao)}</div>` : ""}</div>
         <div class="tr-act">${apagar === t.id ? `<button class="btn" type="button" data-t="excluir-sim" style="color:var(--danger)">Excluir mesmo</button><button class="btn" type="button" data-t="excluir-nao">Não</button>`
-          : `<button class="btn" type="button" data-t="editar">Editar</button><button class="btn" type="button" data-t="excluir" title="Excluir">✕</button>`}</div></div>
-        ${aberta === t.id ? `<form class="tr-edit" data-edit="${esc(t.id)}">
+          : `<button class="btn" type="button" data-t="editar">${aberta === t.id ? "Fechar" : "Editar"}</button><button class="btn" type="button" data-t="excluir" title="Excluir">✕</button>`}</div></div>
+        ${aberta === t.id ? `<form class="tr-edit" data-edit-tar="${esc(t.id)}">
           <label class="full">Título<input data-e="titulo" maxlength="200" value="${esc(t.titulo)}"></label>
           <label class="full">Descrição (opcional)<textarea data-e="descricao" rows="2">${esc(t.descricao || "")}</textarea></label>
-          ${base.veTodas ? `<label>Responsável<select data-e="dono">${opPessoas(t.dono?.login)}</select></label>` : ""}
-          <label>Cliente<select data-e="cliente">${opClientes(t.clienteId)}</select></label>
-          <label>Prazo<input type="date" data-e="prazo" value="${esc(t.prazo || "")}"></label>
+          ${base.veTodas ? `<label>Responsável<select data-e="dono">${opPessoas(t.dono?.login, "", t.dono?.nome)}</select></label>` : ""}
+          <label>Cliente<select data-e="cliente">${opClientes(t.clienteId, t.clienteNome)}</select></label>
+          <label>Prazo (data)<input type="date" data-e="prazo" value="${esc(t.prazo || "")}"></label>
           <label>Prioridade<select data-e="prioridade">${opObj(PRI, t.prioridade)}</select></label>
           <label>Repetir<select data-e="repetir">${opObj(REP, t.repetir || "")}</select></label>
-          <div class="full" style="display:flex;gap:8px;align-items:center"><button class="btn primary" type="submit">Salvar</button><button class="btn" type="button" data-t="cancelar">Cancelar</button><span class="tr-sub" data-e="msg"></span></div></form>` : ""}`;
+          <div class="full">${atalhosPrazoHtml()}</div>
+          <div class="full" style="display:flex;gap:8px;align-items:center;margin-top:2px"><button class="btn primary" type="submit" data-e="salvar">Salvar alterações</button><button class="btn" type="button" data-t="cancelar">Cancelar</button><span class="tr-sub" data-e="msg" style="color:var(--danger)"></span></div></form>` : ""}`;
     }
     function render() {
       el.querySelectorAll("[data-v]").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === visao));
       const box = el.querySelector('[data-box="lista"]');
       const vazio = { hoje: "Nada para hoje. Tarefas com prazo hoje, atrasadas ou sem prazo aparecem aqui.", todas: "Nenhuma tarefa ainda.", concluidas: "Nenhuma tarefa concluída nos últimos 30 dias." }[visao];
       box.innerHTML = lista.length ? lista.map(linha).join("") : `<div class="tr-vazio">${vazio}</div>`;
-      const f = box.querySelector("[data-edit]");
-      if (f) f.addEventListener("submit", async ev => {
-        ev.preventDefault();
-        const e = n => f.querySelector(`[data-e="${n}"]`);
-        const b = { id: f.dataset.edit, titulo: e("titulo").value, descricao: e("descricao").value, clienteId: e("cliente").value, prazo: e("prazo").value, prioridade: e("prioridade").value, repetir: e("repetir").value };
-        if (base.veTodas) b.dono = e("dono").value;
-        try { await api("tarefa.salvar", b); aberta = null; ctx.toast("Tarefa salva"); carregar(); } catch (er) { e("msg").textContent = er.message; ctx.toast(er.message); }
-      });
+      const f = box.querySelector("[data-edit-tar]");
+      if (f) {
+        const alvoFoco = f.querySelector(`[data-e="${focoCampo}"]`) || f.querySelector('[data-e="titulo"]');
+        if (alvoFoco) setTimeout(() => alvoFoco.focus(), 10);
+        f.addEventListener("submit", async ev => {
+          ev.preventDefault();
+          const e = n => f.querySelector(`[data-e="${n}"]`);
+          const id = f.dataset.editTar;
+          const tAntiga = lista.find(x => x.id === id);
+          const b = { id, titulo: e("titulo").value, descricao: e("descricao").value, clienteId: e("cliente").value, prazo: e("prazo").value, prioridade: e("prioridade").value, repetir: e("repetir").value };
+          if (base.veTodas) b.dono = e("dono").value;
+          const btnSalvar = e("salvar");
+          if (btnSalvar) btnSalvar.disabled = true;
+          try {
+            await api("tarefa.salvar", b);
+            aberta = null;
+            const mudouPrazo = b.prazo !== (tAntiga?.prazo || "");
+            let msg = "Tarefa salva";
+            if (visao === "hoje" && b.prazo && b.prazo > base.hoje) msg = `Tarefa reprogramada para ${br(b.prazo)} (visível na aba Todas)`;
+            else if (mudouPrazo && b.prazo) msg = `Tarefa reprogramada para ${br(b.prazo)}`;
+            else if (mudouPrazo && !b.prazo) msg = "Tarefa salva sem prazo";
+            ctx.toast(msg);
+            carregar();
+          } catch (er) {
+            if (btnSalvar) btnSalvar.disabled = false;
+            e("msg").textContent = er.message;
+            ctx.toast(er.message);
+          }
+        });
+      }
     }
     el.addEventListener("click", async ev => {
       const v = ev.target.closest("[data-v]")?.dataset.v;
       if (v) { visao = v; aberta = null; carregar(); return; }
+      const atalho = ev.target.closest("[data-prazo-set]");
+      if (atalho) {
+        const form = atalho.closest("[data-edit-tar]");
+        const inp = form?.querySelector('[data-e="prazo"]');
+        if (inp) { inp.value = atalho.dataset.prazoSet; inp.focus(); }
+        return;
+      }
       const t = ev.target.closest("[data-t]")?.dataset.t; if (!t) return;
-      const id = ev.target.closest("[data-id],[data-edit]")?.dataset.id || ev.target.closest("[data-edit]")?.dataset.edit;
-      if (t === "editar") { aberta = id; apagar = null; render(); return; }
+      const id = ev.target.closest("[data-id],[data-edit-tar]")?.dataset.id || ev.target.closest("[data-edit-tar]")?.dataset.editTar;
+      if (t === "editar") { aberta = aberta === id ? null : id; focoCampo = "titulo"; apagar = null; render(); return; }
+      if (t === "reprogramar") { aberta = id; focoCampo = "prazo"; apagar = null; render(); return; }
       if (t === "cancelar") { aberta = null; render(); return; }
       if (t === "excluir") { apagar = id; render(); return; }
       if (t === "excluir-nao") { apagar = null; render(); return; }
@@ -165,7 +252,11 @@
       } catch (e) { ctx.toast(e.message); ev.target.disabled = false; }
     });
     el.addEventListener("change", ev => { if (ev.target.dataset.x === "pessoa") carregar(); });
-    return () => (base ? carregar() : montar());
+    return async () => {
+      if (!base) return montar();
+      try { await carregarBase(true); } catch {}
+      return carregar();
+    };
   }
 
   // ======================================================================
@@ -173,10 +264,12 @@
   // ======================================================================
   function relatorio(ctx) {
     const el = ctx.el;
+    let ultimaPrevia = null;
     async function carregar() {
       let c, p, h;
       try { [c, p, h] = await Promise.all([api("relatorio.config"), api("relatorio.previa"), api("relatorio.historico")]); }
       catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      ultimaPrevia = p;
       const cfg = c.config;
       el.innerHTML = `<div class="tr-h"><div><h2>Relatório das 20h</h2><div class="tr-sub">Uma mensagem no WhatsApp com o que cada atendimento fez no dia e o que ficou pendente.</div></div></div>
         ${c.whatsapp ? "" : `<div class="note warn" style="margin-bottom:12px"><b>Envio automático via API aguardando credenciais na Vercel</b> (faltam <code>WHATSAPP_API_URL</code> e <code>WHATSAPP_TOKEN</code>).<br>O envio manual está liberado: use o botão <b>Copiar relatório</b> abaixo para colar no WhatsApp a qualquer momento.</div>`}
@@ -212,38 +305,38 @@
         const b = { ativo, hora: q("hora").value, dias: [...el.querySelectorAll("[data-dia]")].filter(x => x.checked).map(x => +x.dataset.dia), destino, numeroTeste: q("numeroTeste").value };
         try { await api("relatorio.config.salvar", b); ctx.toast("Configuração salva"); carregar(); } catch (e) { q("msg").textContent = e.message; }
       });
-      el.addEventListener("click", async ev => {
-        const btn = ev.target.closest("[data-x]");
-        if (!btn) return;
-        const x = btn.dataset.x;
-        if (x === "copiar-tudo") {
-          const texto = p.partes.join("\n\n---\n\n");
-          const ok = await copiar(texto);
-          ctx.toast(ok ? "Relatório copiado! Cole no WhatsApp." : "Não foi possível copiar. Selecione o texto manualmente.");
-          return;
-        }
-        if (x === "copiar-parte") {
-          const idx = Number(btn.dataset.idx);
-          const texto = p.partes[idx] || "";
-          const ok = await copiar(texto);
-          ctx.toast(ok ? `Parte ${idx + 1} copiada!` : "Não foi possível copiar.");
-          return;
-        }
-        if (x === "teste") {
-          btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando…";
-          try { const r = await api("relatorio.teste", {}); ctx.toast(`Teste enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
-          catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
-          return;
-        }
-        if (x === "enviar-oficial") {
-          if (!confirm("Enviar agora o relatório oficial de hoje para os números de Destino configurados?")) return;
-          btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando relatório oficial…";
-          try { const r = await api("relatorio.enviar", {}); ctx.toast(`Relatório oficial enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
-          catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
-          return;
-        }
-      });
     }
+    el.addEventListener("click", async ev => {
+      const btn = ev.target.closest("[data-x]");
+      if (!btn || !ultimaPrevia) return;
+      const x = btn.dataset.x;
+      if (x === "copiar-tudo") {
+        const texto = ultimaPrevia.partes.join("\n\n---\n\n");
+        const ok = await copiar(texto);
+        ctx.toast(ok ? "Relatório copiado! Cole no WhatsApp." : "Não foi possível copiar. Selecione o texto manualmente.");
+        return;
+      }
+      if (x === "copiar-parte") {
+        const idx = Number(btn.dataset.idx);
+        const texto = ultimaPrevia.partes[idx] || "";
+        const ok = await copiar(texto);
+        ctx.toast(ok ? `Parte ${idx + 1} copiada!` : "Não foi possível copiar.");
+        return;
+      }
+      if (x === "teste") {
+        btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando…";
+        try { const r = await api("relatorio.teste", {}); ctx.toast(`Teste enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
+        catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
+        return;
+      }
+      if (x === "enviar-oficial") {
+        if (!confirm("Enviar agora o relatório oficial de hoje para os números de Destino configurados?")) return;
+        btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando relatório oficial…";
+        try { const r = await api("relatorio.enviar", {}); ctx.toast(`Relatório oficial enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
+        catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
+        return;
+      }
+    });
     return carregar;
   }
 

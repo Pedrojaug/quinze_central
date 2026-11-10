@@ -20,7 +20,7 @@
   });
 
   document.addEventListener("click", async e => {
-    const ed = e.target.closest("[data-edit]"); if (ed) return openEdit(ed.dataset.edit);
+    const ed = e.target.closest("button[data-edit]"); if (ed) return openEdit(ed.dataset.edit);
     if (e.target.closest("[data-open-newmonth]")) return openNewMonth();
     const o = e.target.closest("[data-out]"); if (o) { outId=o.dataset.out; const c=clients.find(x=>x.id===outId); $("#outTitle").textContent="Retirar "+(c?.nome||"cliente"); $("#o_motivo").value=""; $("#dlgOut").showModal(); return; }
     const b = e.target.closest("[data-back]"); if (b) {
