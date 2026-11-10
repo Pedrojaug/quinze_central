@@ -1,7 +1,7 @@
   // ---------- Módulo aberto, usuários e permissões (somente no site) ----------
   // Módulos, abas, perfis e permissões vêm do registro central (api/_modules.js).
   // A página só esconde o que não é liberado; quem decide de verdade é o servidor.
-  let TAB_NAMES = {dash:"Dashboard", cli:"Clientes", onb:"Onboarding", prop:"Propostas", agenda:"Agenda", and:"Andamento", prod:"Dados consolidados", team:"Equipe e ajustes", users:"Usuários"};
+  let TAB_NAMES = {dash:"Dashboard", cli:"Clientes", onb:"Onboarding", prop:"Propostas", agenda:"Agenda", prod:"Dados consolidados", team:"Equipe e ajustes", users:"Usuários"};
   const TAB_MOD = {users:"administrativo"};
   let usrList = [], usrDelArm = null, usrPwdArm = null;
   let FUNC_TABS = {}, PERFIS = {}, ESCOLHAS = [], AREAS_ALL = [], SENHA_MIN = 8;
@@ -48,7 +48,8 @@
     const who = document.getElementById("whoami"); if (who) who.textContent = ME.nome || ME.login;
     const st = $("#syncTxt"); if (st && ME.nome) st.title = ME.login;
     if (semAcesso) { $("#subtitle").textContent = "Sem acesso a este módulo"; showSections(currentTab()); return; }
-    const want = document.querySelector(`nav.tabs button[data-tab="${hashTab}"]`);
+    const defTab = hashTab || (modAtual === "atendimento" && allowed.has("tarefas") ? "tarefas" : "");
+    const want = defTab && document.querySelector(`nav.tabs button[data-tab="${defTab}"]`);
     const sel = document.querySelector('nav.tabs button[aria-selected="true"]');
     if (want && !want.hidden) want.click();
     else if (!sel || sel.hidden) { const first = [...document.querySelectorAll("nav.tabs button")].find(b => !b.hidden); if (first) first.click(); }
