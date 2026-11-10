@@ -264,12 +264,39 @@
   // ======================================================================
   function relatorio(ctx) {
     const el = ctx.el;
-    let ultimaPrevia = null;
+    let ultimaPrevia = null, ultimoHistorico = [], histAberto = null;
+    function renderHistorico() {
+      const box = el.querySelector('[data-box="hist"]'); if (!box) return;
+      if (!ultimoHistorico.length) { box.innerHTML = `<div class="tr-vazio">Nenhum envio ainda.</div>`; return; }
+      box.innerHTML = `<table class="tr-tbl"><thead><tr><th>Dia</th><th>Tipo</th><th>Status</th><th>Mensagens</th><th>Quando</th><th>Erro</th><th style="text-align:right">Relatório</th></tr></thead><tbody>
+        ${ultimoHistorico.map((x, idx) => {
+          const aberto = histAberto === idx;
+          const msgs = Array.isArray(x.mensagens) ? x.mensagens : [];
+          return `<tr>
+            <td>${brAno(x.data)}</td>
+            <td>${x.tipo === "teste" ? "Teste" + (x.por ? " (" + esc(x.por.nome) + ")" : "") : x.somenteTeste ? "Diário (só nº de teste)" : "Diário"}</td>
+            <td><span class="tr-st ${esc(x.status)}">${esc(x.status)}</span></td>
+            <td>${x.partes || msgs.length || ""}</td>
+            <td>${dataHora(x.fim || x.em || x.inicio)}</td>
+            <td class="tr-sub">${esc(x.erro || (x.resultados || []).find(r => !r.ok)?.erro || "")}</td>
+            <td style="text-align:right;white-space:nowrap"><button class="btn small" type="button" data-x="ver-hist" data-hidx="${idx}">${aberto ? "Ocultar" : "Ver relatório"}</button></td>
+          </tr>${aberto ? `<tr><td colspan="7" style="background:#FAFBFD;padding:12px 14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+              <b style="font-size:13.5px">Relatório de ${brAno(x.data)} (${x.tipo === "teste" ? "Envio de teste" : "Envio diário"})</b>
+              <div style="display:flex;gap:6px">
+                <button class="btn small primary" type="button" data-x="copiar-hist" data-hidx="${idx}">Copiar este relatório</button>
+                <button class="btn small" type="button" data-x="ver-hist" data-hidx="${idx}">Fechar</button>
+              </div>
+            </div>
+            ${msgs.map(m => `<pre class="tr-pre" style="margin-bottom:8px">${esc(m)}</pre>`).join("")}
+          </td></tr>` : ""}`;
+        }).join("")}</tbody></table>`;
+    }
     async function carregar() {
       let c, p, h;
       try { [c, p, h] = await Promise.all([api("relatorio.config"), api("relatorio.previa"), api("relatorio.historico")]); }
       catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
-      ultimaPrevia = p;
+      ultimaPrevia = p; ultimoHistorico = h.historico || []; histAberto = null;
       const cfg = c.config;
       el.innerHTML = `<div class="tr-h"><div><h2>Relatório das 20h</h2><div class="tr-sub">Uma mensagem no WhatsApp com o que cada atendimento fez no dia e o que ficou pendente.</div></div></div>
         ${c.whatsapp ? "" : `<div class="note warn" style="margin-bottom:12px"><b>Envio automático via API aguardando credenciais na Vercel</b> (faltam <code>WHATSAPP_API_URL</code> e <code>WHATSAPP_TOKEN</code>).<br>O envio manual está liberado: use o botão <b>Copiar relatório</b> abaixo para colar no WhatsApp a qualquer momento.</div>`}
@@ -287,10 +314,11 @@
           <button class="btn" type="button" data-x="teste"${c.whatsapp ? "" : " disabled"} title="${c.whatsapp ? "Enviar teste para o número de teste" : "Requer WHATSAPP_API_URL e WHATSAPP_TOKEN na Vercel"}">Enviar agora (teste)</button>
           <button class="btn" type="button" data-x="enviar-oficial"${c.whatsapp ? "" : " disabled"} title="${c.whatsapp ? "Enviar relatório oficial do dia para os números de Destino" : "Requer WHATSAPP_API_URL e WHATSAPP_TOKEN na Vercel"}">Enviar relatório oficial</button><span class="tr-sub" data-x="tmsg" style="color:var(--danger)"></span></div>
           ${p.partes.map((x, idx) => `<div style="margin-bottom:12px"><pre class="tr-pre">${esc(x)}</pre>${p.partes.length > 1 ? `<div style="margin-top:4px;display:flex;justify-content:flex-end"><button class="btn small" type="button" data-x="copiar-parte" data-idx="${idx}">Copiar parte ${idx + 1}</button></div>` : ""}</div>`).join("")}</div>
-        <div class="tr-card"><h3 style="margin:0 0 10px;font-size:15px">Histórico de envios</h3>
-          ${h.historico.length ? `<table class="tr-tbl"><thead><tr><th>Dia</th><th>Tipo</th><th>Status</th><th>Mensagens</th><th>Quando</th><th>Erro</th></tr></thead><tbody>
-          ${h.historico.map(x => `<tr><td>${brAno(x.data)}</td><td>${x.tipo === "teste" ? "Teste" + (x.por ? " (" + esc(x.por.nome) + ")" : "") : x.somenteTeste ? "Diário (só nº de teste)" : "Diário"}</td><td><span class="tr-st ${esc(x.status)}">${esc(x.status)}</span></td><td>${x.partes || ""}</td><td>${dataHora(x.fim || x.em || x.inicio)}</td><td class="tr-sub">${esc(x.erro || (x.resultados || []).find(r => !r.ok)?.erro || "")}</td></tr>`).join("")}</tbody></table>`
-          : `<div class="tr-vazio">Nenhum envio ainda.</div>`}</div>`;
+        <div class="tr-card"><h3 style="margin:0 0 10px;font-size:15px">Histórico de envios</h3><div data-box="hist"></div></div>`;
+      renderHistorico();
+
+
+
       el.querySelector('[data-x="cfg"]').addEventListener("submit", async ev => {
         ev.preventDefault();
         const q = n => el.querySelector(`[data-c="${n}"]`);
@@ -327,6 +355,29 @@
         btn.disabled = true; el.querySelector('[data-x="tmsg"]').textContent = "Enviando…";
         try { const r = await api("relatorio.teste", {}); ctx.toast(`Teste enviado (${r.partes} mensagem${r.partes > 1 ? "s" : ""})`); carregar(); }
         catch (e) { el.querySelector('[data-x="tmsg"]').textContent = e.message; btn.disabled = false; }
+        return;
+      }
+      if (x === "ver-hist") {
+        const idx = Number(btn.dataset.hidx);
+        if (histAberto === idx) { histAberto = null; renderHistorico(); return; }
+        const item = ultimoHistorico[idx]; if (!item) return;
+        if (!Array.isArray(item.mensagens) || !item.mensagens.length) {
+          btn.disabled = true; btn.textContent = "Carregando…";
+          try {
+            const r = await api("relatorio.ver", { id: item.id, tipo: item.tipo, data: item.data });
+            item.mensagens = r.mensagens || [];
+          } catch (e) { ctx.toast(e.message); btn.disabled = false; btn.textContent = "Ver relatório"; return; }
+        }
+        histAberto = idx;
+        renderHistorico();
+        return;
+      }
+      if (x === "copiar-hist") {
+        const idx = Number(btn.dataset.hidx);
+        const item = ultimoHistorico[idx];
+        const texto = (item?.mensagens || []).join("\n\n---\n\n");
+        const ok = await copiar(texto);
+        ctx.toast(ok ? "Relatório do histórico copiado!" : "Não foi possível copiar.");
         return;
       }
       if (x === "enviar-oficial") {
