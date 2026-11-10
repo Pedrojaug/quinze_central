@@ -27,7 +27,7 @@
   function blankProp(){
     let as = PR_ASSIN;
     try { const s = JSON.parse(localStorage.getItem("prop-assin") || "null"); if (s && s.nome) as = s; } catch {}
-    return {cliente:"", responsavel:"", cnpj:"", endereco:"", telefone:"", atendimento: as.nome, data: todayIso(), validade: 15, objetivo:"",
+    return {cliente:"", responsavel:"", cnpj:"", endereco:"", telefone:"", atendimento: as.nome, data: todayIso(), validade: 15, analisePerfil:{instagram:"", diagnostico:"", pontosFortes:"", oportunidades:""}, objetivo:"",
       unicos:[], recorrentes:[], opcionais:[], mostrarValores:true, feeFixo:"", desconto:{pct:"", regra:"primeiros", meses:3},
       periodo:{ativo:false, inicio:"", fim:""}, prazoMinimo:3, pagamento:"Primeiro pagamento no ato da contratação.", observacoes:"",
       exclusoes:[...PR_EXCL.slice(0,5)], outrasExclusoes:"", compacta:false, assinante:{...as}, status:"rascunho"};
@@ -76,7 +76,18 @@
     return out;
   }
   const prExcl = p => [...(p.exclusoes || []), ...(p.outrasExclusoes || "").split("\n").map(s => s.trim()).filter(Boolean)];
-  const prClientRows = p => [["Cliente", p.cliente], ["Responsável", p.responsavel], ["CNPJ", p.cnpj], ["Telefone", p.telefone], ["Endereço", p.endereco], ["Atendimento", p.atendimento]].filter(x => x[1]);
+  const prClientRows = p => [["Cliente", p.cliente], ["Responsável", p.responsavel], ["CNPJ", p.cnpj], ["Telefone", p.telefone], ["Perfil", p.analisePerfil?.instagram], ["Endereço", p.endereco], ["Atendimento", p.atendimento]].filter(x => x[1]);
+  const temAnalisePerfil = p => { const a = p.analisePerfil || {}; return !!(a.diagnostico || a.pontosFortes || a.oportunidades); };
+  const analiseHtml = p => {
+    const a = p.analisePerfil || {};
+    if (!temAnalisePerfil(p)) return "";
+    const lst = s => (s || "").split("\n").map(x => x.trim()).filter(Boolean);
+    const pf = lst(a.pontosFortes), op = lst(a.oportunidades);
+    return `<h2>Análise de perfil${a.instagram ? ` · ${esc(a.instagram)}` : ""}</h2>`
+      + (a.diagnostico ? `<p>${esc(a.diagnostico).replace(/\n/g,"<br>")}</p>` : "")
+      + (pf.length ? `<div class="sh-svc"><b>Pontos fortes identificados</b><ul>${pf.map(c => `<li>${esc(c)}</li>`).join("")}</ul></div>` : "")
+      + (op.length ? `<div class="sh-svc"><b>Oportunidades e pontos de melhoria</b><ul>${op.map(c => `<li>${esc(c)}</li>`).join("")}</ul></div>` : "");
+  };
   const logoSrc = () => document.querySelector(".brand img")?.src || "";
 
   function sheetHtml(p){
@@ -86,6 +97,7 @@
       <div class="sh-top"><img src="${logoSrc()}" alt="Quinze"><div class="r"><b>PROPOSTA COMERCIAL</b>Mossoró, ${dataExtenso(p.data)}</div></div>
       <h1>Proposta de serviços · ${esc(p.cliente)}</h1>
       <div class="sh-box">${prClientRows(p).map(([l,v]) => `<div><span>${l}:</span> <b>${esc(v)}</b></div>`).join("")}</div>
+      ${analiseHtml(p)}
       ${p.objetivo ? `<h2>Objetivo</h2><p>${esc(p.objetivo).replace(/\n/g,"<br>")}</p>` : ""}
       <h2>Escopo dos serviços</h2>${PR_GROUPS.map(([k,t]) => grp(k, t)).join("")}
       <h2>Investimento</h2>
@@ -135,6 +147,14 @@
       doc.setFont("helvetica","bold").setTextColor(43,43,43).text(doc.splitTextToSize(String(v), CW/2 - 8 - lwid)[0] || "", x + lwid, yy);
     });
     y += boxH + (C ? 1 : 2);
+    if (temAnalisePerfil(p)) {
+      const a = p.analisePerfil || {}, lst = s => (s || "").split("\n").map(x => x.trim()).filter(Boolean);
+      h2("Análise de perfil" + (a.instagram ? " · " + a.instagram : ""));
+      if (a.diagnostico) text(a.diagnostico, {gap: 1.5});
+      const pf = lst(a.pontosFortes), op = lst(a.oportunidades);
+      if (pf.length) { text("Pontos fortes identificados:", {bold:true, color:navy, gap:0.5}); bullets(pf); y += 1; }
+      if (op.length) { text("Oportunidades e pontos de melhoria:", {bold:true, color:navy, gap:0.5}); bullets(op); y += 1; }
+    }
     if (p.objetivo) { h2("Objetivo"); text(p.objetivo, {gap:1}); }
     h2("Escopo dos serviços");
     PR_GROUPS.forEach(([k, t]) => {
@@ -227,6 +247,14 @@
     return `<div class="pr-form">
       <div class="panel"><h3>${p.id ? "Ajustar proposta" : "Nova proposta"}</h3>
         <div class="fgrid">${f("cliente","Cliente")}${f("responsavel","Responsável")}${f("cnpj","CNPJ")}${f("telefone","Telefone")}${f("endereco","Endereço",{full:true})}${f("atendimento","Atendimento")}${f("data","Data",{type:"date"})}${f("validade","Validade (dias)",{type:"number"})}</div></div>
+      <div class="panel"><h3>Análise de perfil (opcional — sai junto à proposta)</h3>
+        <div class="hint" style="margin-bottom:8px">Preencha quando quiser incluir o diagnóstico inicial do perfil/redes do cliente no documento da proposta.</div>
+        <div class="fgrid">
+          ${f("analisePerfil.instagram","Instagram / Redes analisadas",{full:true, ph:"Ex.: @cliente / site / Google Meu Negócio"})}
+          ${f("analisePerfil.diagnostico","Diagnóstico geral do perfil",{area:3, full:true, ph:"Ex.: Posicionamento atual, identidade visual, bio, frequência de postagens e percepção de marca."})}
+          ${f("analisePerfil.pontosFortes","Pontos fortes identificados (um por linha)",{area:3, ph:"Ex.: Boa estrutura física\nReconhecimento local\nClientes fiéis"})}
+          ${f("analisePerfil.oportunidades","Oportunidades de melhoria (uma por linha)",{area:3, ph:"Ex.: Padronizar identidade visual no feed\nAumentar frequência de Reels\nOtimizar destaques e bio para conversão"})}
+        </div></div>
       <div class="panel"><h3>Objetivo</h3>${f("objetivo","Objetivo da proposta",{area:3, ph:"Ex.: Melhorar a presença digital, gerar autoridade e aumentar a conversão."})}</div>
       ${PR_GROUPS.map(([k,t]) => `<div class="panel"><h3>${t}</h3>${k === "opcionais" ? `<div class="hint">Aparecem na tabela, mas não entram no total.</div>` : ""}<div class="pr-items" id="items_${k}">${itemRows(k)}</div><div><button class="btn small" type="button" data-itadd="${k}">Adicionar item</button></div></div>`).join("")}
       <div class="panel"><h3>Investimento</h3>
