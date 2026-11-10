@@ -3,9 +3,49 @@
   const IS_SITE = !!window.QZ_SITE;
   let agEvents = [], agFeeds = {}, agCal = null, agLoading = null, agEditing = null, agFilter = "";
   try { agFilter = localStorage.getItem("ag-filtro") || ""; } catch {}
-  const agPeople = () => [...new Set([...people("atendimentos","atendimento"), ...agEvents.map(e => e.atendente), ...Object.keys(agFeeds)].filter(Boolean))];
+  const evPeople = e => {
+    const arr = Array.isArray(e?.atendentes) && e.atendentes.length ? e.atendentes : (e?.atendente ? String(e.atendente).split(",") : []);
+    return [...new Set(arr.map(x => String(x || "").trim().toUpperCase()).filter(Boolean))];
+  };
+  const agPeople = () => [...new Set([...people("atendimentos","atendimento"), ...agEvents.flatMap(evPeople), ...Object.keys(agFeeds)].filter(Boolean))];
+  const agTeamOptions = (extras = []) => {
+    const coord = (cfg.coordenacao || "").split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+    return [...new Set([
+      ...people("atendimentos","atendimento",true),
+      ...coord,
+      ...people("socials","social",true),
+      ...agEvents.flatMap(evPeople),
+      ...Object.keys(agFeeds),
+      ...extras,
+    ].map(x => String(x || "").trim().toUpperCase()).filter(Boolean))];
+  };
   const agColor = n => AG_COLORS[Math.max(0, agPeople().indexOf(n)) % AG_COLORS.length];
   const localIso = d => `${isoOf(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  function agUrlDe(raw){
+    const s = String(raw || "").trim();
+    if (!s) return "";
+    const m = /(https?:\/\/[^\s]+|(?:meet\.google\.com|meet\.jit\.si|[\w.-]*zoom\.us|teams\.microsoft\.com|whereby\.com)\/[^\s]+)/i.exec(s);
+    if (!m) return "";
+    return /^https?:\/\//i.test(m[1]) ? m[1] : "https://" + m[1];
+  }
+  function syncAgLinkBtns(){
+    const url = agUrlDe($("#ag_local")?.value);
+    const openBtn = $("#ag_btnOpenLink"), copyBtn = $("#ag_btnCopyLink");
+    if (openBtn) { openBtn.hidden = !url; openBtn.href = url || "#"; }
+    if (copyBtn) copyBtn.hidden = !url;
+  }
+  function renderAgAts(selecionados = []){
+    const box = $("#ag_ats"); if (!box) return;
+    const selSet = new Set(selecionados.map(x => String(x || "").trim().toUpperCase()).filter(Boolean));
+    const lista = agTeamOptions([...selSet]);
+    box.innerHTML = lista.map(n => `<label><input type="checkbox" data-agat="${esc(n)}"${selSet.has(n) ? " checked" : ""}> ${esc(n)}</label>`).join("")
+      || `<span class="hint">Digite o nome abaixo e clique em "+ Incluir".</span>`;
+  }
+  function agSelecionados(){
+    const marcados = [...document.querySelectorAll("#ag_ats input[data-agat]:checked")].map(i => i.dataset.agat);
+    const extra = ($("#ag_atNovo")?.value || "").trim().toUpperCase();
+    return [...new Set([...marcados, ...(extra ? [extra] : [])].filter(Boolean))];
+  }
   async function loadFC(){
     if (!window.FullCalendar) await loadScript("https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js");
     if (!(FullCalendar.globalLocales || []).some(l => l.code === "pt-br")) await loadScript("https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.15/locales/pt-br.global.min.js");
@@ -15,10 +55,21 @@
     }
   }
   function agManual(){
-    return agEvents.filter(e => !agFilter || e.atendente === agFilter).map(e => ({
-      id: e.id, title: `${agFilter ? "" : e.atendente + " · "}${e.titulo}${e.cliente ? " (" + e.cliente + ")" : ""}`,
-      start: e.inicio, end: e.fim, color: agColor(e.atendente), extendedProps: {qid: e.id, local: e.local || ""}
-    }));
+    return agEvents.filter(e => !agFilter || evPeople(e).includes(agFilter)).map(e => {
+      const ps = evPeople(e);
+      const donoCor = agFilter && ps.includes(agFilter) ? agFilter : (ps[0] || e.atendente || "");
+      const outros = agFilter ? ps.filter(x => x !== agFilter) : ps;
+      const prefixo = agFilter ? (outros.length ? `c/ ${outros.join(", ")} · ` : "") : (ps.length ? `${ps.join(", ")} · ` : "");
+      const temLink = !!agUrlDe(e.local);
+      return {
+        id: e.id,
+        title: `${temLink ? "🎥 " : ""}${prefixo}${e.titulo}${e.cliente ? " (" + e.cliente + ")" : ""}`,
+        start: e.inicio,
+        end: e.fim,
+        color: agColor(donoCor),
+        extendedProps: {qid: e.id, local: e.local || "", urlOnline: agUrlDe(e.local)}
+      };
+    });
   }
   function agSources(){
     if (!agCal) return;
@@ -72,10 +123,10 @@
     if (!db) { toast("Sem conexão com o banco de dados."); return; }
     const ev = id ? agEvents.find(x => x.id === id) : null; agEditing = ev ? ev.id : null;
     let me = agFilter; try { me = me || localStorage.getItem("ag-eu") || ""; } catch {}
-    const ps = agPeople();
-    $("#ag_at").innerHTML = `<option value="">Escolha</option>` + ps.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("") + `<option value="__novo">Outro (novo nome)…</option>`;
-    $("#ag_at").value = ev ? ev.atendente : (ps.includes(me) ? me : "");
-    $("#ag_atNovo").hidden = true; $("#ag_atNovo").value = "";
+    const ps = agTeamOptions();
+    const selIniciais = ev ? evPeople(ev) : (me && ps.includes(me) ? [me] : []);
+    renderAgAts(selIniciais);
+    $("#ag_atNovo").value = "";
     const s = ev ? new Date(ev.inicio) : (start || (() => { const d = new Date(); d.setMinutes(0,0,0); d.setHours(Math.min(20, Math.max(7, d.getHours()+1))); return d; })());
     const en = ev ? new Date(ev.fim) : (end && end - s > 0 && end - s < 12*3600e3 ? end : new Date(s.getTime() + 30*60000));
     $("#ag_titulo").value = ev?.titulo || ""; $("#ag_cli").value = ev?.cliente || ""; $("#ag_local").value = ev?.local || ""; $("#ag_obs").value = ev?.obs || "";
@@ -83,27 +134,70 @@
     $("#agDlgTitle").textContent = ev ? "Editar reunião" : "Nova reunião";
     $("#agDel").hidden = !ev; $("#agDel").textContent = "Excluir reunião"; $("#agDel").dataset.arm = "";
     $("#ag_err").textContent = "";
+    syncAgLinkBtns();
     $("#dlgAg").showModal(); setTimeout(() => $("#ag_titulo").focus(), 30);
   }
-  $("#ag_at").addEventListener("change", () => { $("#ag_atNovo").hidden = $("#ag_at").value !== "__novo"; if (!$("#ag_atNovo").hidden) $("#ag_atNovo").focus(); });
+  function incluirParticipanteAg(){
+    const inp = $("#ag_atNovo"); if (!inp) return;
+    const novo = inp.value.trim().toUpperCase();
+    if (!novo) { inp.focus(); return; }
+    const atuais = agSelecionados();
+    inp.value = "";
+    renderAgAts([...atuais, novo]);
+  }
+  $("#ag_atAdd").addEventListener("click", incluirParticipanteAg);
+  $("#ag_atNovo").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); incluirParticipanteAg(); } });
+  $("#ag_local").addEventListener("input", syncAgLinkBtns);
+  $("#ag_btnMeet").addEventListener("click", () => {
+    window.open("https://meet.google.com/new", "_blank", "noopener");
+    $("#ag_local").focus();
+    toast("Sala do Google Meet aberta em nova aba! Copie o link lá e clique em 'Colar link'.");
+  });
+  $("#ag_btnAutoLink").addEventListener("click", async () => {
+    const baseTxt = ($("#ag_titulo").value.trim() || $("#ag_cli").value.trim() || "Reuniao").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 28) || "Reuniao";
+    const cod = Math.random().toString(36).slice(2, 7);
+    const url = `https://meet.jit.si/Quinze-${baseTxt}-${cod}`;
+    $("#ag_local").value = url;
+    syncAgLinkBtns();
+    try { await navigator.clipboard.writeText(url); toast("Sala online criada e link copiado!"); }
+    catch { toast("Sala online criada no campo de link!"); }
+  });
+  $("#ag_btnPaste").addEventListener("click", async () => {
+    try {
+      const txt = (await navigator.clipboard.readText()).trim();
+      if (!txt) { toast("A área de transferência está vazia."); return; }
+      $("#ag_local").value = txt;
+      syncAgLinkBtns();
+      toast("Link colado!");
+    } catch {
+      $("#ag_local").focus();
+      toast("Pressione Ctrl+V no campo para colar o link.");
+    }
+  });
+  $("#ag_btnCopyLink").addEventListener("click", async () => {
+    const url = agUrlDe($("#ag_local").value) || $("#ag_local").value.trim();
+    if (!url) return;
+    try { await navigator.clipboard.writeText(url); toast("Link da reunião copiado!"); }
+    catch { toast("Não foi possível copiar automaticamente."); }
+  });
   $("#agCancel").addEventListener("click", () => $("#dlgAg").close());
   $("#agNew").addEventListener("click", () => openAg(null));
   $("#frmAg").addEventListener("submit", async e => {
     e.preventDefault();
-    let at = $("#ag_at").value; if (at === "__novo") at = $("#ag_atNovo").value.trim().toUpperCase();
+    const ats = agSelecionados();
     const titulo = $("#ag_titulo").value.trim(), d = $("#ag_data").value, hi = $("#ag_ini").value, hf = $("#ag_fim").value;
-    if (!at) { $("#ag_err").textContent = "Escolha o atendimento."; return; }
+    if (!ats.length) { $("#ag_err").textContent = "Selecione pelo menos uma pessoa do time para a reunião."; return; }
     if (!titulo || !d || !hi || !hf) { $("#ag_err").textContent = "Preencha assunto, data e horários."; return; }
     if (hf <= hi) { $("#ag_err").textContent = "O fim precisa ser depois do início."; return; }
     const wd = dOf(d).getDay(); if (wd === 0 || wd === 6) { $("#ag_err").textContent = "A agenda mostra só de segunda a sexta. Escolha um dia útil."; return; }
     if (hi < "07:00" || hf > "21:00") { $("#ag_err").textContent = "Use horários entre 7h e 21h."; return; }
     const id = agEditing || ("r-" + Date.now().toString(36) + Math.random().toString(36).slice(2,5));
     const prev = agEvents.find(x => x.id === agEditing);
-    const data = {atendente: at, titulo, cliente: $("#ag_cli").value.trim(), local: $("#ag_local").value.trim(), obs: $("#ag_obs").value.trim(),
+    const data = {atendentes: ats, atendente: ats[0], titulo, cliente: $("#ag_cli").value.trim(), local: $("#ag_local").value.trim(), obs: $("#ag_obs").value.trim(),
       inicio: `${d}T${hi}`, fim: `${d}T${hf}`, criadoEm: prev?.criadoEm || new Date().toISOString(), atualizadoEm: new Date().toISOString()};
     try {
       await db.collection("agenda").doc(id).set(data);
-      try { localStorage.setItem("ag-eu", at); } catch {}
+      try { localStorage.setItem("ag-eu", ats[0]); } catch {}
       $("#dlgAg").close(); toast(prev ? "Reunião atualizada" : "Reunião marcada");
     } catch(err) { $("#ag_err").textContent = friendly(err); }
   });
@@ -146,5 +240,3 @@
     const tb = h && document.querySelector(`nav.tabs button[data-tab="${h}"]`);
     if (tb) tb.click();
   }
-
-
