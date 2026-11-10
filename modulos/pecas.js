@@ -28,21 +28,31 @@
       .pc-h{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.pc-h h2{margin:0}.pc-h .sp{flex:1}
       .pc-sub{font-size:12.5px;color:var(--ink2)}
       .pc-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
-      .pc-card.form{border-color:var(--blue)}
+      .pc-card.form{border-color:var(--blue);padding:18px 20px}
       .pc-top{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}.pc-top .t{flex:1;min-width:200px}.pc-top b{font-size:15px}
-      .pc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-      .pc-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink2)}.pc-grid .full{grid-column:1/-1}
-      .pc-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+      .pc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+      .pc-grid label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink2)}.pc-grid .full{grid-column:1/-1}
+      .pc-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
       .pc-cli{display:inline-block;background:var(--blue-soft);color:var(--blue-dk);font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid rgba(6,96,255,0.18)}
       .pc-req{color:var(--danger);font-weight:700;margin-left:2px}
       .st{font-size:12px;padding:2px 9px;border-radius:20px;white-space:nowrap;font-weight:600}
       .st.pendente{background:#FFF4DE;color:#8A5A00}.st.aprovada{background:#E6F6EC;color:#1B6B3A}
       .st.reprovada{background:#FDE8E8;color:#A12020}.st.alteracao_solicitada{background:#E5EFFC;color:#1D4F91}
-      .pc-drop{border:1.5px dashed var(--line);border-radius:10px;padding:16px;text-align:center;color:var(--ink2);font-size:13px;cursor:pointer;background:#FAFBFD}
-      .pc-drop.on{border-color:var(--blue);background:var(--blue-soft)}
-      .pc-fs{margin-top:8px;display:grid;gap:6px}
-      .pc-f{display:grid;grid-template-columns:minmax(0,1fr) 120px 70px auto;gap:8px;align-items:center;font-size:13px}
-      .pc-f .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .pc-drop{border:2px dashed rgba(6,96,255,0.42);border-radius:14px;padding:38px 24px;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:var(--ink2);font-size:14px;cursor:pointer;background:linear-gradient(180deg,#F8FAFF 0%,#F0F6FF 100%);transition:all .15s ease}
+      .pc-drop:hover,.pc-drop.on{border-color:var(--blue);background:var(--blue-soft);box-shadow:0 6px 18px rgba(6,96,255,0.08)}
+      .pc-drop .ico{font-size:34px;line-height:1;margin-bottom:2px}
+      .pc-drop .cta{font-size:15.5px;font-weight:600;color:var(--ink)}
+      .pc-drop .cta u{color:var(--blue)}
+      .pc-drop .hint{font-size:12.5px;color:var(--ink2)}
+      .pc-step{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+      .pc-step b{font-size:14px;font-weight:600;color:var(--ink)}
+      .pc-opc{border:1px solid var(--line);border-radius:10px;background:#FAFBFD;padding:14px 16px;margin-top:4px}
+      .pc-opc-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line2)}
+      .pc-opc-h b{font-size:13.5px;color:var(--ink)}
+      .pc-badge-opc{font-size:11.5px;font-weight:600;color:var(--ink2);background:#EEF2F7;padding:2px 9px;border-radius:99px}
+      .pc-fs{margin-top:10px;display:grid;gap:6px}
+      .pc-f{display:grid;grid-template-columns:minmax(0,1fr) auto 120px 70px auto;gap:8px;align-items:center;font-size:13px;padding:6px 10px;border:1px solid var(--line2);border-radius:8px;background:#fff}
+      .pc-f .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
       .pc-prog{height:6px;background:var(--line2);border-radius:4px;overflow:hidden}.pc-prog i{display:block;height:100%;background:var(--blue);width:0;transition:width .15s}
       .pc-f.ok .pc-prog i{background:var(--ok)}.pc-f.erro{color:var(--danger)}
       .pc-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
@@ -93,48 +103,82 @@
     });
   }
 
+  // Título padrão automático por cliente: "Peça #X | Nome do Cliente"
+  function tituloPadraoCliente(clienteId) {
+    const cli = (base?.clientes || []).find(c => c.id === clienteId);
+    if (!cli) return "Peça #1 | Nome do Cliente";
+    const prox = (Number((base?.seqClientes || {})[clienteId]) || 0) + 1;
+    return `Peça #${prox} | ${cli.nome}`;
+  }
+
   // Formulário de envio (nova peça ou nova versão). Devolve um controlador com o HTML montado no "alvo".
   function formEnvio(alvo, { titulo, peca, aoEnviar, aoCancelar }) {
     const nova = !peca;
     const arquivos = [];   // { file, chave, prog, erro, el }
-    alvo.innerHTML = `<div class="pc-card form"><h3 style="margin:0 0 12px">${esc(titulo)}</h3><div class="pc-grid">
-      ${nova ? `<label>Título da peça <span class="pc-req">*</span><input data-f="titulo" maxlength="160" placeholder="Ex.: Post Dia das Crianças"></label>
-      <label>Cliente <span class="pc-req">*</span><select data-f="cliente"><option value="">${base.clientes?.length ? "Escolha o cliente" : "Nenhum cliente disponível"}</option>${base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("")}</select></label>
-      <div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · deixe em branco para qualquer coordenador)</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#FAFBFD;max-height:120px;overflow-y:auto">
-          ${(base.usuarios || []).map(u => `<label style="display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;background:#fff;font-size:12.5px;cursor:pointer">
-            <input type="checkbox" data-f="aprovador" value="${esc(u.login)}" style="min-height:0;width:14px;height:14px">
-            <span>${esc(u.nome || u.login)}</span>
-          </label>`).join("") || '<span class="pc-sub" style="padding:4px 0">Nenhum coordenador específico disponível (qualquer um poderá aprovar).</span>'}
-        </div>
+    alvo.innerHTML = `<div class="pc-card form"><h3 style="margin:0 0 14px">${esc(titulo)}</h3><div class="pc-grid">
+      ${nova ? `<div class="full">
+        <div class="pc-step"><b>1. Cliente <span class="pc-req">*</span></b><span class="pc-sub">Obrigatório</span></div>
+        <select data-f="cliente" style="width:100%;font-size:14.5px;padding:10px 12px;font-weight:500">
+          <option value="">${base.clientes?.length ? "Escolha o cliente…" : "Nenhum cliente disponível"}</option>
+          ${base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("")}
+        </select>
       </div>` : ""}
-      <label class="full">Observação (opcional)<textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto para quem vai aprovar" : "O que mudou nesta versão"}"></textarea></label>
-      <div class="full"><div class="pc-sub" style="margin-bottom:4px">Arquivos (até ${base.maxArquivos}, JPG, PNG ou PDF, até ${base.maxMB} MB cada)</div>
-        <div class="pc-drop" data-f="drop">Arraste os arquivos aqui ou <u>clique para escolher</u></div>
+      <div class="full">
+        <div class="pc-step"><b>${nova ? "2. Material para aprovação" : "Material da nova versão"} <span class="pc-req">*</span></b><span class="pc-sub">Até ${base.maxArquivos} arquivos · JPG, PNG ou PDF · até ${base.maxMB} MB cada</span></div>
+        <div class="pc-drop" data-f="drop">
+          <div class="ico">📤</div>
+          <div class="cta">Arraste os arquivos da peça aqui ou <u>clique para escolher no computador</u></div>
+          <div class="hint">Envie imagens (JPG, PNG) ou PDF · Você pode selecionar vários arquivos de uma só vez</div>
+        </div>
         <input type="file" data-f="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" hidden>
-        <div class="pc-fs" data-f="lista"></div></div>
-      <label class="full">Links do Google Drive (um por linha, opcional)<textarea data-f="links" rows="2" placeholder="https://drive.google.com/..."></textarea></label></div>
+        <div class="pc-fs" data-f="lista"></div>
+      </div>
+      <div class="full pc-opc">
+        <div class="pc-opc-h"><b>${nova ? "3. Detalhes adicionais" : "Detalhes adicionais"}</b><span class="pc-badge-opc">Tudo opcional</span></div>
+        <div class="pc-grid">
+          ${nova ? `<label>Título da peça <span class="pc-sub">(opcional)</span>
+            <input data-f="titulo" maxlength="160" placeholder="Automático: Peça #1 | Nome do Cliente">
+            <span class="pc-sub" data-f="titulo-hint">Se deixar em branco, será salvo como <b>Peça #X | Nome do Cliente</b>.</span>
+          </label>` : ""}
+          <label class="${nova ? "" : "full"}">Links do Google Drive <span class="pc-sub">(opcional · um por linha)</span>
+            <textarea data-f="links" rows="2" placeholder="https://drive.google.com/... (caso queira enviar por link)"></textarea>
+          </label>
+          <label class="full">Observação <span class="pc-sub">(opcional)</span>
+            <textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto ou orientações para quem vai aprovar" : "O que mudou nesta versão"}"></textarea>
+          </label>
+          ${nova ? `<div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · deixe em branco para qualquer coordenador)</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;max-height:120px;overflow-y:auto">
+              ${(base.usuarios || []).map(u => `<label style="display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;background:#FAFBFD;font-size:12.5px;cursor:pointer">
+                <input type="checkbox" data-f="aprovador" value="${esc(u.login)}" style="min-height:0;width:14px;height:14px">
+                <span>${esc(u.nome || u.login)}</span>
+              </label>`).join("") || '<span class="pc-sub" style="padding:4px 0">Nenhum coordenador específico disponível (qualquer um poderá aprovar).</span>'}
+            </div>
+          </div>` : ""}
+        </div>
+      </div></div>
       <div class="pc-bar"><button class="btn primary" type="button" data-f="ok">${nova ? "Enviar peça" : "Enviar nova versão"}</button><button class="btn" type="button" data-f="cancelar">Cancelar</button><span class="pc-sub" data-f="msg"></span></div>
       <p class="pc-sub" style="margin:8px 0 0">Os arquivos ficam disponíveis por ${base.retencaoDias} dias a partir do envio. Links do Drive não expiram.</p></div>`;
     const $ = s => alvo.querySelector(`[data-f="${s}"]`);
     const msg = t => { $("msg").textContent = t; };
     const pintar = a => {
       a.el.className = "pc-f" + (a.erro ? " erro" : a.chave ? " ok" : "");
-      a.el.innerHTML = `<span class="n" title="${esc(a.file.name)}">${esc(a.file.name)}</span><span class="pc-prog"><i style="width:${Math.round(a.prog * 100)}%"></i></span>
+      a.el.innerHTML = `<span class="n" title="${esc(a.file.name)}">${esc(a.file.name)}</span><span class="pc-sub">${mb(a.file.size)}</span><span class="pc-prog"><i style="width:${Math.round(a.prog * 100)}%"></i></span>
         <span class="pc-sub">${a.erro ? "erro" : a.chave ? "enviado" : Math.round(a.prog * 100) + "%"}</span><button class="btn" type="button" style="padding:2px 8px;min-height:0" title="Remover">✕</button>`;
       a.el.querySelector("button").onclick = () => { arquivos.splice(arquivos.indexOf(a), 1); a.el.remove(); };
       if (a.erro) a.el.querySelector(".pc-sub").title = a.erro;
     };
-    const validarCliente = () => {
-      if (nova && !$("cliente").value) {
-        msg("Selecione o cliente antes de adicionar arquivos.");
-        $("cliente").focus();
-        return false;
+    const atualizarTituloPadrao = () => {
+      if (!nova) return;
+      const cid = $("cliente").value;
+      const padrao = tituloPadraoCliente(cid);
+      $("titulo").placeholder = cid ? `Padrão automático: ${padrao}` : "Automático: Peça #1 | Nome do Cliente";
+      if ($("titulo-hint")) {
+        $("titulo-hint").innerHTML = cid
+          ? `Se deixar em branco, será salvo como <b>${esc(padrao)}</b>.`
+          : `Se deixar em branco, será salvo como <b>Peça #X | Nome do Cliente</b>.`;
       }
-      return true;
     };
     const adicionar = files => {
-      if (!validarCliente()) return;
       for (const file of files) {
         if (arquivos.length >= base.maxArquivos) { msg(`No máximo ${base.maxArquivos} arquivos.`); break; }
         if (!/\.(jpe?g|png|pdf)$/i.test(file.name)) { msg(`"${file.name}": envie JPG, PNG ou PDF.`); continue; }
@@ -145,34 +189,43 @@
           .then(r => { a.chave = r.chave; a.prog = 1; pintar(a); }, e => { a.erro = e.message; pintar(a); });
       }
     };
-    $("drop").onclick = () => { if (validarCliente()) $("file").click(); };
+    $("drop").onclick = () => $("file").click();
     $("file").onchange = () => { adicionar([...$("file").files]); $("file").value = ""; };
     $("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("on"); };
     $("drop").ondragleave = () => $("drop").classList.remove("on");
-    $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("on"); if (validarCliente()) adicionar([...e.dataTransfer.files]); };
+    $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("on"); adicionar([...e.dataTransfer.files]); };
     if (nova) {
-      $("cliente").onchange = () => { if ($("cliente").value && $("msg").textContent.includes("cliente")) msg(""); };
-      $("titulo").oninput = () => { if ($("titulo").value.trim() && $("msg").textContent.includes("título")) msg(""); };
+      $("cliente").onchange = () => {
+        atualizarTituloPadrao();
+        if ($("cliente").value && $("msg").textContent.includes("cliente")) msg("");
+      };
+      atualizarTituloPadrao();
     }
     $("cancelar").onclick = () => { alvo.innerHTML = ""; aoCancelar && aoCancelar(); };
     $("ok").onclick = async () => {
       const b = $("ok");
-      if (nova) {
-        if (!$("cliente").value) { msg("Selecione o cliente da peça."); $("cliente").focus(); return; }
-        if (!$("titulo").value.trim()) { msg("Informe o título da peça."); $("titulo").focus(); return; }
+      if (nova && !$("cliente").value) {
+        msg("Selecione o cliente da peça.");
+        $("cliente").focus();
+        return;
       }
       if (arquivos.some(a => !a.chave && !a.erro)) { msg("Aguarde o fim do envio dos arquivos…"); await Promise.all(arquivos.map(a => a.promessa)); }
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
       const links = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
-      if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo ou um link do Drive.");
+      if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo no painel acima (ou informe um link do Drive).");
       const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links };
       if (nova) {
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
-        Object.assign(corpo, { titulo: $("titulo").value.trim(), clienteId: $("cliente").value, aprovadores });
+        const tituloFinal = $("titulo").value.trim() || tituloPadraoCliente($("cliente").value);
+        Object.assign(corpo, { titulo: tituloFinal, clienteId: $("cliente").value, aprovadores });
       } else corpo.id = peca.id;
       b.disabled = true; msg("Salvando…");
-      try { const j = await api(nova ? "peca.enviar" : "peca.reenviar", corpo); alvo.innerHTML = ""; aoEnviar && aoEnviar(j.peca); }
-      catch (e) { msg(e.message); b.disabled = false; }
+      try {
+        const j = await api(nova ? "peca.enviar" : "peca.reenviar", corpo);
+        if (nova && j.seqCliente && base?.seqClientes && corpo.clienteId) base.seqClientes[corpo.clienteId] = j.seqCliente;
+        alvo.innerHTML = "";
+        aoEnviar && aoEnviar(j.peca);
+      } catch (e) { msg(e.message); b.disabled = false; }
     };
     alvo.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -210,7 +263,7 @@
   // ======================================================================
   function envio(ctx) {
     const el = ctx.el;
-    el.innerHTML = `<div class="pc-h"><div><h2>Envio de peças</h2><div class="pc-sub">Envie a peça para a fila de aprovação. Você vê aqui só as peças que enviou.</div></div><span class="sp"></span>
+    el.innerHTML = `<div class="pc-h"><div><h2>Envio de peças</h2><div class="pc-sub">Escolha o cliente, anexe o material e envie para a fila de aprovação.</div></div><span class="sp"></span>
       <button class="btn primary" type="button" data-x="nova">Nova peça</button></div>
       <div data-box="form"></div>
       <div class="pc-filtros"><label>Status<select data-x="st"><option value="">Todas</option>${Object.entries(ST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
