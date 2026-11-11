@@ -50,7 +50,7 @@ const GESTAO = ["mestre", "gestao"];
 export const AREAS = [
   { id: "atendimento", nome: "01 Atendimento", ordem: 10, entrada: "tarefas", funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
     descricao: "Carteira de clientes, onboarding, propostas e agenda" },
-  { id: "pecas", nome: "02 Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: true,
+  { id: "pecas", nome: "02 Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: true, entrada: "fila",
     descricao: "Envio de peças, fila de aprovação, números do mês e dados consolidados" },
   { id: "administrativo", nome: "03 Administrativo", ordem: 30, funcoes: GESTAO, restrito: true,
     descricao: "Contratos, assinaturas, pessoal, férias e usuários" },
@@ -84,10 +84,10 @@ export const MODULOS = [
   { id: "pendencias", modulo: "atendimento", nome: "Pendências de clientes", ordem: 16, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/pendencias.js", colecoes: [],
     card: { titulo: "Pendências de clientes", texto: "Envios aguardando retorno do cliente" } },
   { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: ["mestre", "gestao", "coordenador"], arquivo: "/modulos/tarefas.js", colecoes: [] },
-  // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m. O "Envio" é liberado para todos os usuários ativos.
-  { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
+  // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m.
+  { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: ["mestre", "gestao", "coordenador", "diretor_arte"], arquivo: "/modulos/pecas.js", colecoes: [] },
   { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
-  { id: "pecasdash", modulo: "pecas", nome: "Dashboard mensal", ordem: 30, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/pecas.js", colecoes: [] },
+  { id: "pecasdash", modulo: "pecas", nome: "Dashboard mensal", ordem: 30, funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"], arquivo: "/modulos/pecas.js", colecoes: [] },
   // Instrução 10: "Dados consolidados" saiu do Atendimento (mesmo id, mesmos dados em producao/).
   { id: "prod", modulo: "pecas", nome: "Dados consolidados", ordem: 40, funcoes: ["mestre", "gestao", "atendimento"], livre: true,
     colecoes: ["producao/"] },
@@ -140,8 +140,14 @@ const casa = (path, p) => path === p.replace(/\/$/, "") || (p.endsWith("/") && p
 // Perfil efetivo (o cadastro antigo "master" vale como mestre).
 export const perfilDe = u => (!u ? null : u.papel === "master" ? "mestre" : u.funcao);
 export const ehGestao = u => ["mestre", "gestao"].includes(perfilDe(u));
-// Envio de peças: liberado para todos os usuários logados.
-export const podeEnviarPecas = u => !!u;
+// Envio de peças: proibido para Social Media e Atendimento; liberado para Mestre, Gestão, Coordenador, Diretor de Arte ou quem tiver a permissão expressa pode_enviar_pecas.
+export const podeEnviarPecas = u => {
+  if (!u) return false;
+  const p = perfilDe(u);
+  if (["social", "atendimento"].includes(p)) return false;
+  if (["mestre", "gestao", "coordenador", "diretor_arte"].includes(p)) return true;
+  return !!(u.pode_enviar_pecas || u.podeEnviarPecas);
+};
 const ajustarPecas = (u, abas) => { const sem = abas.filter(id => id !== "envio"); return podeEnviarPecas(u) ? [...sem, "envio"] : sem; };
 
 // Abas e módulos que cada perfil fixo recebe (o Personalizado escolhe na mão).
