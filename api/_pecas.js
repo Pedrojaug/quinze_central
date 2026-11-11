@@ -502,7 +502,7 @@ export function calcularPicosHorario(todasPecas = [], filtroFn = () => true) {
 // ---------- Peça vista pela página (sem as chaves internas dos arquivos) ----------
 function publica(p, u) {
   const expira = v => new Date(Date.parse(v.enviadaEm) + RETENCAO_DIAS * DIA).toISOString();
-  return { id: p.id, titulo: p.titulo, clienteId: p.clienteId, clienteNome: p.clienteNome, remetente: p.remetente, aprovadores: p.aprovadores || [], status: p.status, versao: p.versao,
+  return { id: p.id, titulo: p.titulo, clienteId: p.clienteId, clienteNome: p.clienteNome, remetente: p.remetente, aprovadores: p.aprovadores || [], status: p.status, versao: p.versao, tipoMidia: p.tipoMidia || "online",
     criadoEm: p.criadoEm, atualizadoEm: p.atualizadoEm, minha: p.remetente?.login === u.login,
     versoes: p.versoes.map(v => ({ n: v.n, enviadaEm: v.enviadaEm, expiraEm: expira(v), obs: v.obs, links: v.links,
       arquivos: v.arquivos.map((a, i) => ({ i, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho, expirado: !!a.expirado })) })),
@@ -582,6 +582,10 @@ async function pecaEnviar(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!podeEnviar(u)) return negado(res, "Seu usuário não envia peças.");
   const b = corpo(req);
+  const tipoMidia = String(b.tipoMidia || "").trim().toLowerCase();
+  if (!["online", "offline"].includes(tipoMidia)) {
+    return res.status(400).json({ code: "tipo_midia_obrigatorio", msg: "Selecione se a peça é Online ou Offline." });
+  }
   const tituloInformado = txt(b.titulo, 160), obs = txt(b.obs, 2000);
   // Título opcional: se não informado, gera automaticamente "Peça #X | Nome do Cliente" no momento do envio.
   const cli = (await clientesCarteira()).find(c => c.id === b.clienteId);
@@ -598,7 +602,7 @@ async function pecaEnviar(u, req, res) {
   const em = agora(), id = novoId();
   const numPeca = await proximoNumeroPeca(cli.id);
   const titulo = tituloInformado || `Peça #${numPeca} | ${cli.nome}`;
-  const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, remetente: quem(u), aprovadores, status: "pendente", versao: 1,
+  const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, tipoMidia, remetente: quem(u), aprovadores, status: "pendente", versao: 1,
     versoes: [{ n: 1, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links }],
     historico: [{ tipo: "envio", versao: 1, em, por: quem(u), comentario: obs }], criadoEm: em, atualizadoEm: em };
   await gravar(M, "pecas", id, p);
@@ -627,6 +631,11 @@ async function pecaReenviar(u, req, res) {
   const statusAnterior = p.status;
   if (b.titulo && typeof b.titulo === "string" && b.titulo.trim()) {
     p.titulo = txt(b.titulo.trim(), 160);
+  }
+  if (b.tipoMidia && ["online", "offline"].includes(String(b.tipoMidia).trim().toLowerCase())) {
+    p.tipoMidia = String(b.tipoMidia).trim().toLowerCase();
+  } else if (!p.tipoMidia) {
+    p.tipoMidia = "online";
   }
   p.versoes.push({ n, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links });
   const tipoHist = statusAnterior === "aprovada" ? "edicao_aprovada" : "reenvio";
@@ -854,6 +863,9 @@ async function dashboard(u, req, res) {
   const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.de || "")) ? req.query.de : null;
   const ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ate || "")) ? req.query.ate : null;
   const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.mes || "")) ? req.query.mes : mesAtual();
+  const tipoMidia = ["online", "offline"].includes(String(req.query.tipoMidia || "").toLowerCase())
+    ? String(req.query.tipoMidia).toLowerCase()
+    : null;
 
   const [carteira, todasPecas, rMeses] = await Promise.all([
     clientesCarteira(),
@@ -868,18 +880,22 @@ async function dashboard(u, req, res) {
     ? dia => (!de || dia >= de) && (!ate || dia <= ate)
     : dia => String(dia || "").slice(0, 7) === mes;
 
-  const { horas, horasPorCli } = calcularPicosHorario(todasPecas, filtroData);
-  const dados = resumoDinamico(todasPecas, carteira, filtroData);
+  const pecasParaDash = tipoMidia
+    ? todasPecas.filter(p => (p.tipoMidia || "online") === tipoMidia)
+    : todasPecas;
+
+  const { horas, horasPorCli } = calcularPicosHorario(pecasParaDash, filtroData);
+  const dados = resumoDinamico(pecasParaDash, carteira, filtroData);
   for (const cl of dados.clientes || []) {
     cl.horas = horasPorCli[cl.id] || Array(24).fill(0);
   }
 
-  // Sincroniza em background o documento contadores no banco para o mês atual
-  if (!de && !ate && mes === mesAtual()) {
+  // Sincroniza em background o documento contadores no banco para o mês atual (apenas visão geral sem filtro de mídia)
+  if (!de && !ate && !tipoMidia && mes === mesAtual()) {
     sincronizarContadoresNoBanco(mes, dados).catch(() => {});
   }
 
-  return res.json({ mes, de, ate, meses: listaMeses, horas, ...dados });
+  return res.json({ mes, de, ate, tipoMidia, meses: listaMeses, horas, ...dados });
 }
 
 // ---------- Retenção: arquivos com mais de 7 dias são apagados; peças sem envio há mais de 7 dias saem da fila ----------
