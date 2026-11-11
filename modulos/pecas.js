@@ -9,6 +9,70 @@
   const brDia = iso => (iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "");
   const mesBr = m => (m ? ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"][+m.slice(5, 7) - 1] + " de " + m.slice(0, 4) : "");
   const mb = n => (n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+
+  const hojeSp = () => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    } catch {
+      return new Date().toISOString().slice(0, 10);
+    }
+  };
+  const somarDiasIso = (iso, n) => {
+    const [y, m, d] = String(iso).split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + n, 12));
+    return dt.toISOString().slice(0, 10);
+  };
+  const diaSpDeIso = iso => {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+    } catch { return ""; }
+  };
+  const intervaloPeriodo = tipo => {
+    const h = hojeSp();
+    if (tipo === "hoje") return { de: h, ate: h, rotulo: "Hoje (" + brDia(h + "T12:00:00Z") + ")" };
+    if (tipo === "ontem") {
+      const ont = somarDiasIso(h, -1);
+      return { de: ont, ate: ont, rotulo: "Ontem (" + brDia(ont + "T12:00:00Z") + ")" };
+    }
+    if (tipo === "semana") {
+      const [y, m, d] = h.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d, 12));
+      const diaSem = dt.getUTCDay();
+      const volta = diaSem === 0 ? 6 : diaSem - 1;
+      const seg = somarDiasIso(h, -volta);
+      return { de: seg, ate: h, rotulo: "Essa semana (" + brDia(seg + "T12:00:00Z") + " a " + brDia(h + "T12:00:00Z") + ")" };
+    }
+    if (tipo === "mes" || tipo === "este_mes") {
+      const inicio = h.slice(0, 7) + "-01";
+      return { de: inicio, ate: h, rotulo: "Esse mês (" + brDia(inicio + "T12:00:00Z") + " a " + brDia(h + "T12:00:00Z") + ")" };
+    }
+    return { de: null, ate: null, rotulo: "" };
+  };
+  const pecaBatePeriodo = (p, statusFiltro, de, ate) => {
+    if (!de && !ate) return true;
+    if (["aprovada", "reprovada", "alteracao_solicitada"].includes(statusFiltro)) {
+      const ev = (p.historico || []).slice().reverse().find(h => h.tipo === statusFiltro);
+      const dia = diaSpDeIso(ev?.em || p.decididoEm || p.atualizadoEm);
+      if (!dia) return false;
+      return (!de || dia >= de) && (!ate || dia <= ate);
+    }
+    if (statusFiltro === "pendente") {
+      const ultV = p.versoes && p.versoes[p.versoes.length - 1];
+      const dia = diaSpDeIso(ultV?.enviadaEm || p.atualizadoEm || p.criadoEm);
+      if (!dia) return false;
+      return (!de || dia >= de) && (!ate || dia <= ate);
+    }
+    const datas = [];
+    if (p.decididoEm) datas.push(diaSpDeIso(p.decididoEm));
+    if (p.criadoEm) datas.push(diaSpDeIso(p.criadoEm));
+    if (p.atualizadoEm) datas.push(diaSpDeIso(p.atualizadoEm));
+    for (const v of p.versoes || []) if (v.enviadaEm) datas.push(diaSpDeIso(v.enviadaEm));
+    for (const h of p.historico || []) if (h.em) datas.push(diaSpDeIso(h.em));
+    return datas.some(dia => (!de || dia >= de) && (!ate || dia <= ate));
+  };
   async function api(r, body) {
     const res = await fetch("/api/m?r=pec/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
       headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -442,14 +506,37 @@
     const el = ctx.el;
     el.innerHTML = `<div class="pc-h"><div><h2>Fila de aprovação</h2><div class="pc-sub" data-box="sub"></div></div><span class="sp"></span>
       <button class="btn" type="button" data-x="apagar-fila" style="color:var(--danger);border-color:rgba(192,39,26,.35)">🗑️ Apagar fila (Senha mestre)</button></div>
-      <div class="pc-filtros"><label>Status<select data-x="st"><option value="pendente">Pendentes (inclui reenviadas)</option><option value="">Todas</option>
-        <option value="aprovada">Aprovadas</option><option value="alteracao_solicitada">Alteração solicitada</option><option value="reprovada">Reprovadas</option></select></label>
-        <label>Cliente<select data-x="cli"><option value="">Todos</option></select></label><label>Remetente<select data-x="rem"><option value="">Todos</option></select></label></div>
+      <div class="pc-filtros">
+        <label>Status<select data-x="st"><option value="pendente">Pendentes (inclui reenviadas)</option><option value="">Todas</option>
+          <option value="aprovada">Aprovadas</option><option value="alteracao_solicitada">Alteração solicitada</option><option value="reprovada">Reprovadas</option></select></label>
+        <label>Período<select data-x="f-per"><option value="">Todas as datas</option><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="semana">Essa semana</option><option value="mes">Esse mês</option><option value="custom">Personalizado…</option></select></label>
+        <label data-box="wrap-de" hidden>Data inicial<input type="date" data-x="f-de" style="padding:4px 8px;font-size:13px"></label>
+        <label data-box="wrap-ate" hidden>Data final<input type="date" data-x="f-ate" style="padding:4px 8px;font-size:13px"></label>
+        <label>Cliente<select data-x="cli"><option value="">Todos</option></select></label>
+        <label>Remetente<select data-x="rem"><option value="">Todos</option></select></label>
+        <button class="btn small" type="button" data-x="limpar-filtros-fila" style="align-self:flex-end">Limpar filtros</button>
+      </div>
       <div data-box="lista"><div class="pc-vazio">Carregando…</div></div>`;
-    const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`).value;
+    const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`)?.value || "";
     let lista = [];
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
-    const filtradasAtuais = () => lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")) && (!fv("rem") || (p.remetente && p.remetente.login) === fv("rem")));
+    const obterIntervaloFila = () => {
+      const p = fv("f-per");
+      if (p === "custom") {
+        return { de: fv("f-de") || null, ate: fv("f-ate") || null };
+      }
+      return intervaloPeriodo(p);
+    };
+    const filtradasAtuais = () => {
+      const { de, ate } = obterIntervaloFila();
+      const st = fv("st");
+      return lista.filter(p =>
+        (!st || p.status === st) &&
+        (!fv("cli") || p.clienteId === fv("cli")) &&
+        (!fv("rem") || (p.remetente && p.remetente.login) === fv("rem")) &&
+        pecaBatePeriodo(p, st, de, ate)
+      );
+    };
     async function carregar() {
       try { await carregarBase(); lista = (await api("pecas")).pecas; } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       box("sub").textContent = base.podeDecidir ? "Coordenadores e gestão podem aprovar, pedir alteração ou reprovar qualquer peça." : "Acompanhamento das peças.";
@@ -475,7 +562,7 @@
       }).join("")
         : `<div class="pc-card pc-vazio">${
             lista.length
-              ? (fv("st") === "pendente"
+              ? (fv("st") === "pendente" && !fv("f-per") && !fv("cli") && !fv("rem")
                   ? `Não há peças pendentes de aprovação no momento. <div style="margin-top:10px"><button class="btn small" type="button" data-x="ver-todas">Ver todas as peças da fila (${lista.length})</button></div>`
                   : `Nenhuma peça encontrada com esses filtros. <div style="margin-top:10px"><button class="btn small" type="button" data-x="limpar-filtros-fila">Limpar filtros</button></div>`)
               : "Nenhuma peça na fila."
@@ -529,6 +616,11 @@
       }
       if (ev.target.closest('[data-x="limpar-filtros-fila"]')) {
         el.querySelector('[data-x="st"]').value = "";
+        el.querySelector('[data-x="f-per"]').value = "";
+        const deEl = el.querySelector('[data-x="f-de"]'); if (deEl) deEl.value = "";
+        const ateEl = el.querySelector('[data-x="f-ate"]'); if (ateEl) ateEl.value = "";
+        const wDe = box("wrap-de"); if (wDe) wDe.hidden = true;
+        const wAte = box("wrap-ate"); if (wAte) wAte.hidden = true;
         el.querySelector('[data-x="cli"]').value = "";
         el.querySelector('[data-x="rem"]').value = "";
         render();
@@ -541,7 +633,15 @@
       try { await api("peca.decidir", { id: card.dataset.id, decisao: d, comentario: com }); ctx.toast(ST[d]); carregar(); }
       catch (e) { msg.textContent = e.message; card.querySelectorAll("[data-d]").forEach(b => { b.disabled = false; }); }
     });
-    el.addEventListener("change", ev => { if (ev.target.dataset.x) render(); });
+    el.addEventListener("change", ev => {
+      if (ev.target.dataset.x === "f-per") {
+        const ehCustom = ev.target.value === "custom";
+        const wDe = box("wrap-de"), wAte = box("wrap-ate");
+        if (wDe) wDe.hidden = !ehCustom;
+        if (wAte) wAte.hidden = !ehCustom;
+      }
+      if (ev.target.dataset.x) render();
+    });
     return carregar;
   }
 
@@ -550,10 +650,20 @@
   // ======================================================================
   function dash(ctx) {
     const el = ctx.el;
-    el.innerHTML = `<div class="pc-h"><div><h2>Dashboard mensal</h2><div class="pc-sub">Contagens do mês, gravadas a cada envio e decisão. Não zeram quando os arquivos expiram.</div></div><span class="sp"></span></div>
+    el.innerHTML = `<div class="pc-h"><div><h2>Dashboard de aprovação</h2><div class="pc-sub" data-box="sub-dash">Contagens gravadas a cada envio e decisão. Não zeram quando os arquivos expiram.</div></div><span class="sp"></span></div>
       <div class="pc-card" style="padding:12px 14px;margin-bottom:14px">
         <div class="pc-filtros" style="margin-bottom:0">
-          <label>Mês<select data-x="mes"></select></label>
+          <label>Período<select data-x="f-per">
+            <option value="mes">Mês inteiro</option>
+            <option value="hoje">Hoje</option>
+            <option value="ontem">Ontem</option>
+            <option value="semana">Essa semana</option>
+            <option value="este_mes">Esse mês</option>
+            <option value="custom">Personalizado…</option>
+          </select></label>
+          <label data-box="wrap-mes">Mês<select data-x="mes"></select></label>
+          <label data-box="wrap-de" hidden>Data inicial<input type="date" data-x="d-ini" style="padding:4px 8px;font-size:13px"></label>
+          <label data-box="wrap-ate" hidden>Data final<input type="date" data-x="d-fim" style="padding:4px 8px;font-size:13px"></label>
           <label style="flex:1;min-width:210px">Cliente<select data-x="f-cli"><option value="">Todos os clientes</option></select></label>
           <label>Tipo de cliente<select data-x="f-tipo"><option value="">Todos os tipos</option></select></label>
           <label>Nível<select data-x="f-nivel"><option value="">Todos</option><option value="A">Nível A</option><option value="B">Nível B</option><option value="C">Nível C</option></select></label>
@@ -698,11 +808,50 @@
         ${escopo.enviadas.map(u => `<tr><td>${esc(u.nome)}</td><td class="num">${u.pecas}</td><td class="num">${u.versoes}</td></tr>`).join("")}
         <tr><td><b>Total</b></td><td class="num"><b>${t.pecas}</b></td><td class="num"><b>${t.versoes}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
     }
+    const obterParamsPeriodoDash = () => {
+      const per = qx("f-per")?.value || "mes";
+      if (per === "mes") {
+        return sel.value ? { mes: sel.value } : {};
+      }
+      if (per === "custom") {
+        const de = qx("d-ini")?.value || "";
+        const ate = qx("d-fim")?.value || "";
+        const p = {};
+        if (de) p.de = de;
+        if (ate) p.ate = ate;
+        return p;
+      }
+      const interv = intervaloPeriodo(per);
+      const p = {};
+      if (interv.de) p.de = interv.de;
+      if (interv.ate) p.ate = interv.ate;
+      return p;
+    };
     async function carregar() {
       let d;
-      try { await carregarBase(); d = await api("dashboard" + (sel.value ? "&mes=" + sel.value : "")); } catch (e) { box("kpis").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      const params = obterParamsPeriodoDash();
+      const qs = Object.entries(params).filter(([_, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join("");
+      try {
+        await carregarBase();
+        d = await api("dashboard" + qs);
+      } catch (e) {
+        box("kpis").innerHTML = `<div class="note warn">${esc(e.message)}</div>`;
+        return;
+      }
       dados = d;
-      sel.innerHTML = d.meses.map(m => `<option value="${m}"${m === d.mes ? " selected" : ""}>${mesBr(m)}</option>`).join("");
+      if (d.meses && d.meses.length) {
+        sel.innerHTML = d.meses.map(m => `<option value="${m}"${m === d.mes ? " selected" : ""}>${mesBr(m)}</option>`).join("");
+      }
+      const subEl = box("sub-dash");
+      if (subEl) {
+        if (d.de || d.ate) {
+          const deTxt = d.de ? brDia(d.de + "T12:00:00Z") : "início";
+          const ateTxt = d.ate ? brDia(d.ate + "T12:00:00Z") : "hoje";
+          subEl.textContent = `Período selecionado: ${deTxt} até ${ateTxt}. Envios por cliente e usuário calculados nas datas correspondentes.`;
+        } else {
+          subEl.textContent = "Contagens do mês, gravadas a cada envio e decisão. Não zeram quando os arquivos expiram.";
+        }
+      }
       const clisOrdenados = [...(d.clientes || [])].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
       preencherSelect(qx("f-cli"), clisOrdenados.map(c => [c.id, c.pecas ? `${c.nome} (${c.pecas})` : c.nome]));
       preencherSelect(qx("f-tipo"), (d.tiposCliente || []).map(tp => [tp, tp]));
@@ -712,8 +861,22 @@
     }
     el.addEventListener("change", ev => {
       const x = ev.target.dataset.x;
-      if (x === "mes") carregar();
-      else if (["f-cli", "f-tipo", "f-nivel", "f-at", "mostrar-zerados"].includes(x)) renderDash();
+      if (x === "f-per") {
+        const v = ev.target.value;
+        const wMes = box("wrap-mes"), wDe = box("wrap-de"), wAte = box("wrap-ate");
+        if (wMes) wMes.hidden = v !== "mes";
+        if (wDe) wDe.hidden = v !== "custom";
+        if (wAte) wAte.hidden = v !== "custom";
+        if (v !== "custom" || (qx("d-ini")?.value && qx("d-fim")?.value)) {
+          carregar();
+        }
+      } else if (x === "d-ini" || x === "d-fim") {
+        carregar();
+      } else if (x === "mes") {
+        carregar();
+      } else if (["f-cli", "f-tipo", "f-nivel", "f-at", "mostrar-zerados"].includes(x)) {
+        renderDash();
+      }
     });
     el.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-x]"); if (!btn) return;

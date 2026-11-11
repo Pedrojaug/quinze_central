@@ -35,6 +35,14 @@ const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).
 const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const mesAtual = () => hojeSP().slice(0, 7);
+export const diaSP = iso => {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+  } catch { return ""; }
+};
 
 // ---------- Permissões ----------
 export const podeEnviar = u => podeEnviarPecas(u);
@@ -194,6 +202,162 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
   const atendimentosCliente = [...new Set(clientes.map(x => x.atendimento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   return { enviadas, decisoes, totais: { pecas: c.pecas || 0, versoes: c.versoes || 0, aprovada: c.aprovada || 0, reprovada: c.reprovada || 0, alteracao_solicitada: c.alteracao_solicitada || 0,
     primeiraDecididas: v1d, primeiraAprovadas: v1a, taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null }, clientes, tiposCliente, atendimentosCliente };
+}
+
+// Resumo analítico por intervalo de datas (Hoje, Ontem, Semana ou Personalizado)
+export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, ate = null) {
+  const nomes = {};
+  const porUsuario = {}, porCoord = {}, porCli = {};
+  const cliObj = id => (porCli[id] ||= {
+    pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0,
+    v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {},
+  });
+
+  let totPecas = 0, totVersoes = 0, totAprovadas = 0, totReprovadas = 0, totAlt = 0, totV1d = 0, totV1a = 0;
+
+  for (const p of todasPecas) {
+    if (!p.clienteId) continue;
+    const cid = p.clienteId;
+    if (p.clienteNome && !nomes[`cli:${cid}`]) nomes[`cli:${cid}`] = p.clienteNome;
+    const cObj = cliObj(cid);
+
+    const rem = p.remetente?.login;
+    if (rem) {
+      if (p.remetente?.nome && !nomes[rem]) nomes[rem] = p.remetente.nome;
+      porUsuario[rem] ||= { pecas: 0, versoes: 0 };
+    }
+
+    // 1. Envio da peça inicial (versão 1)
+    const diaCriacao = diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm));
+    if (diaCriacao && (!de || diaCriacao >= de) && (!ate || diaCriacao <= ate)) {
+      cObj.pecas++;
+      totPecas++;
+      if (rem) {
+        porUsuario[rem].pecas++;
+        (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0 }).pecas++;
+      }
+    }
+
+    // 2. Versões enviadas
+    for (const v of p.versoes || []) {
+      const diaV = diaSP(v.enviadaEm);
+      if (diaV && (!de || diaV >= de) && (!ate || diaV <= ate)) {
+        cObj.versoes++;
+        totVersoes++;
+        if (rem) {
+          porUsuario[rem].versoes++;
+          (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0 }).versoes++;
+        }
+      }
+    }
+
+    // 3. Decisões no histórico
+    for (const h of p.historico || []) {
+      if (DECISOES.includes(h.tipo)) {
+        const diaDec = diaSP(h.em);
+        if (diaDec && (!de || diaDec >= de) && (!ate || diaDec <= ate)) {
+          cObj[h.tipo]++;
+          if (h.tipo === "aprovada") totAprovadas++;
+          else if (h.tipo === "reprovada") totReprovadas++;
+          else if (h.tipo === "alteracao_solicitada") totAlt++;
+
+          if (h.versao === 1) {
+            cObj.v1_decididas++;
+            totV1d++;
+            if (h.tipo === "aprovada") {
+              cObj.v1_aprovadas++;
+              totV1a++;
+            }
+          }
+
+          const ap = h.por?.login;
+          if (ap) {
+            if (h.por?.nome && !nomes[ap]) nomes[ap] = h.por.nome;
+            const coordGlobal = (porCoord[ap] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 });
+            coordGlobal[h.tipo]++;
+            const coordCli = (cObj.porCoord[ap] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 });
+            coordCli[h.tipo]++;
+          }
+        }
+      }
+    }
+
+    // 4. Pendentes
+    if (p.status === "pendente") {
+      const diaAtual = diaSP(p.atualizadoEm || p.criadoEm);
+      if (!de || diaAtual >= de) {
+        cObj.pendente++;
+      }
+    }
+  }
+
+  const enviadas = Object.entries(porUsuario)
+    .filter(([_, x]) => x.pecas > 0 || x.versoes > 0)
+    .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x }))
+    .sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes);
+
+  const decisoes = Object.entries(porCoord)
+    .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
+    .filter(x => x.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  const mapaCarteira = new Map((carteira || []).map(cl => [cl.id, cl]));
+  const idsClientes = new Set([...mapaCarteira.keys(), ...Object.keys(porCli)]);
+
+  const clientes = [...idsClientes].map(id => {
+    const meta = mapaCarteira.get(id) || {};
+    const st = porCli[id] || { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
+    const envCli = Object.entries(st.porUsuario)
+      .filter(([_, x]) => x.pecas > 0 || x.versoes > 0)
+      .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x }))
+      .sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes);
+    const decCli = Object.entries(st.porCoord)
+      .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
+      .filter(x => x.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      id,
+      nome: meta.nome || nomes[`cli:${id}`] || id,
+      tipo: meta.tipo || "",
+      nivel: meta.nivel || "",
+      atendimento: meta.atendimento || "",
+      social: meta.social || "",
+      metaConteudos: (Number(meta.conteudos) || 0) + (Number(meta.motions) || 0),
+      pecas: st.pecas || 0,
+      versoes: st.versoes || 0,
+      aprovada: st.aprovada || 0,
+      reprovada: st.reprovada || 0,
+      alteracao_solicitada: st.alteracao_solicitada || 0,
+      pendente: st.pendente || 0,
+      primeiraDecididas: st.v1_decididas || 0,
+      primeiraAprovadas: st.v1_aprovadas || 0,
+      taxaPrimeira: st.v1_decididas ? Math.round(st.v1_aprovadas / st.v1_decididas * 1000) / 10 : null,
+      enviadas: envCli,
+      decisoes: decCli,
+    };
+  }).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes || a.nome.localeCompare(b.nome, "pt-BR"));
+
+  const tiposCliente = [...new Set(clientes.map(x => x.tipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const atendimentosCliente = [...new Set(clientes.map(x => x.atendimento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  return {
+    enviadas,
+    decisoes,
+    totais: {
+      pecas: totPecas,
+      versoes: totVersoes,
+      aprovada: totAprovadas,
+      reprovada: totReprovadas,
+      alteracao_solicitada: totAlt,
+      primeiraDecididas: totV1d,
+      primeiraAprovadas: totV1a,
+      taxaPrimeira: totV1d ? Math.round(totV1a / totV1d * 1000) / 10 : null,
+    },
+    clientes,
+    tiposCliente,
+    atendimentosCliente,
+  };
 }
 
 // ---------- Peça vista pela página (sem as chaves internas dos arquivos) ----------
@@ -452,19 +616,28 @@ async function pecaArquivo(u, req, res) {
 }
 
 async function dashboard(u, req, res) {
-  if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão, coordenação e atendimento.");
+  if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão, coordenação, atendimento e social media.");
+  const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.de || "")) ? req.query.de : null;
+  const ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ate || "")) ? req.query.ate : null;
   const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.mes || "")) ? req.query.mes : mesAtual();
 
-  const [c, carteira, todasPecas, rMeses] = await Promise.all([
-    ler(M, "contadores", mes),
+  const [carteira, todasPecas, rMeses] = await Promise.all([
     clientesCarteira(),
     listar(M, "pecas"),
     sql`SELECT id FROM docs WHERE parent = ${`m/${M}/contadores`} AND NOT deleted ORDER BY id DESC`,
   ]);
-  const pecasAtivasMes = todasPecas.filter(p => String(p.criadoEm || p.atualizadoEm || "").slice(0, 7) === mes);
 
   const meses = rMeses.map(r => r.id);
-  return res.json({ mes, meses: [...new Set([mesAtual(), ...meses])].sort().reverse(), ...resumoContadores(c, carteira, pecasAtivasMes) });
+  const listaMeses = [...new Set([mesAtual(), ...meses])].sort().reverse();
+
+  if (de || ate) {
+    const dadosIntervalo = resumoPorIntervalo(todasPecas, carteira, de, ate);
+    return res.json({ mes, de, ate, meses: listaMeses, ...dadosIntervalo });
+  }
+
+  const c = await ler(M, "contadores", mes);
+  const pecasAtivasMes = todasPecas.filter(p => String(p.criadoEm || p.atualizadoEm || "").slice(0, 7) === mes);
+  return res.json({ mes, meses: listaMeses, ...resumoContadores(c, carteira, pecasAtivasMes) });
 }
 
 // ---------- Retenção: arquivos com mais de 7 dias são apagados; peças sem envio há mais de 7 dias saem da fila ----------
