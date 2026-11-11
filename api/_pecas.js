@@ -102,6 +102,48 @@ async function contar(mes, inc, nomes) {
       deleted = false, updated_at = now(), seq = nextval('docs_seq')
     WHERE path = ${path}`;
 }
+
+export async function sincronizarContadoresNoBanco(mes, dadosDinamicos) {
+  const path = `m/${M}/contadores/${mes}`;
+  const t = dadosDinamicos.totais || {};
+  const c = {
+    pecas: t.pecas || 0,
+    versoes: t.versoes || 0,
+    aprovada: t.aprovada || 0,
+    reprovada: t.reprovada || 0,
+    alteracao_solicitada: t.alteracao_solicitada || 0,
+    v1_decididas: t.primeiraDecididas || 0,
+    v1_aprovadas: t.primeiraAprovadas || 0,
+    nomes: {},
+  };
+  for (const cl of dadosDinamicos.clientes || []) {
+    c[`cli_pecas:${cl.id}`] = cl.pecas;
+    c[`cli_versoes:${cl.id}`] = cl.versoes;
+    c[`cli_dec:${cl.id}:aprovada`] = cl.aprovada;
+    c[`cli_dec:${cl.id}:reprovada`] = cl.reprovada;
+    c[`cli_dec:${cl.id}:alteracao_solicitada`] = cl.alteracao_solicitada;
+    c[`cli_v1_dec:${cl.id}`] = cl.primeiraDecididas;
+    c[`cli_v1_apr:${cl.id}`] = cl.primeiraAprovadas;
+    c.nomes[`cli:${cl.id}`] = cl.nome;
+  }
+  for (const u of dadosDinamicos.enviadas || []) {
+    c[`enviadas:${u.login}`] = u.pecas;
+    c[`versoes:${u.login}`] = u.versoes;
+    c.nomes[u.login] = u.nome;
+  }
+  for (const d of dadosDinamicos.decisoes || []) {
+    c[`dec:${d.login}:aprovada`] = d.aprovada;
+    c[`dec:${d.login}:reprovada`] = d.reprovada;
+    c[`dec:${d.login}:alteracao_solicitada`] = d.alteracao_solicitada;
+    c.nomes[d.login] = d.nome;
+  }
+  try {
+    await sql`INSERT INTO docs (path, parent, id, data) VALUES (${path}, ${`m/${M}/contadores`}, ${mes}, ${JSON.stringify(c)}::jsonb)
+      ON CONFLICT (path) DO UPDATE SET data = ${JSON.stringify(c)}::jsonb, deleted = false, updated_at = now()`;
+  } catch (e) {
+    console.error("[pecas] erro ao sincronizar contadores no banco:", e?.message || e);
+  }
+}
 export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
   c = c || {};
   const nomes = c.nomes || {};
@@ -213,8 +255,8 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
     primeiraDecididas: v1d, primeiraAprovadas: v1a, taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null }, clientes, tiposCliente, atendimentosCliente };
 }
 
-// Resumo analítico por intervalo de datas (Hoje, Ontem, Semana ou Personalizado)
-export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, ate = null) {
+// Resumo analítico dinâmico (calculado com base nas peças vivas do banco)
+export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => true) {
   const nomes = {};
   const porUsuario = {}, porCoord = {}, porCli = {};
   const cliObj = id => (porCli[id] ||= {
@@ -238,7 +280,7 @@ export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, at
 
     // 1. Envio da peça inicial (versão 1)
     const diaCriacao = diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm));
-    if (diaCriacao && (!de || diaCriacao >= de) && (!ate || diaCriacao <= ate)) {
+    if (diaCriacao && filtroFn(diaCriacao)) {
       cObj.pecas++;
       totPecas++;
       if (rem) {
@@ -250,7 +292,7 @@ export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, at
     // 2. Versões enviadas
     for (const v of p.versoes || []) {
       const diaV = diaSP(v.enviadaEm);
-      if (diaV && (!de || diaV >= de) && (!ate || diaV <= ate)) {
+      if (diaV && filtroFn(diaV)) {
         cObj.versoes++;
         totVersoes++;
         if (rem) {
@@ -264,7 +306,7 @@ export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, at
     for (const h of p.historico || []) {
       if (DECISOES.includes(h.tipo)) {
         const diaDec = diaSP(h.em);
-        if (diaDec && (!de || diaDec >= de) && (!ate || diaDec <= ate)) {
+        if (diaDec && filtroFn(diaDec)) {
           cObj[h.tipo]++;
           if (h.tipo === "aprovada") totAprovadas++;
           else if (h.tipo === "reprovada") totReprovadas++;
@@ -294,7 +336,7 @@ export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, at
     // 4. Pendentes
     if (p.status === "pendente") {
       const diaAtual = diaSP(p.atualizadoEm || p.criadoEm);
-      if (!de || diaAtual >= de) {
+      if (diaAtual && filtroFn(diaAtual)) {
         cObj.pendente++;
       }
     }
@@ -367,6 +409,17 @@ export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, at
     tiposCliente,
     atendimentosCliente,
   };
+}
+
+// Resumo analítico por intervalo de datas (Hoje, Ontem, Semana ou Personalizado)
+export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, ate = null) {
+  const filtro = dia => (!de || dia >= de) && (!ate || dia <= ate);
+  return resumoDinamico(todasPecas, carteira, filtro);
+}
+
+export function resumoPorMes(todasPecas = [], carteira = [], mes = mesAtual()) {
+  const filtro = dia => String(dia || "").slice(0, 7) === mes;
+  return resumoDinamico(todasPecas, carteira, filtro);
 }
 
 // Horários de pico de envio de material (00:00 até 23:00, fuso de SP)
@@ -619,6 +672,15 @@ async function pecaExcluir(u, req, res) {
   }
   if (chaves.length) { try { await apagarArquivos(chaves); } catch {} }
   await apagar(M, "pecas", p.id);
+
+  // Mantém os contadores do mês sincronizados dinamicamente com as peças restantes
+  try {
+    const todasRestantes = await listar(M, "pecas");
+    const cart = await clientesCarteira();
+    const dadosAtuais = resumoDinamico(todasRestantes, cart, d => String(d || "").slice(0, 7) === mesAtual());
+    sincronizarContadoresNoBanco(mesAtual(), dadosAtuais).catch(() => {});
+  } catch {}
+
   return res.json({ ok: true });
 }
 
@@ -645,6 +707,15 @@ async function filaApagar(u, req, res) {
     await apagar(M, "pecas", p.id);
   }
   if (chaves.length) { try { await apagarArquivos(chaves); } catch {} }
+
+  // Mantém os contadores do mês sincronizados dinamicamente com as peças restantes
+  try {
+    const todasRestantes = await listar(M, "pecas");
+    const cart = await clientesCarteira();
+    const dadosAtuais = resumoDinamico(todasRestantes, cart, d => String(d || "").slice(0, 7) === mesAtual());
+    sincronizarContadoresNoBanco(mesAtual(), dadosAtuais).catch(() => {});
+  } catch {}
+
   return res.json({ ok: true, apagadas: alvos.length });
 }
 
@@ -670,8 +741,56 @@ async function pecaArquivo(u, req, res) {
   return enviar(res, a.chave, a.nome, true);
 }
 
+// Expurgar conteúdos e peças de teste enviados antes de 11/11/2026
+let expurgo11Executado = false;
+export async function expurgarTestesAnterioresA11() {
+  const todas = await listar(M, "pecas");
+  const deAntes = todas.filter(p => {
+    const dia = diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm) || p.atualizadoEm);
+    return !dia || dia < "2026-11-11";
+  });
+
+  const chaves = [];
+  for (const p of deAntes) {
+    for (const v of p.versoes || []) {
+      for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
+    }
+    await apagar(M, "pecas", p.id);
+  }
+  if (chaves.length) {
+    try { await apagarArquivos(chaves); } catch {}
+  }
+
+  // Resincroniza os contadores do mês com as peças válidas a partir de 11/11/2026
+  const restantes = todas.filter(p => !deAntes.some(d => d.id === p.id));
+  const cart = await clientesCarteira();
+  const dadosAtuais = resumoDinamico(restantes, cart, d => String(d || "").slice(0, 7) === mesAtual());
+  await sincronizarContadoresNoBanco(mesAtual(), dadosAtuais);
+
+  return { ok: true, apagadas: deAntes.length, arquivosApagados: chaves.length };
+}
+
+async function expurgarTestesAnterioresA11Auto() {
+  if (expurgo11Executado) return;
+  expurgo11Executado = true;
+  await expurgarTestesAnterioresA11().catch(e => {
+    console.error("[pecas] erro na auto-limpeza de testes anteriores a 11/11:", e?.message || e);
+  });
+}
+
+async function limparTestesEndpoint(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  if (!["mestre", "gestao"].includes(perfilDe(u))) return negado(res);
+  const r = await expurgarTestesAnterioresA11();
+  return res.json(r);
+}
+
 async function dashboard(u, req, res) {
   if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão, coordenação, atendimento e social media.");
+
+  // Auto-limpeza de testes anteriores a 11/11/2026 caso ainda existam
+  await expurgarTestesAnterioresA11Auto();
+
   const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.de || "")) ? req.query.de : null;
   const ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ate || "")) ? req.query.ate : null;
   const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(req.query.mes || "")) ? req.query.mes : mesAtual();
@@ -687,25 +806,20 @@ async function dashboard(u, req, res) {
 
   const filtroData = (de || ate)
     ? dia => (!de || dia >= de) && (!ate || dia <= ate)
-    : dia => dia.slice(0, 7) === mes;
+    : dia => String(dia || "").slice(0, 7) === mes;
 
   const { horas, horasPorCli } = calcularPicosHorario(todasPecas, filtroData);
-
-  if (de || ate) {
-    const dadosIntervalo = resumoPorIntervalo(todasPecas, carteira, de, ate);
-    for (const cl of dadosIntervalo.clientes || []) {
-      cl.horas = horasPorCli[cl.id] || Array(24).fill(0);
-    }
-    return res.json({ mes, de, ate, meses: listaMeses, horas, ...dadosIntervalo });
-  }
-
-  const c = await ler(M, "contadores", mes);
-  const pecasAtivasMes = todasPecas.filter(p => String(p.criadoEm || p.atualizadoEm || "").slice(0, 7) === mes);
-  const dadosMes = resumoContadores(c, carteira, pecasAtivasMes);
-  for (const cl of dadosMes.clientes || []) {
+  const dados = resumoDinamico(todasPecas, carteira, filtroData);
+  for (const cl of dados.clientes || []) {
     cl.horas = horasPorCli[cl.id] || Array(24).fill(0);
   }
-  return res.json({ mes, meses: listaMeses, horas, ...dadosMes });
+
+  // Sincroniza em background o documento contadores no banco para o mês atual
+  if (!de && !ate && mes === mesAtual()) {
+    sincronizarContadoresNoBanco(mes, dados).catch(() => {});
+  }
+
+  return res.json({ mes, de, ate, meses: listaMeses, horas, ...dados });
 }
 
 // ---------- Retenção: arquivos com mais de 7 dias são apagados; peças sem envio há mais de 7 dias saem da fila ----------
@@ -749,5 +863,6 @@ export const rotas = {
   inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
   "peca.comentar": pecaComentar, "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
   pecas, "peca.arquivo": pecaArquivo, dashboard, "limpeza.executar": limpezaExecutar,
+  "limpar.testes": limparTestesEndpoint,
 };
 export const publicas = { "pecas.cron": pecasCron };
