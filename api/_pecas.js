@@ -580,19 +580,26 @@ async function pecaEnviar(u, req, res) {
 
 async function pecaReenviar(u, req, res) {
   if (!so(req, res, "POST")) return;
-  if (!podeEnviar(u)) return negado(res, "Seu usuário não envia peças.");
+  if (!podeEnviar(u) && !podeDecidir(u)) return negado(res, "Seu usuário não tem permissão para enviar ou editar peças.");
   const b = corpo(req);
   const p = await ler(M, "pecas", b.id);
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada (pode ter expirado)." });
-  if (p.remetente?.login !== u.login && !podeDecidir(u)) return negado(res, "Só quem enviou a peça pode reenviar.");
-  if (!["reprovada", "alteracao_solicitada"].includes(p.status)) return res.status(409).json({ code: "status", msg: "Só dá para reenviar peças reprovadas ou com alteração solicitada." });
+  if (p.remetente?.login !== u.login && !podeDecidir(u)) return negado(res, "Só quem enviou a peça ou a coordenação/gestão pode reenviar ou editar.");
+  if (!["aprovada", "reprovada", "alteracao_solicitada", "pendente"].includes(p.status)) {
+    return res.status(409).json({ code: "status", msg: "Status da peça não permite nova versão." });
+  }
   const obs = txt(b.obs, 2000);
   const a = await conferirArquivos(u, b.arquivos); if (a.erro) return res.status(400).json({ code: "arquivos", msg: a.erro });
   const l = conferirLinks(b.links); if (l.erro) return res.status(400).json({ code: "links", msg: l.erro });
   if (!a.arquivos.length && !l.links.length) return res.status(400).json({ code: "vazio", msg: "Anexe pelo menos um arquivo ou um link do Google Drive." });
-  const em = agora(), n = p.versao + 1;
+  const em = agora(), n = (p.versao || 1) + 1;
+  const statusAnterior = p.status;
+  if (b.titulo && typeof b.titulo === "string" && b.titulo.trim()) {
+    p.titulo = txt(b.titulo.trim(), 160);
+  }
   p.versoes.push({ n, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links });
-  p.historico.push({ tipo: "reenvio", versao: n, em, por: quem(u), comentario: obs });
+  const tipoHist = statusAnterior === "aprovada" ? "edicao_aprovada" : "reenvio";
+  p.historico.push({ tipo: tipoHist, versao: n, em, por: quem(u), comentario: obs || (statusAnterior === "aprovada" ? "Material aprovado foi editado (nova versão)" : "Nova versão enviada") });
   Object.assign(p, { versao: n, status: "pendente", atualizadoEm: em });
   await gravar(M, "pecas", p.id, p);
   const incReenvio = { versoes: 1, [`versoes:${u.login}`]: 1 };
@@ -603,6 +610,15 @@ async function pecaReenviar(u, req, res) {
     if (p.clienteNome) nomesReenvio[`cli:${p.clienteId}`] = p.clienteNome;
   }
   await contar(mesAtual(), incReenvio, nomesReenvio);
+
+  // Mantém os contadores do mês sincronizados dinamicamente
+  try {
+    const todasRestantes = await listar(M, "pecas");
+    const cart = await clientesCarteira();
+    const dadosAtuais = resumoDinamico(todasRestantes, cart, d => String(d || "").slice(0, 7) === mesAtual());
+    sincronizarContadoresNoBanco(mesAtual(), dadosAtuais).catch(() => {});
+  } catch {}
+
   return res.json({ ok: true, peca: publica(p, u) });
 }
 
