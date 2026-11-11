@@ -668,7 +668,7 @@
   // ======================================================================
   function dash(ctx) {
     const el = ctx.el;
-    el.innerHTML = `<div class="pc-h"><div><h2>Dashboard de aprovação</h2><div class="pc-sub" data-box="sub-dash">Contagens gravadas a cada envio e decisão. Não zeram quando os arquivos expiram.</div></div><span class="sp"></span></div>
+    el.innerHTML = `<div class="pc-h"><div><h2>Dashboard de aprovação</h2><div class="pc-sub" data-box="sub-dash">Dashboard analítico dinâmico, atualizado em tempo real com as peças e decisões do período.</div></div><span class="sp"></span></div>
       <div class="pc-card" style="padding:12px 14px;margin-bottom:14px">
         <div class="pc-filtros" style="margin-bottom:0">
           <label>Período<select data-x="f-per">
@@ -954,7 +954,7 @@
       preencherSelect(qx("f-tipo"), (d.tiposCliente || []).map(tp => [tp, tp]));
       preencherSelect(qx("f-at"), (d.atendimentosCliente || []).map(at => [at, at]));
       renderDash();
-      box("limpeza").innerHTML = (base && (base.ehGestao || base.funcao === "mestre")) ? `<p class="pc-sub">Arquivos com mais de ${base.retencaoDias} dias são apagados automaticamente todo dia. <button class="btn" type="button" data-x="limpar" style="padding:2px 10px;min-height:0">Rodar a limpeza agora</button> <span data-box="lmsg"></span></p>` : "";
+      box("limpeza").innerHTML = (base && (base.ehGestao || base.funcao === "mestre")) ? `<p class="pc-sub">Arquivos com mais de ${base.retencaoDias} dias são apagados automaticamente todo dia. <button class="btn" type="button" data-x="limpar" style="padding:2px 10px;min-height:0">Rodar a limpeza agora</button> <button class="btn" type="button" data-x="limpar-testes" style="padding:2px 10px;min-height:0;margin-left:6px" title="Apaga peças e contadores de testes anteriores a 11/11/2026">Limpar testes anteriores a 11/11</button> <span data-box="lmsg"></span></p>` : "";
     }
     el.addEventListener("change", ev => {
       const x = ev.target.dataset.x;
@@ -988,6 +988,19 @@
         const cid = btn.dataset.cid || "";
         qx("f-cli").value = qx("f-cli").value === cid ? "" : cid;
         renderDash();
+        return;
+      }
+      if (x === "limpar-testes") {
+        btn.disabled = true;
+        try {
+          const r = await api("limpar.testes", {});
+          box("lmsg").textContent = `${r.apagadas || 0} peça(s) de teste apagadas. Dashboard atualizado.`;
+          ctx.toast("Testes anteriores a 11/11/2026 apagados e dashboard recalculado.");
+          carregar();
+        } catch (e) {
+          box("lmsg").textContent = e.message;
+        }
+        btn.disabled = false;
         return;
       }
       if (x !== "limpar") return;
