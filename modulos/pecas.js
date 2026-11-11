@@ -211,7 +211,22 @@
       .pc-turnos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px}
       .pc-turno-card{background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;font-size:12px}
       .pc-turno-card b{display:block;font-size:15px;color:var(--ink);margin-top:2px}
-      .pc-turno-card span{color:var(--ink2)}`;
+      .pc-turno-card span{color:var(--ink2)}
+      /* Tags e seletores de tipo de peça (Online vs Offline) */
+      .pc-tag-online{display:inline-flex;align-items:center;gap:4px;background:#EAF2FF;color:#0B57D0;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid rgba(11,87,208,0.25);letter-spacing:0.2px}
+      .pc-tag-offline{display:inline-flex;align-items:center;gap:4px;background:#F3E8FF;color:#6B21A8;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid rgba(107,33,168,0.25);letter-spacing:0.2px}
+      .pc-tipo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+      .pc-tipo-card{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border:2px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;transition:all .15s ease}
+      .pc-tipo-card input{accent-color:var(--blue);margin-top:3px;cursor:pointer}
+      .pc-tipo-card b{display:block;font-size:13.5px;color:var(--ink)}
+      .pc-tipo-card .pc-sub{font-size:11.5px;margin-top:2px}
+      .pc-tipo-card.ativo.online{border-color:var(--blue);background:#F0F6FF;box-shadow:0 0 0 1px var(--blue)}
+      .pc-tipo-card.ativo.offline{border-color:#7E22CE;background:#FAF5FF;box-shadow:0 0 0 1px #7E22CE}
+      .pc-tipo-card.ativo.offline input{accent-color:#7E22CE}
+      /* Modo Offline no Dashboard */
+      .modo-offline .pc-barras .b i{background:#7E22CE !important}
+      .modo-offline .pc-col-bar:not(.zerada):not(.pico){background:#7E22CE !important}
+      .modo-offline .pc-pico-badge:not(.destaque){background:rgba(126,34,206,0.12) !important;color:#6B21A8 !important;border-color:rgba(126,34,206,0.25) !important}`;
     document.head.appendChild(st);
   }
 
@@ -245,6 +260,7 @@
   // Formulário de envio (nova peça ou nova versão). Devolve um controlador com o HTML montado no "alvo".
   function formEnvio(alvo, { titulo, peca, aoEnviar, aoCancelar }) {
     const nova = !peca;
+    const tipoMidiaPadrao = peca?.tipoMidia || "online";
     const arquivos = [];   // { file, chave, prog, erro, el }
     alvo.innerHTML = `<div class="pc-card form"><h3 style="margin:0 0 14px">${esc(titulo)}</h3><div class="pc-grid">
       ${nova ? `<div class="full">
@@ -255,7 +271,26 @@
         </select>
       </div>` : ""}
       <div class="full">
-        <div class="pc-step"><b>${nova ? "2. Material para aprovação (Arquivo ou Reels do Google Drive)" : "Material da nova versão"} <span class="pc-req">*</span></b><span class="pc-sub">Até ${base.maxArquivos} arquivos · JPG, PNG, PDF ou Vídeo · até ${base.maxMB} MB</span></div>
+        <div class="pc-step"><b>${nova ? "2. Tipo de peça" : "Tipo de peça"} <span class="pc-req">*</span></b><span class="pc-sub">Obrigatório · Selecione se a peça é Online ou Offline</span></div>
+        <div class="pc-tipo-grid">
+          <label class="pc-tipo-card ${tipoMidiaPadrao === "online" ? "ativo online" : ""}" data-tipo-card="online">
+            <input type="radio" name="pc-tipo-midia" data-f="tipo-midia" value="online" ${tipoMidiaPadrao === "online" ? "checked" : ""}>
+            <div>
+              <b>🌐 Peça Online</b>
+              <div class="pc-sub">Redes sociais, Reels, anúncios digitais, carrossel, stories, etc.</div>
+            </div>
+          </label>
+          <label class="pc-tipo-card ${tipoMidiaPadrao === "offline" ? "ativo offline" : ""}" data-tipo-card="offline">
+            <input type="radio" name="pc-tipo-midia" data-f="tipo-midia" value="offline" ${tipoMidiaPadrao === "offline" ? "checked" : ""}>
+            <div>
+              <b>📦 Peça Offline</b>
+              <div class="pc-sub">Impressos, outdoors, folders, banners físicos, adesivos, eventos, etc.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="full">
+        <div class="pc-step"><b>${nova ? "3. Material para aprovação (Arquivo ou Reels do Google Drive)" : "Material da nova versão"} <span class="pc-req">*</span></b><span class="pc-sub">Até ${base.maxArquivos} arquivos · JPG, PNG, PDF ou Vídeo · até ${base.maxMB} MB</span></div>
         <div class="pc-drop" data-f="drop">
           <div class="ico">📤</div>
           <div class="cta">Arraste os arquivos da peça aqui ou <u>clique para escolher no computador</u></div>
@@ -271,7 +306,7 @@
         </div>
       </div>
       <div class="full pc-opc">
-        <div class="pc-opc-h"><b>${nova ? "3. Detalhes adicionais" : "Detalhes adicionais"}</b><span class="pc-badge-opc">Tudo opcional</span></div>
+        <div class="pc-opc-h"><b>${nova ? "4. Detalhes adicionais" : "Detalhes adicionais"}</b><span class="pc-badge-opc">Tudo opcional</span></div>
         <div class="pc-grid">
           <label class="full">Título da peça <span class="pc-sub">(opcional)</span>
             <input data-f="titulo" maxlength="160" placeholder="${nova ? "Automático: Peça #1 | Nome do Cliente" : "Manter título atual"}" value="${!nova && peca ? esc(peca.titulo || "") : ""}">
@@ -294,6 +329,17 @@
       <p class="pc-sub" style="margin:8px 0 0">Os arquivos enviados ficam disponíveis por ${base.retencaoDias} dias. Links de Reels/Vídeos do Google Drive não expiram.</p></div>`;
     const $ = s => alvo.querySelector(`[data-f="${s}"]`);
     const msg = t => { $("msg").textContent = t; };
+    const atualizarCardsTipo = () => {
+      const v = alvo.querySelector('[data-f="tipo-midia"]:checked')?.value || "online";
+      alvo.querySelectorAll("[data-tipo-card]").forEach(card => {
+        const eh = card.dataset.tipoCard === v;
+        card.className = "pc-tipo-card" + (eh ? ` ativo ${v}` : "");
+      });
+    };
+    alvo.querySelectorAll('[data-f="tipo-midia"]').forEach(r => {
+      r.onchange = atualizarCardsTipo;
+    });
+    atualizarCardsTipo();
     const pintar = a => {
       a.el.className = "pc-f" + (a.erro ? " erro" : a.chave ? " ok" : "");
       a.el.innerHTML = `<span class="n" title="${esc(a.file.name)}">${esc(a.file.name)}</span><span class="pc-sub">${mb(a.file.size)}</span><span class="pc-prog"><i style="width:${Math.round(a.prog * 100)}%"></i></span>
@@ -348,11 +394,17 @@
         $("cliente").focus();
         return;
       }
+      const radTipo = alvo.querySelector('[data-f="tipo-midia"]:checked');
+      const tipoMidia = radTipo ? radTipo.value : "";
+      if (!tipoMidia) {
+        msg("Selecione se a peça é Online ou Offline.");
+        return;
+      }
       if (arquivos.some(a => !a.chave && !a.erro)) { msg("Aguarde o fim do envio dos arquivos…"); await Promise.all(arquivos.map(a => a.promessa)); }
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
       const links = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
       if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo ou informe o link do Reels/Google Drive.");
-      const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links };
+      const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links, tipoMidia };
       if (nova) {
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
         const tituloFinal = $("titulo").value.trim() || tituloPadraoCliente($("cliente").value);
@@ -443,8 +495,12 @@
         </div>
       </details>
     </div>` : "";
+    const ehOffline = (p.tipoMidia || "").toLowerCase() === "offline";
+    const tagTipo = ehOffline
+      ? `<span class="pc-tag-offline" title="Material Offline (impressos, outdoors, brindes, eventos, etc.)">📦 Offline</span>`
+      : `<span class="pc-tag-online" title="Material Online (redes sociais, anúncios digitais, reels, etc.)">🌐 Online</span>`;
     return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span>${tagTipo}</div>
         <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
         <div style="display:flex;gap:6px;align-items:center">
           <span class="st ${p.status}">${ST[p.status]}</span>
@@ -469,6 +525,7 @@
       <button class="btn primary" type="button" data-x="nova">Nova peça</button></div>
       <div data-box="form"></div>
       <div class="pc-filtros"><label>Status<select data-x="st"><option value="">Todas</option>${Object.entries(ST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+        <label>Tipo de peça<select data-x="f-midia"><option value="">Todos os tipos</option><option value="online">🌐 Online</option><option value="offline">📦 Offline</option></select></label>
         <label>Cliente<select data-x="cli"><option value="">Todos</option></select></label></div>
       <div data-box="lista"><div class="pc-vazio">Carregando…</div></div>`;
     const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`).value;
@@ -481,7 +538,8 @@
       render();
     }
     function render() {
-      const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")));
+      const fMidia = fv("f-midia");
+      const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fMidia || (p.tipoMidia || "online") === fMidia) && (!fv("cli") || p.clienteId === fv("cli")));
       box("lista").innerHTML = l.length ? l.map(p => cartao(p, ["aprovada", "reprovada", "alteracao_solicitada"].includes(p.status)
         ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("")
         : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
@@ -565,6 +623,7 @@
       <div class="pc-filtros">
         <label>Status<select data-x="st"><option value="pendente">Pendentes (inclui reenviadas)</option><option value="">Todas</option>
           <option value="aprovada">Aprovadas</option><option value="alteracao_solicitada">Alteração solicitada</option><option value="reprovada">Reprovadas</option></select></label>
+        <label>Tipo de peça<select data-x="f-midia"><option value="">Todos os tipos (Qualquer)</option><option value="online">🌐 Apenas Online</option><option value="offline">📦 Apenas Offline</option></select></label>
         <label>Período<select data-x="f-per"><option value="">Todas as datas</option><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="semana">Essa semana</option><option value="mes">Esse mês</option><option value="custom">Personalizado…</option></select></label>
         <label data-box="wrap-de" hidden>Data inicial<input type="date" data-x="f-de" style="padding:4px 8px;font-size:13px"></label>
         <label data-box="wrap-ate" hidden>Data final<input type="date" data-x="f-ate" style="padding:4px 8px;font-size:13px"></label>
@@ -586,8 +645,10 @@
     const filtradasAtuais = () => {
       const { de, ate } = obterIntervaloFila();
       const st = fv("st");
+      const fMidia = fv("f-midia");
       return lista.filter(p =>
         (!st || p.status === st) &&
+        (!fMidia || (p.tipoMidia || "online") === fMidia) &&
         (!fv("cli") || p.clienteId === fv("cli")) &&
         (!fv("rem") || (p.remetente && p.remetente.login) === fv("rem")) &&
         pecaBatePeriodo(p, st, de, ate)
@@ -703,6 +764,7 @@
       }
       if (ev.target.closest('[data-x="limpar-filtros-fila"]')) {
         el.querySelector('[data-x="st"]').value = "";
+        const mEl = el.querySelector('[data-x="f-midia"]'); if (mEl) mEl.value = "";
         el.querySelector('[data-x="f-per"]').value = "";
         const deEl = el.querySelector('[data-x="f-de"]'); if (deEl) deEl.value = "";
         const ateEl = el.querySelector('[data-x="f-ate"]'); if (ateEl) ateEl.value = "";
@@ -751,6 +813,11 @@
           <label data-box="wrap-mes">Mês<select data-x="mes"></select></label>
           <label data-box="wrap-de" hidden>Data inicial<input type="date" data-x="d-ini" style="padding:4px 8px;font-size:13px"></label>
           <label data-box="wrap-ate" hidden>Data final<input type="date" data-x="d-fim" style="padding:4px 8px;font-size:13px"></label>
+          <label>Tipo de peça<select data-x="f-midia">
+            <option value="">Tudo (Online e Offline)</option>
+            <option value="online">🌐 Apenas peças online</option>
+            <option value="offline">📦 Apenas peças offline</option>
+          </select></label>
           <label style="flex:1;min-width:210px">Cliente<select data-x="f-cli"><option value="">Todos os clientes</option></select></label>
           <label>Tipo de cliente<select data-x="f-tipo"><option value="">Todos os tipos</option></select></label>
           <label>Nível<select data-x="f-nivel"><option value="">Todos</option><option value="A">Nível A</option><option value="B">Nível B</option><option value="C">Nível C</option></select></label>
@@ -838,9 +905,14 @@
     function renderDash() {
       if (!dados) return;
       const fCli = qx("f-cli").value, fTipo = qx("f-tipo").value, fNivel = qx("f-nivel").value, fAt = qx("f-at").value;
+      const fMidia = qx("f-midia")?.value || "";
       const mostrarZerados = qx("mostrar-zerados").checked;
-      const temFiltro = !!(fCli || fTipo || fNivel || fAt);
+      const temFiltro = !!(fCli || fTipo || fNivel || fAt || fMidia);
       qx("limpar-filtros").hidden = !temFiltro;
+
+      const ehModoOffline = fMidia === "offline";
+      if (ehModoOffline) el.classList.add("modo-offline");
+      else el.classList.remove("modo-offline");
 
       const todosClientes = dados.clientes || [];
       const clientesFiltrados = todosClientes.filter(c =>
@@ -852,13 +924,17 @@
 
       if (temFiltro) {
         const partes = [];
+        if (fMidia) partes.push(fMidia === "offline" ? "Canal: 📦 Peças Offline" : "Canal: 🌐 Peças Online");
         if (fCli) { const cl = todosClientes.find(x => x.id === fCli); partes.push(`Cliente: ${cl ? cl.nome : fCli}`); }
         if (fTipo) partes.push(`Tipo: ${fTipo}`);
         if (fNivel) partes.push(`Nível ${fNivel}`);
         if (fAt) partes.push(`Atendimento: ${fAt}`);
-        box("aviso-filtro").innerHTML = `<div style="margin-top:10px;padding:7px 11px;border-radius:8px;background:var(--blue-soft);color:var(--blue-dk);font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        const estiloAviso = ehModoOffline
+          ? "background:#F3E8FF;color:#6B21A8;border:1px solid rgba(107,33,168,0.25)"
+          : "background:var(--blue-soft);color:var(--blue-dk);border:1px solid rgba(6,96,255,0.18)";
+        box("aviso-filtro").innerHTML = `<div style="margin-top:10px;padding:7px 11px;border-radius:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;${estiloAviso}">
           <span><b>Filtro ativo:</b> ${esc(partes.join(" · "))} (${clientesFiltrados.length} cliente${clientesFiltrados.length === 1 ? "" : "s"})</span>
-          <button class="btn small" type="button" data-x="limpar-filtros">Ver todos os clientes</button>
+          <button class="btn small" type="button" data-x="limpar-filtros">Limpar filtros</button>
         </div>`;
       } else {
         box("aviso-filtro").innerHTML = "";
@@ -971,9 +1047,10 @@
       const listaAprovadasUsers = (escopo.enviadas || []).filter(u => (u.aprovadas || 0) > 0);
       const listaExibir = listaAprovadasUsers.length ? listaAprovadasUsers : (escopo.enviadas || []);
       const maxAprov = Math.max(1, ...listaExibir.map(u => u.aprovadas || 0));
+      const corBarra = ehModoOffline ? "#7E22CE" : (fMidia === "online" ? "var(--blue)" : "linear-gradient(90deg, var(--blue) 0%, #7E22CE 100%)");
       box("barras").innerHTML = listaExibir.length ? `<div class="pc-barras">${listaExibir.map(u => {
         const qtd = u.aprovadas || 0;
-        return `<div class="l"><span class="nm" title="${esc(u.nome)}">${esc(u.nome)}</span><span class="b"><i style="width:${maxAprov > 0 ? (qtd / maxAprov * 100) : 0}%"></i></span><b class="num">${qtd}</b></div>`;
+        return `<div class="l"><span class="nm" title="${esc(u.nome)}">${esc(u.nome)}</span><span class="b"><i style="width:${maxAprov > 0 ? (qtd / maxAprov * 100) : 0}%;background:${corBarra}"></i></span><b class="num" style="${ehModoOffline ? "color:#6B21A8" : ""}">${qtd}</b></div>`;
       }).join("")}</div>` : `<div class="pc-vazio">Nenhuma peça aprovada no período/filtro selecionado.</div>`;
       box("dec").innerHTML = escopo.decisoes.length ? `<table class="pc-tbl"><thead><tr><th>Quem decidiu</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Total</th></tr></thead><tbody>
         ${escopo.decisoes.map(c => `<tr><td>${esc(c.nome)}</td><td class="num">${c.aprovada}</td><td class="num">${c.alteracao_solicitada}</td><td class="num">${c.reprovada}</td><td class="num"><b>${c.total}</b></td></tr>`).join("")}</tbody></table>` : `<div class="pc-vazio">Sem decisões no período/filtro selecionado.</div>`;
@@ -983,21 +1060,21 @@
     }
     const obterParamsPeriodoDash = () => {
       const per = qx("f-per")?.value || "mes";
+      const midia = qx("f-midia")?.value || "";
+      let p = {};
       if (per === "mes") {
-        return sel.value ? { mes: sel.value } : {};
-      }
-      if (per === "custom") {
+        p = sel.value ? { mes: sel.value } : {};
+      } else if (per === "custom") {
         const de = qx("d-ini")?.value || "";
         const ate = qx("d-fim")?.value || "";
-        const p = {};
         if (de) p.de = de;
         if (ate) p.ate = ate;
-        return p;
+      } else {
+        const interv = intervaloPeriodo(per);
+        if (interv.de) p.de = interv.de;
+        if (interv.ate) p.ate = interv.ate;
       }
-      const interv = intervaloPeriodo(per);
-      const p = {};
-      if (interv.de) p.de = interv.de;
-      if (interv.ate) p.ate = interv.ate;
+      if (midia) p.tipoMidia = midia;
       return p;
     };
     async function carregar() {
@@ -1045,7 +1122,7 @@
         }
       } else if (x === "d-ini" || x === "d-fim") {
         carregar();
-      } else if (x === "mes") {
+      } else if (x === "mes" || x === "f-midia") {
         carregar();
       } else if (["f-cli", "f-tipo", "f-nivel", "f-at", "mostrar-zerados"].includes(x)) {
         renderDash();
@@ -1056,6 +1133,12 @@
       const x = btn.dataset.x;
       if (x === "limpar-filtros") {
         qx("f-cli").value = ""; qx("f-tipo").value = ""; qx("f-nivel").value = ""; qx("f-at").value = "";
+        const mEl = qx("f-midia");
+        if (mEl && mEl.value) {
+          mEl.value = "";
+          carregar();
+          return;
+        }
         renderDash();
         return;
       }
