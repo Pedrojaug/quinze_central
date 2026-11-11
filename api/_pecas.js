@@ -129,6 +129,7 @@ export async function sincronizarContadoresNoBanco(mes, dadosDinamicos) {
   for (const u of dadosDinamicos.enviadas || []) {
     c[`enviadas:${u.login}`] = u.pecas;
     c[`versoes:${u.login}`] = u.versoes;
+    c[`aprovadas_user:${u.login}`] = u.aprovadas || 0;
     c.nomes[u.login] = u.nome;
   }
   for (const d of dadosDinamicos.decisoes || []) {
@@ -154,19 +155,20 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
   });
   for (const [k, v] of Object.entries(c)) {
     let m;
-    if ((m = /^enviadas:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0 }).pecas = v;
-    else if ((m = /^versoes:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0 }).versoes = v;
+    if ((m = /^enviadas:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas = v;
+    else if ((m = /^versoes:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes = v;
+    else if ((m = /^aprovadas_user:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).aprovadas = v;
     else if ((m = /^dec:(.+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) (porCoord[m[1]] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[m[2]] = v;
     else if ((m = /^cli_pecas:(.+)$/.exec(k))) cliObj(m[1]).pecas = v;
     else if ((m = /^cli_versoes:(.+)$/.exec(k))) cliObj(m[1]).versoes = v;
     else if ((m = /^cli_dec:([^:]+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) cliObj(m[1])[m[2]] = v;
     else if ((m = /^cli_v1_dec:(.+)$/.exec(k))) cliObj(m[1]).v1_decididas = v;
     else if ((m = /^cli_v1_apr:(.+)$/.exec(k))) cliObj(m[1]).v1_aprovadas = v;
-    else if ((m = /^cli_env:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0 }).pecas = v;
-    else if ((m = /^cli_ver:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0 }).versoes = v;
+    else if ((m = /^cli_env:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas = v;
+    else if ((m = /^cli_ver:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes = v;
     else if ((m = /^cli_aprov:([^:]+):([^:]+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) (cliObj(m[1]).porCoord[m[2]] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[m[3]] = v;
   }
-  const enviadas = Object.entries(porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x })).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes);
+  const enviadas = Object.entries(porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x })).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
   const decisoes = Object.entries(porCoord).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada })).sort((a, b) => b.total - a.total);
   const v1d = c.v1_decididas || 0, v1a = c.v1_aprovadas || 0;
   // Complementa com peças ativas do mês (pendentes na fila e retrocompatibilidade de peças anteriores ao contador por cliente)
@@ -183,7 +185,7 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
     const rem = p.remetente?.login;
     if (rem) {
       if (p.remetente?.nome && !nomes[rem]) nomes[rem] = p.remetente.nome;
-      const uEntry = (v.porUsuario[rem] ||= { pecas: 0, versoes: 0 });
+      const uEntry = (v.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
       uEntry.pecas++;
       uEntry.versoes += qtdV;
     }
@@ -191,6 +193,10 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
       if (DECISOES.includes(h.tipo)) {
         v[h.tipo]++;
         if (h.versao === 1) { v.v1_decididas++; if (h.tipo === "aprovada") v.v1_aprovadas++; }
+        if (h.tipo === "aprovada" && rem) {
+          const uEntry = (v.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+          uEntry.aprovadas = (uEntry.aprovadas || 0) + 1;
+        }
         const ap = h.por?.login;
         if (ap) {
           if (h.por?.nome && !nomes[ap]) nomes[ap] = h.por.nome;
@@ -210,9 +216,10 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
     if (o.v1_decididas < v.v1_decididas) o.v1_decididas = v.v1_decididas;
     if (o.v1_aprovadas < v.v1_aprovadas) o.v1_aprovadas = v.v1_aprovadas;
     for (const [ul, ux] of Object.entries(v.porUsuario)) {
-      const uo = (o.porUsuario[ul] ||= { pecas: 0, versoes: 0 });
+      const uo = (o.porUsuario[ul] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
       if (uo.pecas < ux.pecas) uo.pecas = ux.pecas;
       if (uo.versoes < ux.versoes) uo.versoes = ux.versoes;
+      if ((uo.aprovadas || 0) < (ux.aprovadas || 0)) uo.aprovadas = ux.aprovadas;
     }
     for (const [al, ax] of Object.entries(v.porCoord)) {
       const ao = (o.porCoord[al] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 });
@@ -226,7 +233,7 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
   const clientes = [...idsClientes].map(id => {
     const meta = mapaCarteira.get(id) || {};
     const st = porCli[id] || { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
-    const envCli = Object.entries(st.porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x })).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes);
+    const envCli = Object.entries(st.porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x })).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
     const decCli = Object.entries(st.porCoord).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada })).sort((a, b) => b.total - a.total);
     return {
       id,
@@ -275,7 +282,7 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
     const rem = p.remetente?.login;
     if (rem) {
       if (p.remetente?.nome && !nomes[rem]) nomes[rem] = p.remetente.nome;
-      porUsuario[rem] ||= { pecas: 0, versoes: 0 };
+      porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 };
     }
 
     // 1. Envio da peça inicial (versão 1)
@@ -285,7 +292,7 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       totPecas++;
       if (rem) {
         porUsuario[rem].pecas++;
-        (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0 }).pecas++;
+        (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas++;
       }
     }
 
@@ -297,19 +304,28 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
         totVersoes++;
         if (rem) {
           porUsuario[rem].versoes++;
-          (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0 }).versoes++;
+          (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes++;
         }
       }
     }
 
     // 3. Decisões no histórico
+    let teveAprovacaoNoHist = false;
     for (const h of p.historico || []) {
       if (DECISOES.includes(h.tipo)) {
         const diaDec = diaSP(h.em);
         if (diaDec && filtroFn(diaDec)) {
           cObj[h.tipo]++;
-          if (h.tipo === "aprovada") totAprovadas++;
-          else if (h.tipo === "reprovada") totReprovadas++;
+          if (h.tipo === "aprovada") {
+            totAprovadas++;
+            teveAprovacaoNoHist = true;
+            if (rem) {
+              const u = (porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+              u.aprovadas = (u.aprovadas || 0) + 1;
+              const uCli = (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+              uCli.aprovadas = (uCli.aprovadas || 0) + 1;
+            }
+          } else if (h.tipo === "reprovada") totReprovadas++;
           else if (h.tipo === "alteracao_solicitada") totAlt++;
 
           if (h.versao === 1) {
@@ -333,6 +349,21 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       }
     }
 
+    // Caso a peça tenha status aprovada sem histórico correspondente
+    if (p.status === "aprovada" && !teveAprovacaoNoHist) {
+      const diaAprov = diaSP(p.decididoEm || p.atualizadoEm || p.criadoEm);
+      if (diaAprov && filtroFn(diaAprov)) {
+        cObj.aprovada++;
+        totAprovadas++;
+        if (rem) {
+          const u = (porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+          u.aprovadas = (u.aprovadas || 0) + 1;
+          const uCli = (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+          uCli.aprovadas = (uCli.aprovadas || 0) + 1;
+        }
+      }
+    }
+
     // 4. Pendentes
     if (p.status === "pendente") {
       const diaAtual = diaSP(p.atualizadoEm || p.criadoEm);
@@ -343,9 +374,9 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
   }
 
   const enviadas = Object.entries(porUsuario)
-    .filter(([_, x]) => x.pecas > 0 || x.versoes > 0)
-    .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x }))
-    .sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes);
+    .filter(([_, x]) => x.pecas > 0 || x.versoes > 0 || (x.aprovadas || 0) > 0)
+    .map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x }))
+    .sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
 
   const decisoes = Object.entries(porCoord)
     .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
@@ -359,9 +390,9 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
     const meta = mapaCarteira.get(id) || {};
     const st = porCli[id] || { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
     const envCli = Object.entries(st.porUsuario)
-      .filter(([_, x]) => x.pecas > 0 || x.versoes > 0)
-      .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x }))
-      .sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes);
+      .filter(([_, x]) => x.pecas > 0 || x.versoes > 0 || (x.aprovadas || 0) > 0)
+      .map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x }))
+      .sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
     const decCli = Object.entries(st.porCoord)
       .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
       .filter(x => x.total > 0)
@@ -641,6 +672,10 @@ async function pecaDecidir(u, req, res) {
   await gravar(M, "pecas", p.id, p);
   const inc = { [decisao]: 1, [`dec:${u.login}:${decisao}`]: 1 };
   const nomesDec = { [u.login]: u.nome || u.login };
+  if (decisao === "aprovada" && p.remetente?.login) {
+    inc[`aprovadas_user:${p.remetente.login}`] = 1;
+    if (p.remetente.nome) nomesDec[p.remetente.login] = p.remetente.nome;
+  }
   if (p.clienteId) {
     inc[`cli_dec:${p.clienteId}:${decisao}`] = 1;
     inc[`cli_aprov:${p.clienteId}:${u.login}:${decisao}`] = 1;
@@ -649,6 +684,15 @@ async function pecaDecidir(u, req, res) {
   }
   if (p.versao === 1) { inc.v1_decididas = 1; if (decisao === "aprovada") inc.v1_aprovadas = 1; }
   await contar(mesAtual(), inc, nomesDec);
+
+  // Mantém os contadores do mês sincronizados dinamicamente
+  try {
+    const todasRestantes = await listar(M, "pecas");
+    const cart = await clientesCarteira();
+    const dadosAtuais = resumoDinamico(todasRestantes, cart, d => String(d || "").slice(0, 7) === mesAtual());
+    sincronizarContadoresNoBanco(mesAtual(), dadosAtuais).catch(() => {});
+  } catch {}
+
   return res.json({ ok: true, peca: publica(p, u) });
 }
 

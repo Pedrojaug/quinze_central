@@ -777,9 +777,9 @@
         <div><h3 style="margin:0;font-size:15px">Envios e desempenho por cliente</h3><div class="pc-sub">Quantidade de peças enviadas, decisões e taxa de aprovação para cada cliente.</div></div>
         <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" data-x="mostrar-zerados" style="min-height:0;width:14px;height:14px"> Mostrar clientes sem envios no mês</label>
       </div><div data-box="cli-barras" style="margin-bottom:14px"></div><div data-box="cli-tabela" style="overflow-x:auto"></div></div>
-      <div class="pc-2"><div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Peças enviadas por usuário</h3><div data-box="barras"></div></div>
+      <div class="pc-2"><div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Peças aprovadas por usuário</h3><div data-box="barras"></div></div>
         <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Decisões por aprovador</h3><div data-box="dec"></div></div></div>
-      <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Envios por usuário</h3><div data-box="env"></div></div>
+      <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Envios e aprovações por usuário</h3><div data-box="env"></div></div>
       <div data-box="limpeza"></div>`;
     const box = n => el.querySelector(`[data-box="${n}"]`), qx = n => el.querySelector(`[data-x="${n}"]`);
     const sel = qx("mes");
@@ -811,9 +811,10 @@
           c.horas.forEach((qtd, h) => { horas[h].total += (qtd || 0); });
         }
         for (const u of c.enviadas || []) {
-          const x = (porU[u.login] ||= { login: u.login, nome: u.nome, pecas: 0, versoes: 0 });
+          const x = (porU[u.login] ||= { login: u.login, nome: u.nome, pecas: 0, versoes: 0, aprovadas: 0 });
           x.pecas += u.pecas || 0;
           x.versoes += u.versoes || 0;
+          x.aprovadas += u.aprovadas || 0;
         }
         for (const d of c.decisoes || []) {
           const x = (porC[d.login] ||= { login: d.login, nome: d.nome, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, total: 0 });
@@ -829,7 +830,7 @@
           primeiraDecididas: v1d, primeiraAprovadas: v1a,
           taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null,
         },
-        enviadas: Object.values(porU).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes),
+        enviadas: Object.values(porU).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes),
         decisoes: Object.values(porC).sort((a, b) => b.total - a.total),
         horas,
       };
@@ -966,13 +967,19 @@
         : `<div class="pc-vazio">${temFiltro ? "Nenhum cliente encontrado com esses filtros." : "Nenhum cliente teve peças enviadas neste mês ainda (marque a opção acima para ver todos os clientes da carteira)."}</div>`;
 
       // Seções de Usuários e Aprovadores (mantidas e sensíveis ao filtro)
-      const max = Math.max(1, ...escopo.enviadas.map(u => u.pecas));
-      box("barras").innerHTML = escopo.enviadas.length ? `<div class="pc-barras">${escopo.enviadas.map(u => `<div class="l"><span class="nm" title="${esc(u.nome)}">${esc(u.nome)}</span><span class="b"><i style="width:${u.pecas / max * 100}%"></i></span><b class="num">${u.pecas}</b></div>`).join("")}</div>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
+      // Substituição solicitada na Task 6: exibir peças aprovadas por usuário no lugar de apenas enviadas
+      const listaAprovadasUsers = (escopo.enviadas || []).filter(u => (u.aprovadas || 0) > 0);
+      const listaExibir = listaAprovadasUsers.length ? listaAprovadasUsers : (escopo.enviadas || []);
+      const maxAprov = Math.max(1, ...listaExibir.map(u => u.aprovadas || 0));
+      box("barras").innerHTML = listaExibir.length ? `<div class="pc-barras">${listaExibir.map(u => {
+        const qtd = u.aprovadas || 0;
+        return `<div class="l"><span class="nm" title="${esc(u.nome)}">${esc(u.nome)}</span><span class="b"><i style="width:${maxAprov > 0 ? (qtd / maxAprov * 100) : 0}%"></i></span><b class="num">${qtd}</b></div>`;
+      }).join("")}</div>` : `<div class="pc-vazio">Nenhuma peça aprovada no período/filtro selecionado.</div>`;
       box("dec").innerHTML = escopo.decisoes.length ? `<table class="pc-tbl"><thead><tr><th>Quem decidiu</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Total</th></tr></thead><tbody>
         ${escopo.decisoes.map(c => `<tr><td>${esc(c.nome)}</td><td class="num">${c.aprovada}</td><td class="num">${c.alteracao_solicitada}</td><td class="num">${c.reprovada}</td><td class="num"><b>${c.total}</b></td></tr>`).join("")}</tbody></table>` : `<div class="pc-vazio">Sem decisões no período/filtro selecionado.</div>`;
-      box("env").innerHTML = escopo.enviadas.length ? `<table class="pc-tbl"><thead><tr><th>Usuário</th><th class="num">Peças novas</th><th class="num">Versões enviadas</th></tr></thead><tbody>
-        ${escopo.enviadas.map(u => `<tr><td>${esc(u.nome)}</td><td class="num">${u.pecas}</td><td class="num">${u.versoes}</td></tr>`).join("")}
-        <tr><td><b>Total</b></td><td class="num"><b>${t.pecas}</b></td><td class="num"><b>${t.versoes}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
+      box("env").innerHTML = escopo.enviadas.length ? `<table class="pc-tbl"><thead><tr><th>Usuário</th><th class="num">Peças aprovadas</th><th class="num">Peças novas</th><th class="num">Versões enviadas</th></tr></thead><tbody>
+        ${escopo.enviadas.map(u => `<tr><td>${esc(u.nome)}</td><td class="num"><b>${u.aprovadas || 0}</b></td><td class="num">${u.pecas}</td><td class="num">${u.versoes}</td></tr>`).join("")}
+        <tr><td><b>Total</b></td><td class="num"><b>${t.aprovada}</b></td><td class="num"><b>${t.pecas}</b></td><td class="num"><b>${t.versoes}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
     }
     const obterParamsPeriodoDash = () => {
       const per = qx("f-per")?.value || "mes";
