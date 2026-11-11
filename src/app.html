@@ -189,12 +189,21 @@
         <div id="usr_senhaBox"><label class="f" for="usr_senha" id="usr_senhaLbl">Senha temporária</label><input id="usr_senha" type="password" autocomplete="new-password" placeholder="Pelo menos 8 caracteres"><div class="hint" id="usr_senhaHint">Passe à pessoa; ela cria a própria senha no primeiro acesso.</div></div>
         <div><label class="f" for="usr_funcao">Perfil</label><select id="usr_funcao"></select></div>
         <div class="full"><label style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer"><input type="checkbox" id="usr_pecas" style="min-height:0;width:16px;height:16px"> Pode enviar peças (módulo Aprovação de peças)</label></div>
-        <div class="full"><label class="f">Módulos e abas que pode acessar</label><div class="chk" id="usr_abas"></div><div class="hint" id="usr_funcHint"></div></div>
+        <div class="full"><label class="f">Módulos e abas que pode acessar</label><div id="usr_abas"></div><div class="hint" id="usr_funcHint" style="margin-top:6px"></div></div>
       </div>
-      <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="usrAdd">Adicionar usuário</button><span class="hint" id="usrMsg" style="margin:0;color:var(--danger);font-weight:600"></span></div>
+      <div class="row" style="margin-top:14px"><button class="btn primary" type="button" id="usrAdd">Adicionar usuário</button><span class="hint" id="usrMsg" style="margin:0;color:var(--danger);font-weight:600"></span></div>
     </div>
-    <div class="table-wrap"><table class="list" style="min-width:1200px">
-      <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Acesso</th><th>Envia peças</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead>
+    <div class="table-wrap"><table class="list usr-table" style="min-width:1200px">
+      <thead><tr>
+        <th style="width:260px">Usuário</th>
+        <th style="width:220px">Login / Autenticação</th>
+        <th style="width:140px">Perfil</th>
+        <th>Permissões de Acesso</th>
+        <th style="width:90px;text-align:center">Envia peças</th>
+        <th style="width:110px">Situação</th>
+        <th style="width:140px">Último acesso</th>
+        <th style="width:170px;text-align:right">Ações</th>
+      </tr></thead>
       <tbody id="usrRows"><tr><td colspan="8" class="empty">Carregando…</td></tr></tbody>
     </table></div>
   </section>
