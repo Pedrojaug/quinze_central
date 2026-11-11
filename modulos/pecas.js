@@ -449,15 +449,15 @@
     const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`).value;
     let lista = [];
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
-    const filtradasAtuais = () => lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")) && (!fv("rem") || p.remetente.login === fv("rem")));
+    const filtradasAtuais = () => lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")) && (!fv("rem") || (p.remetente && p.remetente.login) === fv("rem")));
     async function carregar() {
       try { await carregarBase(); lista = (await api("pecas")).pecas; } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       box("sub").textContent = base.podeDecidir ? "Coordenadores e gestão podem aprovar, pedir alteração ou reprovar qualquer peça." : "Acompanhamento das peças.";
       const apagarBtn = el.querySelector('[data-x="apagar-fila"]');
       if (apagarBtn) apagarBtn.hidden = !(base && (base.ehGestao || base.funcao === "mestre"));
-      const uniq = f => [...new Map(lista.map(f)).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
-      opcoes(el.querySelector('[data-x="cli"]'), uniq(p => [p.clienteId, p.clienteNome]));
-      opcoes(el.querySelector('[data-x="rem"]'), uniq(p => [p.remetente.login, p.remetente.nome]));
+      const uniq = f => [...new Map(lista.map(f)).entries()].sort((a, b) => (a[1] || "").localeCompare(b[1] || "", "pt-BR"));
+      opcoes(el.querySelector('[data-x="cli"]'), uniq(p => [p.clienteId || "", p.clienteNome || ""]));
+      opcoes(el.querySelector('[data-x="rem"]'), uniq(p => [p.remetente?.login || "", p.remetente?.nome || p.remetente?.login || ""]).filter(x => x[0]));
       render();
     }
     function render() {
@@ -473,7 +473,13 @@
           <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
           <span class="pc-sub" data-c="msg"></span></div></div>` : "");
       }).join("")
-        : `<div class="pc-card pc-vazio">${lista.length ? "Nada com esses filtros." : "Nenhuma peça na fila."}</div>`;
+        : `<div class="pc-card pc-vazio">${
+            lista.length
+              ? (fv("st") === "pendente"
+                  ? `Não há peças pendentes de aprovação no momento. <div style="margin-top:10px"><button class="btn small" type="button" data-x="ver-todas">Ver todas as peças da fila (${lista.length})</button></div>`
+                  : `Nenhuma peça encontrada com esses filtros. <div style="margin-top:10px"><button class="btn small" type="button" data-x="limpar-filtros-fila">Limpar filtros</button></div>`)
+              : "Nenhuma peça na fila."
+          }</div>`;
     }
     el.addEventListener("click", async ev => {
       const comentBtn = ev.target.closest("[data-enviar-coment]");
@@ -514,6 +520,18 @@
           ctx.toast(`${r.apagadas} peça(s) apagada(s) da fila`);
           carregar();
         } catch (e) { ctx.toast(e.message); }
+        return;
+      }
+      if (ev.target.closest('[data-x="ver-todas"]')) {
+        el.querySelector('[data-x="st"]').value = "";
+        render();
+        return;
+      }
+      if (ev.target.closest('[data-x="limpar-filtros-fila"]')) {
+        el.querySelector('[data-x="st"]').value = "";
+        el.querySelector('[data-x="cli"]').value = "";
+        el.querySelector('[data-x="rem"]').value = "";
+        render();
         return;
       }
       const d = ev.target.dataset.d; if (!d) return;

@@ -50,7 +50,7 @@ const GESTAO = ["mestre", "gestao"];
 export const AREAS = [
   { id: "atendimento", nome: "01 Atendimento", ordem: 10, entrada: "tarefas", funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
     descricao: "Carteira de clientes, onboarding, propostas e agenda" },
-  { id: "pecas", nome: "02 Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: true, entrada: "fila",
+  { id: "pecas", nome: "02 Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: false, entrada: "fila",
     descricao: "Envio de peças, fila de aprovação, números do mês e dados consolidados" },
   { id: "administrativo", nome: "03 Administrativo", ordem: 30, funcoes: GESTAO, restrito: true,
     descricao: "Contratos, assinaturas, pessoal, férias e usuários" },
@@ -86,8 +86,8 @@ export const MODULOS = [
   { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: ["mestre", "gestao", "coordenador"], arquivo: "/modulos/tarefas.js", colecoes: [] },
   // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m.
   { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: ["mestre", "gestao", "coordenador", "diretor_arte"], arquivo: "/modulos/pecas.js", colecoes: [] },
-  { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: TODOS, arquivo: "/modulos/pecas.js", colecoes: [] },
-  { id: "pecasdash", modulo: "pecas", nome: "Dashboard mensal", ordem: 30, funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"], arquivo: "/modulos/pecas.js", colecoes: [] },
+  { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: TODOS, livre: true, arquivo: "/modulos/pecas.js", colecoes: [] },
+  { id: "pecasdash", modulo: "pecas", nome: "Dashboard mensal", ordem: 30, funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"], livre: true, arquivo: "/modulos/pecas.js", colecoes: [] },
   // Instrução 10: "Dados consolidados" saiu do Atendimento (mesmo id, mesmos dados em producao/).
   { id: "prod", modulo: "pecas", nome: "Dados consolidados", ordem: 40, funcoes: ["mestre", "gestao", "atendimento"], livre: true,
     colecoes: ["producao/"] },
@@ -137,8 +137,20 @@ const funcoesDe = m => m.funcoes || ["mestre", "gestao", "atendimento"];
 const area = id => AREAS.find(a => a.id === id);
 const casa = (path, p) => path === p.replace(/\/$/, "") || (p.endsWith("/") && path.startsWith(p));
 
-// Perfil efetivo (o cadastro antigo "master" vale como mestre).
-export const perfilDe = u => (!u ? null : u.papel === "master" ? "mestre" : u.funcao);
+// Perfil efetivo (o cadastro antigo "master" vale como mestre; normaliza grafias de cargos).
+export function perfilDe(u) {
+  if (!u) return null;
+  if (u.papel === "master") return "mestre";
+  const f = String(u.funcao || u.papel || "").trim().toLowerCase();
+  if (f === "mestre" || f === "master") return "mestre";
+  if (f === "gestao" || f === "gestão" || f === "gerente" || f === "admin") return "gestao";
+  if (f.startsWith("atend") || f === "atendimento") return "atendimento";
+  if (f.startsWith("coord") || f === "coordenador" || f === "coordenadora") return "coordenador";
+  if (f.includes("social") || f === "sm") return "social";
+  if (f.includes("diretor") || f.includes("arte") || f.includes("design") || f === "da") return "diretor_arte";
+  if (f === "personalizado") return "personalizado";
+  return f || "personalizado";
+}
 export const ehGestao = u => ["mestre", "gestao"].includes(perfilDe(u));
 // Envio de peças: proibido para Social Media e Atendimento; liberado para Mestre, Gestão, Coordenador, Diretor de Arte ou quem tiver a permissão expressa pode_enviar_pecas.
 export const podeEnviarPecas = u => {

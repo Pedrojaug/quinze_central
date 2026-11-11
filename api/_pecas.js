@@ -39,8 +39,20 @@ const mesAtual = () => hojeSP().slice(0, 7);
 // ---------- Permissões ----------
 export const podeEnviar = u => podeEnviarPecas(u);
 export const podeDecidir = u => ["coordenador", "mestre", "gestao"].includes(perfilDe(u));
-export const veTodas = u => ["coordenador", "mestre", "gestao", "atendimento", "social"].includes(perfilDe(u));
-export const veDash = u => ["mestre", "gestao", "coordenador", "atendimento", "social"].includes(perfilDe(u));
+export const veTodas = u => {
+  if (!u) return false;
+  const p = perfilDe(u);
+  if (["coordenador", "mestre", "gestao", "atendimento", "social"].includes(p)) return true;
+  const abas = u.abas || [];
+  return abas.includes("fila") || abas.includes("pecasdash") || (u.areas || []).includes("pecas");
+};
+export const veDash = u => {
+  if (!u) return false;
+  const p = perfilDe(u);
+  if (["mestre", "gestao", "coordenador", "atendimento", "social"].includes(p)) return true;
+  const abas = u.abas || [];
+  return abas.includes("pecasdash") || abas.includes("fila") || (u.areas || []).includes("pecas");
+};
 const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login === u.login) || (p.aprovadores || []).some(a => a.login === u.login);
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;

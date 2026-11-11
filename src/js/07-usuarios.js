@@ -44,6 +44,7 @@
         if (g && g !== ult) b.insertAdjacentHTML("beforebegin", `<span class="navgrp" style="align-self:center;font-size:12px;font-weight:600;color:var(--ink2);padding:0 2px 0 10px;border-left:1px solid var(--line)">${esc(g)}:</span>`);
         ult = g; }); }
     const atalho = document.getElementById("atalhoProd"); if (atalho) atalho.hidden = !(ME.abas || []).includes("prod") || modAtual !== "atendimento";
+    const atalhoPec = document.getElementById("atalhoPecas"); if (atalhoPec) atalhoPec.hidden = !(ME.areas || []).some(a => a.id === "pecas") || modAtual !== "atendimento";
     $("#lockBtn").hidden = modAtual !== "atendimento";
     const who = document.getElementById("whoami"); if (who) who.textContent = ME.nome || ME.login;
     const st = $("#syncTxt"); if (st && ME.nome) st.title = ME.login;
