@@ -20,7 +20,7 @@
   const carregarBase = async () => (base ||= await api("inicio"));
   const arqUrl = (p, v, a) => `/api/m?r=pec/peca.arquivo&id=${encodeURIComponent(p.id)}&v=${v.n}&i=${a.i}`;
   const ST = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
-  const ACAO = { envio: "enviou", reenvio: "reenviou", aprovada: "aprovou", reprovada: "reprovou", alteracao_solicitada: "pediu alteração" };
+  const ACAO = { envio: "enviou", reenvio: "reenviou", aprovada: "aprovou", reprovada: "reprovou", alteracao_solicitada: "pediu alteração", comentario: "comentou" };
 
   // Extrai o ID do arquivo em links do Google Drive (para incorporar player de vídeo / Reels)
   function extrairDriveFileId(urlBruta) {
@@ -332,20 +332,39 @@
   }
   function cartao(p, extra) {
     const atual = p.versoes[p.versoes.length - 1], anteriores = p.versoes.slice(0, -1).reverse();
-    const hist = p.historico.filter(h => h.tipo !== "envio" || h.comentario).map(h => `<li><b>${esc(h.por?.nome || "")}</b> ${ACAO[h.tipo] || esc(h.tipo)} a versão ${h.versao} · <span class="pc-sub">${brHora(h.em)}</span>${h.comentario ? `<span class="c">${esc(h.comentario)}</span>` : ""}</li>`).join("");
+    const hist = (p.historico || []).filter(h => h.tipo !== "envio" || h.comentario).map(h => {
+      const ehCom = h.tipo === "comentario";
+      const acao = ehCom ? "comentou" : (ACAO[h.tipo] || esc(h.tipo));
+      const det = ehCom ? "" : ` a versão ${h.versao}`;
+      return `<li><b>${esc(h.por?.nome || "")}</b> ${acao}${det} · <span class="pc-sub">${brHora(h.em)}</span>${h.comentario ? `<span class="c">${esc(h.comentario)}</span>` : ""}</li>`;
+    }).join("");
     const aprovTxt = (p.aprovadores && p.aprovadores.length)
       ? ` · Aprovadores sugeridos: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
       : " · Aprovador: <i>Qualquer coordenador</i>";
+    const podeApagarPeca = !!(base && (base.ehGestao || base.funcao === "mestre"));
+    const podeComentar = p.status !== "aprovada";
+    const boxComentario = podeComentar ? `<div class="pc-coment-area" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)">
+      <details style="font-size:13px" data-coment-wrap="${esc(p.id)}">
+        <summary style="cursor:pointer;color:var(--blue);font-weight:600;user-select:none;display:inline-flex;align-items:center;gap:5px">💬 Adicionar comentário</summary>
+        <div style="margin-top:8px">
+          <textarea data-inp-coment="${esc(p.id)}" placeholder="Escreva uma observação ou comentário sobre este material…" style="width:100%;min-height:56px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box"></textarea>
+          <div class="pc-bar" style="margin-top:6px;justify-content:flex-end">
+            <button class="btn small primary" type="button" data-enviar-coment="${esc(p.id)}">Enviar comentário</button>
+          </div>
+        </div>
+      </details>
+    </div>` : "";
     return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span></div>
         <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
         <div style="display:flex;gap:6px;align-items:center">
           <span class="st ${p.status}">${ST[p.status]}</span>
-          <button class="btn" type="button" data-del-peca="${esc(p.id)}" title="Apagar peça (exige senha mestre)" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--danger)">🗑️ Apagar</button>
+          ${podeApagarPeca ? `<button class="btn" type="button" data-del-peca="${esc(p.id)}" title="Apagar peça (exige senha mestre)" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--danger)">🗑️ Apagar</button>` : ""}
         </div></div>
       <div style="margin-top:8px">${versaoHtml(p, atual)}</div>
       ${anteriores.length ? `<details class="pc-ver"><summary>Versões anteriores (${anteriores.length})</summary>${anteriores.map(v => `<div style="margin-top:8px">${versaoHtml(p, v)}</div>`).join("")}</details>` : ""}
       ${hist ? `<div class="pc-ver"><div class="pc-sub">Comentários e decisões</div><ul class="pc-hist">${hist}</ul></div>` : ""}
+      ${boxComentario}
       ${extra || ""}</div>`;
   }
 
@@ -376,6 +395,24 @@
         : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
     }
     el.addEventListener("click", async ev => {
+      const comentBtn = ev.target.closest("[data-enviar-coment]");
+      if (comentBtn) {
+        const id = comentBtn.dataset.enviarComent;
+        const card = ev.target.closest(".pc-card");
+        const ta = card ? card.querySelector(`[data-inp-coment="${CSS.escape(id)}"]`) : null;
+        const texto = (ta ? ta.value : "").trim();
+        if (!texto) { ctx.toast("Escreva um comentário antes de enviar."); ta?.focus(); return; }
+        comentBtn.disabled = true;
+        try {
+          await api("peca.comentar", { id, comentario: texto });
+          ctx.toast("Comentário adicionado");
+          carregar();
+        } catch (e) {
+          ctx.toast(e.message || "Erro ao adicionar comentário");
+          comentBtn.disabled = false;
+        }
+        return;
+      }
       const delBtn = ev.target.closest("[data-del-peca]");
       if (delBtn) {
         const id = delBtn.dataset.delPeca;
@@ -416,6 +453,8 @@
     async function carregar() {
       try { await carregarBase(); lista = (await api("pecas")).pecas; } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       box("sub").textContent = base.podeDecidir ? "Coordenadores e gestão podem aprovar, pedir alteração ou reprovar qualquer peça." : "Acompanhamento das peças.";
+      const apagarBtn = el.querySelector('[data-x="apagar-fila"]');
+      if (apagarBtn) apagarBtn.hidden = !(base && (base.ehGestao || base.funcao === "mestre"));
       const uniq = f => [...new Map(lista.map(f)).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
       opcoes(el.querySelector('[data-x="cli"]'), uniq(p => [p.clienteId, p.clienteNome]));
       opcoes(el.querySelector('[data-x="rem"]'), uniq(p => [p.remetente.login, p.remetente.nome]));
@@ -426,7 +465,8 @@
         .sort((a, b) => fv("st") === "pendente" ? a.atualizadoEm.localeCompare(b.atualizadoEm) : b.atualizadoEm.localeCompare(a.atualizadoEm));
       box("lista").innerHTML = l.length ? l.map(p => {
         const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
-        const podeDecidirEsta = base.podeDecidir || base.ehGestao || souAprovador;
+        const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
+        const podeDecidirEsta = !ehBloqueado && (base.podeDecidir || base.ehGestao || souAprovador);
         return cartao(p, podeDecidirEsta && p.status === "pendente" ? `<div class="pc-dec">
           <textarea data-c="com" placeholder="Comentário (obrigatório para reprovar ou pedir alteração)"></textarea>
           <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
@@ -436,6 +476,24 @@
         : `<div class="pc-card pc-vazio">${lista.length ? "Nada com esses filtros." : "Nenhuma peça na fila."}</div>`;
     }
     el.addEventListener("click", async ev => {
+      const comentBtn = ev.target.closest("[data-enviar-coment]");
+      if (comentBtn) {
+        const id = comentBtn.dataset.enviarComent;
+        const card = ev.target.closest(".pc-card");
+        const ta = card ? card.querySelector(`[data-inp-coment="${CSS.escape(id)}"]`) : null;
+        const texto = (ta ? ta.value : "").trim();
+        if (!texto) { ctx.toast("Escreva um comentário antes de enviar."); ta?.focus(); return; }
+        comentBtn.disabled = true;
+        try {
+          await api("peca.comentar", { id, comentario: texto });
+          ctx.toast("Comentário adicionado");
+          carregar();
+        } catch (e) {
+          ctx.toast(e.message || "Erro ao adicionar comentário");
+          comentBtn.disabled = false;
+        }
+        return;
+      }
       const delBtn = ev.target.closest("[data-del-peca]");
       if (delBtn) {
         const id = delBtn.dataset.delPeca;
@@ -632,7 +690,7 @@
       preencherSelect(qx("f-tipo"), (d.tiposCliente || []).map(tp => [tp, tp]));
       preencherSelect(qx("f-at"), (d.atendimentosCliente || []).map(at => [at, at]));
       renderDash();
-      box("limpeza").innerHTML = base.veTodas ? `<p class="pc-sub">Arquivos com mais de ${base.retencaoDias} dias são apagados automaticamente todo dia. <button class="btn" type="button" data-x="limpar" style="padding:2px 10px;min-height:0">Rodar a limpeza agora</button> <span data-box="lmsg"></span></p>` : "";
+      box("limpeza").innerHTML = (base && (base.ehGestao || base.funcao === "mestre")) ? `<p class="pc-sub">Arquivos com mais de ${base.retencaoDias} dias são apagados automaticamente todo dia. <button class="btn" type="button" data-x="limpar" style="padding:2px 10px;min-height:0">Rodar a limpeza agora</button> <span data-box="lmsg"></span></p>` : "";
     }
     el.addEventListener("change", ev => {
       const x = ev.target.dataset.x;

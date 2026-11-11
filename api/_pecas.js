@@ -39,8 +39,8 @@ const mesAtual = () => hojeSP().slice(0, 7);
 // ---------- Permissões ----------
 export const podeEnviar = u => podeEnviarPecas(u);
 export const podeDecidir = u => ["coordenador", "mestre", "gestao"].includes(perfilDe(u));
-export const veTodas = u => ["coordenador", "mestre", "gestao"].includes(perfilDe(u));
-export const veDash = u => ["mestre", "gestao", "coordenador", "atendimento"].includes(perfilDe(u));
+export const veTodas = u => ["coordenador", "mestre", "gestao", "atendimento", "social"].includes(perfilDe(u));
+export const veDash = u => ["mestre", "gestao", "coordenador", "atendimento", "social"].includes(perfilDe(u));
 const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login === u.login) || (p.aprovadores || []).some(a => a.login === u.login);
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;
@@ -243,7 +243,7 @@ async function proximoNumeroPeca(clienteId) {
 async function inicio(u, req, res) {
   const todos = await usuariosAtivos();
   const usuarios = todos.filter(podeDecidir).map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x) }));
-  return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login,
+  return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login, funcao: perfilDe(u),
     clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
     retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
 }
@@ -331,8 +331,8 @@ async function pecaDecidir(u, req, res) {
   const p = await ler(M, "pecas", b.id);
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada (pode ter expirado)." });
   const souAprovador = (p.aprovadores || []).some(a => a.login === u.login);
-  // Coordenadores, Mestre e Gestão têm direito de aprovar qualquer peça
-  const autorizado = podeDecidir(u) || souAprovador;
+  // Coordenadores, Mestre e Gestão têm direito de aprovar qualquer peça (Social Media e Atendimento não decidem)
+  const autorizado = (podeDecidir(u) || souAprovador) && !["social", "atendimento"].includes(perfilDe(u));
   if (!autorizado) return negado(res, "Apenas coordenadores e gestão podem aprovar ou decidir peças.");
   if (p.status !== "pendente") return res.status(409).json({ code: "status", msg: "Esta peça já foi decidida." });
   const em = agora();
@@ -349,6 +349,27 @@ async function pecaDecidir(u, req, res) {
   }
   if (p.versao === 1) { inc.v1_decididas = 1; if (decisao === "aprovada") inc.v1_aprovadas = 1; }
   await contar(mesAtual(), inc, nomesDec);
+  return res.json({ ok: true, peca: publica(p, u) });
+}
+
+// Comentário em material que não foi aprovado (pendente, alteração solicitada ou reprovada)
+async function pecaComentar(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  const b = corpo(req);
+  const id = String(b.id || "").trim();
+  const comentario = txt(b.comentario, 3000);
+  if (!comentario) return res.status(400).json({ code: "comentario_vazio", msg: "Escreva um comentário." });
+  const p = await ler(M, "pecas", id);
+  if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada (pode ter expirado)." });
+  if (!podeVer(u, p)) return negado(res, "Sem permissão para ver esta peça.");
+  if (p.status === "aprovada") {
+    return res.status(400).json({ code: "ja_aprovada", msg: "Esta peça já foi aprovada. Comentários só são permitidos em materiais não aprovados." });
+  }
+  const em = agora();
+  p.historico = Array.isArray(p.historico) ? p.historico : [];
+  p.historico.push({ tipo: "comentario", versao: p.versao, em, por: quem(u), comentario });
+  p.atualizadoEm = em;
+  await gravar(M, "pecas", p.id, p);
   return res.json({ ok: true, peca: publica(p, u) });
 }
 
@@ -473,7 +494,7 @@ async function pecasCron(req, res) {
 
 export const rotas = {
   inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
-  "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
+  "peca.comentar": pecaComentar, "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
   pecas, "peca.arquivo": pecaArquivo, dashboard, "limpeza.executar": limpezaExecutar,
 };
 export const publicas = { "pecas.cron": pecasCron };
