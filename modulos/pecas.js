@@ -193,7 +193,25 @@
       .pc-barras .b{height:14px;background:var(--line2);border-radius:4px;overflow:hidden}.pc-barras .b i{display:block;height:100%;background:var(--blue)}
       .pc-barras .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .pc-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:900px){.pc-2{grid-template-columns:1fr}}
-      .pc-vazio{padding:18px;text-align:center;color:var(--ink2);font-size:14px}`;
+      .pc-vazio{padding:18px;text-align:center;color:var(--ink2);font-size:14px}
+      /* Horários de pico */
+      .pc-pico-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;background:rgba(37,99,235,0.1);color:var(--blue);font-size:13px;font-weight:600}
+      .pc-pico-badge.destaque{background:rgba(234,88,12,0.12);color:#c2410c;border:1px solid rgba(234,88,12,0.25)}
+      .pc-histog-wrap{overflow-x:auto;padding:6px 0 4px}
+      .pc-histog{display:flex;align-items:flex-end;gap:5px;height:150px;min-width:620px;padding:16px 4px 0;border-bottom:2px solid var(--line)}
+      .pc-col-h{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;position:relative;cursor:pointer}
+      .pc-col-h:hover .pc-col-bar{filter:brightness(1.15)}
+      .pc-col-num{font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:3px;line-height:1}
+      .pc-col-h.pico .pc-col-num{color:#c2410c;font-size:12px}
+      .pc-col-bar{width:100%;max-width:26px;min-width:8px;background:var(--blue);border-radius:4px 4px 0 0;transition:height .25s ease,background-color .2s ease}
+      .pc-col-bar.zerada{background:var(--line2);height:3px !important;opacity:.45}
+      .pc-col-h.pico .pc-col-bar{background:linear-gradient(180deg,#f97316 0%,#ea580c 100%);box-shadow:0 2px 6px rgba(234,88,12,.28)}
+      .pc-col-rotulo{margin-top:6px;font-size:10.5px;color:var(--ink2);font-variant-numeric:tabular-nums;text-align:center}
+      .pc-col-h.pico .pc-col-rotulo{color:#c2410c;font-weight:700}
+      .pc-turnos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px}
+      .pc-turno-card{background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;font-size:12px}
+      .pc-turno-card b{display:block;font-size:15px;color:var(--ink);margin-top:2px}
+      .pc-turno-card span{color:var(--ink2)}`;
     document.head.appendChild(st);
   }
 
@@ -673,6 +691,19 @@
         <div data-box="aviso-filtro"></div>
       </div>
       <div class="pc-kpis" data-box="kpis"></div>
+      <div class="pc-card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <div>
+            <h3 style="margin:0;font-size:15px;display:flex;align-items:center;gap:6px">
+              <span>🕒</span> Horários de pico de envio de material
+            </h3>
+            <div class="pc-sub">Volume de envio de peças e versões por horário ao longo do dia (horário de Brasília).</div>
+          </div>
+          <div data-box="pico-badge"></div>
+        </div>
+        <div data-box="pico-grafico"></div>
+        <div data-box="pico-resumo" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line2)"></div>
+      </div>
       <div class="pc-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
         <div><h3 style="margin:0;font-size:15px">Envios e desempenho por cliente</h3><div class="pc-sub">Quantidade de peças enviadas, decisões e taxa de aprovação para cada cliente.</div></div>
         <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" data-x="mostrar-zerados" style="min-height:0;width:14px;height:14px"> Mostrar clientes sem envios no mês</label>
@@ -692,6 +723,13 @@
     function agregarFiltrados(clientesFiltrados) {
       let pecas = 0, versoes = 0, aprovada = 0, reprovada = 0, alteracao_solicitada = 0, v1d = 0, v1a = 0;
       const porU = {}, porC = {};
+      const horas = Array.from({ length: 24 }, (_, h) => ({
+        hora: h,
+        rotulo: String(h).padStart(2, "0") + ":00",
+        total: 0,
+        pecas: 0,
+        versoes: 0,
+      }));
       for (const c of clientesFiltrados) {
         pecas += c.pecas || 0;
         versoes += c.versoes || 0;
@@ -700,6 +738,9 @@
         alteracao_solicitada += c.alteracao_solicitada || 0;
         v1d += c.primeiraDecididas || 0;
         v1a += c.primeiraAprovadas || 0;
+        if (Array.isArray(c.horas)) {
+          c.horas.forEach((qtd, h) => { horas[h].total += (qtd || 0); });
+        }
         for (const u of c.enviadas || []) {
           const x = (porU[u.login] ||= { login: u.login, nome: u.nome, pecas: 0, versoes: 0 });
           x.pecas += u.pecas || 0;
@@ -721,6 +762,7 @@
         },
         enviadas: Object.values(porU).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes),
         decisoes: Object.values(porC).sort((a, b) => b.total - a.total),
+        horas,
       };
     }
     function renderDash() {
@@ -752,7 +794,7 @@
         box("aviso-filtro").innerHTML = "";
       }
 
-      const escopo = temFiltro ? agregarFiltrados(clientesFiltrados) : { totais: dados.totais, enviadas: dados.enviadas, decisoes: dados.decisoes };
+      const escopo = temFiltro ? agregarFiltrados(clientesFiltrados) : { totais: dados.totais, enviadas: dados.enviadas, decisoes: dados.decisoes, horas: dados.horas };
       const t = escopo.totais;
       const clientesComEnvio = clientesFiltrados.filter(c => c.pecas > 0 || c.versoes > 0);
       box("kpis").innerHTML = [
@@ -763,6 +805,61 @@
         [t.reprovada, "Reprovadas"],
         [t.taxaPrimeira == null ? "—" : t.taxaPrimeira.toLocaleString("pt-BR") + "%", "Aprovação na 1ª versão", t.primeiraDecididas ? `${t.primeiraAprovadas} de ${t.primeiraDecididas} peças decididas na 1ª versão` : "nenhuma decisão na 1ª versão"],
       ].map(([v, r, e]) => `<div class="pc-kpi"><b>${v}</b><span>${r}</span>${e ? `<em>${e}</em>` : ""}</div>`).join("");
+
+      // Horários de pico de envio de material
+      const horasAtuais = (escopo.horas || dados.horas || []);
+      const totalEnvios = horasAtuais.reduce((acc, h) => acc + (h.total || 0), 0);
+      const maxValor = Math.max(0, ...horasAtuais.map(h => h.total || 0));
+      const picos = maxValor > 0 ? horasAtuais.filter(h => h.total === maxValor) : [];
+
+      if (maxValor > 0) {
+        const rotulosPico = picos.map(p => p.rotulo).join(" e ");
+        box("pico-badge").innerHTML = `<div class="pc-pico-badge destaque">🔥 Horário de pico: <b>${esc(rotulosPico)}</b> (${maxValor} envio${maxValor > 1 ? "s" : ""})</div>`;
+        box("pico-grafico").innerHTML = `<div class="pc-histog-wrap">
+          <div class="pc-histog">
+            ${horasAtuais.map(h => {
+              const ehPico = h.total === maxValor && h.total > 0;
+              const altPct = h.total > 0 ? Math.max(8, Math.round((h.total / maxValor) * 100)) : 0;
+              const detalhe = `${h.rotulo} (${h.hora}h às ${h.hora}:59): ${h.total} material(is) enviado(s)${h.pecas ? ` · ${h.pecas} nova(s) peça(s)` : ""}${h.versoes ? ` · ${h.versoes} versão(ões)` : ""}`;
+              return `<div class="pc-col-h${ehPico ? " pico" : ""}" title="${esc(detalhe)}">
+                <span class="pc-col-num">${h.total > 0 ? h.total : ""}</span>
+                <div class="pc-col-bar${h.total === 0 ? " zerada" : ""}" style="height:${altPct}%"></div>
+                <span class="pc-col-rotulo">${String(h.hora).padStart(2, "0")}h</span>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>`;
+
+        const turnos = [
+          { nome: "Madrugada", periodo: "00h - 05h59", icone: "🌌", qtd: horasAtuais.slice(0, 6).reduce((a, b) => a + (b.total || 0), 0) },
+          { nome: "Manhã", periodo: "06h - 11h59", icone: "🌅", qtd: horasAtuais.slice(6, 12).reduce((a, b) => a + (b.total || 0), 0) },
+          { nome: "Tarde", periodo: "12h - 17h59", icone: "☀️", qtd: horasAtuais.slice(12, 18).reduce((a, b) => a + (b.total || 0), 0) },
+          { nome: "Noite", periodo: "18h - 23h59", icone: "🌙", qtd: horasAtuais.slice(18, 24).reduce((a, b) => a + (b.total || 0), 0) },
+        ];
+        const topHoras = [...horasAtuais].filter(h => h.total > 0).sort((a, b) => b.total - a.total).slice(0, 4);
+
+        box("pico-resumo").innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+            <div style="font-size:12.5px;color:var(--ink2)">
+              <b>Total no período:</b> ${totalEnvios} material(is) enviado(s)
+              ${topHoras.length ? ` · <b>Top horários com maior fluxo:</b> ${topHoras.map((th, idx) => `${idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : "•"} ${th.rotulo} (${th.total})`).join("  ")}` : ""}
+            </div>
+          </div>
+          <div class="pc-turnos-grid">
+            ${turnos.map(t => {
+              const pct = totalEnvios ? Math.round((t.qtd / totalEnvios) * 100) : 0;
+              return `<div class="pc-turno-card">
+                <span>${t.icone} ${t.nome} <em style="font-style:normal;font-size:11px">(${t.periodo})</em></span>
+                <b>${t.qtd} <small style="font-size:12px;font-weight:400;color:var(--ink2)">(${pct}%)</small></b>
+              </div>`;
+            }).join("")}
+          </div>
+        `;
+      } else {
+        box("pico-badge").innerHTML = `<div class="pc-pico-badge">Sem envios no período</div>`;
+        box("pico-grafico").innerHTML = `<div class="pc-vazio">Nenhum envio de material registrado neste período/filtro.</div>`;
+        box("pico-resumo").innerHTML = "";
+      }
 
       // Barras e tabela de Clientes
       const listaCliVisivel = (fCli || mostrarZerados) ? clientesFiltrados : clientesComEnvio;

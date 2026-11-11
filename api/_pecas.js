@@ -43,6 +43,15 @@ export const diaSP = iso => {
     return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
   } catch { return ""; }
 };
+export const horaSP = iso => {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d)) return null;
+    const hStr = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false }).format(d);
+    return parseInt(hStr, 10);
+  } catch { return null; }
+};
 
 // ---------- Permissões ----------
 export const podeEnviar = u => podeEnviarPecas(u);
@@ -360,6 +369,52 @@ export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, at
   };
 }
 
+// Horários de pico de envio de material (00:00 até 23:00, fuso de SP)
+export function calcularPicosHorario(todasPecas = [], filtroFn = () => true) {
+  const horas = Array.from({ length: 24 }, (_, h) => ({
+    hora: h,
+    rotulo: String(h).padStart(2, "0") + ":00",
+    total: 0,
+    pecas: 0,
+    versoes: 0,
+  }));
+  const horasPorCli = {};
+
+  for (const p of todasPecas) {
+    const cid = p.clienteId || "";
+    const cliHoras = cid ? (horasPorCli[cid] ||= Array(24).fill(0)) : null;
+
+    // 1. Envio da peça inicial / versão 1
+    const tV1 = p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm);
+    const diaV1 = diaSP(tV1);
+    if (diaV1 && filtroFn(diaV1)) {
+      const h = horaSP(tV1);
+      if (h !== null && h >= 0 && h < 24) {
+        horas[h].total++;
+        horas[h].pecas++;
+        if (cliHoras) cliHoras[h]++;
+      }
+    }
+
+    // 2. Novas versões subsequentes (v2, v3, ...)
+    const versoesExtras = Array.isArray(p.versoes) ? p.versoes.slice(1) : [];
+    for (const v of versoesExtras) {
+      const tV = v.enviadaEm;
+      const diaV = diaSP(tV);
+      if (diaV && filtroFn(diaV)) {
+        const h = horaSP(tV);
+        if (h !== null && h >= 0 && h < 24) {
+          horas[h].total++;
+          horas[h].versoes++;
+          if (cliHoras) cliHoras[h]++;
+        }
+      }
+    }
+  }
+
+  return { horas, horasPorCli };
+}
+
 // ---------- Peça vista pela página (sem as chaves internas dos arquivos) ----------
 function publica(p, u) {
   const expira = v => new Date(Date.parse(v.enviadaEm) + RETENCAO_DIAS * DIA).toISOString();
@@ -630,14 +685,27 @@ async function dashboard(u, req, res) {
   const meses = rMeses.map(r => r.id);
   const listaMeses = [...new Set([mesAtual(), ...meses])].sort().reverse();
 
+  const filtroData = (de || ate)
+    ? dia => (!de || dia >= de) && (!ate || dia <= ate)
+    : dia => dia.slice(0, 7) === mes;
+
+  const { horas, horasPorCli } = calcularPicosHorario(todasPecas, filtroData);
+
   if (de || ate) {
     const dadosIntervalo = resumoPorIntervalo(todasPecas, carteira, de, ate);
-    return res.json({ mes, de, ate, meses: listaMeses, ...dadosIntervalo });
+    for (const cl of dadosIntervalo.clientes || []) {
+      cl.horas = horasPorCli[cl.id] || Array(24).fill(0);
+    }
+    return res.json({ mes, de, ate, meses: listaMeses, horas, ...dadosIntervalo });
   }
 
   const c = await ler(M, "contadores", mes);
   const pecasAtivasMes = todasPecas.filter(p => String(p.criadoEm || p.atualizadoEm || "").slice(0, 7) === mes);
-  return res.json({ mes, meses: listaMeses, ...resumoContadores(c, carteira, pecasAtivasMes) });
+  const dadosMes = resumoContadores(c, carteira, pecasAtivasMes);
+  for (const cl of dadosMes.clientes || []) {
+    cl.horas = horasPorCli[cl.id] || Array(24).fill(0);
+  }
+  return res.json({ mes, meses: listaMeses, horas, ...dadosMes });
 }
 
 // ---------- Retenção: arquivos com mais de 7 dias são apagados; peças sem envio há mais de 7 dias saem da fila ----------
