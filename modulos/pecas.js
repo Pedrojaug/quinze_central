@@ -84,7 +84,7 @@
   const carregarBase = async () => (base ||= await api("inicio"));
   const arqUrl = (p, v, a) => `/api/m?r=pec/peca.arquivo&id=${encodeURIComponent(p.id)}&v=${v.n}&i=${a.i}`;
   const ST = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
-  const ACAO = { envio: "enviou", reenvio: "reenviou", aprovada: "aprovou", reprovada: "reprovou", alteracao_solicitada: "pediu alteração", comentario: "comentou" };
+  const ACAO = { envio: "enviou", reenvio: "reenviou", edicao_aprovada: "editou material aprovado", edicao: "editou material", aprovada: "aprovou", reprovada: "reprovou", alteracao_solicitada: "pediu alteração", comentario: "comentou" };
 
   // Extrai o ID do arquivo em links do Google Drive (para incorporar player de vídeo / Reels)
   function extrairDriveFileId(urlBruta) {
@@ -273,10 +273,10 @@
       <div class="full pc-opc">
         <div class="pc-opc-h"><b>${nova ? "3. Detalhes adicionais" : "Detalhes adicionais"}</b><span class="pc-badge-opc">Tudo opcional</span></div>
         <div class="pc-grid">
-          ${nova ? `<label class="full">Título da peça <span class="pc-sub">(opcional)</span>
-            <input data-f="titulo" maxlength="160" placeholder="Automático: Peça #1 | Nome do Cliente">
-            <span class="pc-sub" data-f="titulo-hint">Se deixar em branco, será salvo como <b>Peça #X | Nome do Cliente</b>.</span>
-          </label>` : ""}
+          <label class="full">Título da peça <span class="pc-sub">(opcional)</span>
+            <input data-f="titulo" maxlength="160" placeholder="${nova ? "Automático: Peça #1 | Nome do Cliente" : "Manter título atual"}" value="${!nova && peca ? esc(peca.titulo || "") : ""}">
+            ${nova ? '<span class="pc-sub" data-f="titulo-hint">Se deixar em branco, será salvo como <b>Peça #X | Nome do Cliente</b>.</span>' : '<span class="pc-sub">Se desejar, ajuste o título da peça para esta nova versão.</span>'}
+          </label>
           <label class="full">Observação / Legenda <span class="pc-sub">(opcional)</span>
             <textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto, legenda ou orientações para quem vai aprovar" : "O que mudou nesta versão"}"></textarea>
           </label>
@@ -357,7 +357,11 @@
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
         const tituloFinal = $("titulo").value.trim() || tituloPadraoCliente($("cliente").value);
         Object.assign(corpo, { titulo: tituloFinal, clienteId: $("cliente").value, aprovadores });
-      } else corpo.id = peca.id;
+      } else {
+        corpo.id = peca.id;
+        const tit = $("titulo") ? $("titulo").value.trim() : "";
+        if (tit) corpo.titulo = tit;
+      }
       b.disabled = true; msg("Salvando…");
       try {
         const j = await api(nova ? "peca.enviar" : "peca.reenviar", corpo);
@@ -424,6 +428,9 @@
       ? ` · Aprovadores sugeridos: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
       : " · Aprovador: <i>Qualquer coordenador</i>";
     const podeApagarPeca = !!(base && (base.ehGestao || base.funcao === "mestre"));
+    const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
+    const souRemetente = !!(p.minha || (base && p.remetente && p.remetente.login === base.login));
+    const podeEditarPeca = !ehBloqueado && (souRemetente || (base && (base.podeDecidir || base.ehGestao || base.funcao === "mestre")));
     const podeComentar = p.status !== "aprovada";
     const boxComentario = podeComentar ? `<div class="pc-coment-area" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)">
       <details style="font-size:13px" data-coment-wrap="${esc(p.id)}">
@@ -441,13 +448,16 @@
         <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
         <div style="display:flex;gap:6px;align-items:center">
           <span class="st ${p.status}">${ST[p.status]}</span>
+          ${podeEditarPeca ? `<button class="btn" type="button" data-x="editar-peca" data-id="${esc(p.id)}" title="Editar material e enviar nova versão" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--blue);border-color:rgba(59,130,246,.35)">✏️ Editar</button>` : ""}
           ${podeApagarPeca ? `<button class="btn" type="button" data-del-peca="${esc(p.id)}" title="Apagar peça (exige senha mestre)" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--danger)">🗑️ Apagar</button>` : ""}
         </div></div>
       <div style="margin-top:8px">${versaoHtml(p, atual)}</div>
       ${anteriores.length ? `<details class="pc-ver"><summary>Versões anteriores (${anteriores.length})</summary>${anteriores.map(v => `<div style="margin-top:8px">${versaoHtml(p, v)}</div>`).join("")}</details>` : ""}
       ${hist ? `<div class="pc-ver"><div class="pc-sub">Comentários e decisões</div><ul class="pc-hist">${hist}</ul></div>` : ""}
       ${boxComentario}
-      ${extra || ""}</div>`;
+      ${extra || ""}
+      <div data-box="edit-${esc(p.id)}"></div>
+    </div>`;
   }
 
   // ======================================================================
@@ -472,11 +482,31 @@
     }
     function render() {
       const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fv("cli") || p.clienteId === fv("cli")));
-      box("lista").innerHTML = l.length ? l.map(p => cartao(p, ["reprovada", "alteracao_solicitada"].includes(p.status)
-        ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar">Enviar nova versão (v${p.versao + 1})</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("")
+      box("lista").innerHTML = l.length ? l.map(p => cartao(p, ["aprovada", "reprovada", "alteracao_solicitada"].includes(p.status)
+        ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("")
         : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
     }
     el.addEventListener("click", async ev => {
+      const editBtn = ev.target.closest('[data-x="editar-peca"]');
+      if (editBtn) {
+        const id = editBtn.dataset.id || editBtn.closest("[data-id]")?.dataset.id;
+        const p = lista.find(q => q.id === id);
+        if (!p) return;
+        const alvo = el.querySelector(`[data-box="edit-${CSS.escape(id)}"]`) || el.querySelector(`[data-box="re-${CSS.escape(id)}"]`);
+        if (!alvo) return;
+        if (alvo.children.length > 0) { alvo.innerHTML = ""; return; }
+        await carregarBase();
+        formEnvio(alvo, {
+          titulo: `Editar material - ${p.titulo} (v${p.versao + 1})`,
+          peca: p,
+          aoEnviar: (novaPeca) => {
+            ctx.toast(`Nova versão (v${novaPeca?.versao || (p.versao + 1)}) enviada`);
+            carregar();
+          },
+          aoCancelar: () => { alvo.innerHTML = ""; }
+        });
+        return;
+      }
       const comentBtn = ev.target.closest("[data-enviar-coment]");
       if (comentBtn) {
         const id = comentBtn.dataset.enviarComent;
@@ -509,8 +539,16 @@
       if (x === "nova" || x === "reenviar") { try { await carregarBase(); } catch (e) { ctx.toast(e.message); return; } }
       if (x === "nova") formEnvio(box("form"), { titulo: "Nova peça", aoEnviar: () => { ctx.toast("Peça enviada para a fila"); carregar(); } });
       if (x === "reenviar") {
-        const id = ev.target.closest("[data-id]").dataset.id, p = lista.find(q => q.id === id);
-        formEnvio(el.querySelector(`[data-box="re-${CSS.escape(id)}"]`), { titulo: `Nova versão de "${p.titulo}"`, peca: p, aoEnviar: () => { ctx.toast(`Versão ${p.versao + 1} enviada`); carregar(); } });
+        const id = ev.target.dataset.id || ev.target.closest("[data-id]").dataset.id, p = lista.find(q => q.id === id);
+        const alvo = el.querySelector(`[data-box="re-${CSS.escape(id)}"]`) || el.querySelector(`[data-box="edit-${CSS.escape(id)}"]`);
+        if (alvo) {
+          formEnvio(alvo, {
+            titulo: p.status === "aprovada" ? `Editar material - ${p.titulo} (v${p.versao + 1})` : `Nova versão de "${p.titulo}"`,
+            peca: p,
+            aoEnviar: () => { ctx.toast(`Versão ${p.versao + 1} enviada`); carregar(); },
+            aoCancelar: () => { alvo.innerHTML = ""; }
+          });
+        }
       }
     });
     el.addEventListener("change", ev => { if (ev.target.dataset.x) render(); });
@@ -572,11 +610,22 @@
         const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
         const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
         const podeDecidirEsta = !ehBloqueado && (base.podeDecidir || base.ehGestao || souAprovador);
-        return cartao(p, podeDecidirEsta && p.status === "pendente" ? `<div class="pc-dec">
+        const souRemetente = !!(p.minha || (base && p.remetente && p.remetente.login === base.login));
+        const podeEditarEsta = !ehBloqueado && (souRemetente || base.podeDecidir || base.ehGestao || base.funcao === "mestre");
+
+        let acoesHtml = "";
+        if (podeDecidirEsta && p.status === "pendente") {
+          acoesHtml = `<div class="pc-dec">
           <textarea data-c="com" placeholder="Comentário (obrigatório para reprovar ou pedir alteração)"></textarea>
           <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
           <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
-          <span class="pc-sub" data-c="msg"></span></div></div>` : "");
+          <span class="pc-sub" data-c="msg"></span></div></div>`;
+        } else if (podeEditarEsta && p.status === "aprovada") {
+          acoesHtml = `<div class="pc-bar" style="margin-top:10px">
+            <button class="btn" type="button" data-x="editar-peca" data-id="${esc(p.id)}" style="display:inline-flex;align-items:center;gap:6px">✏️ Editar material aprovado (Nova versão v${p.versao + 1})</button>
+          </div>`;
+        }
+        return cartao(p, acoesHtml);
       }).join("")
         : `<div class="pc-card pc-vazio">${
             lista.length
@@ -587,6 +636,26 @@
           }</div>`;
     }
     el.addEventListener("click", async ev => {
+      const editBtn = ev.target.closest('[data-x="editar-peca"]');
+      if (editBtn) {
+        const id = editBtn.dataset.id || editBtn.closest("[data-id]")?.dataset.id;
+        const p = lista.find(q => q.id === id);
+        if (!p) return;
+        const alvo = el.querySelector(`[data-box="edit-${CSS.escape(id)}"]`);
+        if (!alvo) return;
+        if (alvo.children.length > 0) { alvo.innerHTML = ""; return; }
+        await carregarBase();
+        formEnvio(alvo, {
+          titulo: `Editar material - ${p.titulo} (v${p.versao + 1})`,
+          peca: p,
+          aoEnviar: (novaPeca) => {
+            ctx.toast(`Nova versão (v${novaPeca?.versao || (p.versao + 1)}) enviada para a fila de aprovação`);
+            carregar();
+          },
+          aoCancelar: () => { alvo.innerHTML = ""; }
+        });
+        return;
+      }
       const comentBtn = ev.target.closest("[data-enviar-coment]");
       if (comentBtn) {
         const id = comentBtn.dataset.enviarComent;
