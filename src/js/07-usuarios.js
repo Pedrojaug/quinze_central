@@ -77,37 +77,177 @@
     renderUsers();
     try { renderTeam(); } catch {}
   }
-  // Nome de cada item marcável: abas com o módulo na frente, módulos sem abas com "(em breve)".
-  function escolhaNome(id){
-    const a = AREAS_ALL.find(x => x.id === id);
-    if (a) return a.nome.replace(/^\d+\s*/, "") + (a.emBreve ? " (em breve)" : "");
-    const mod = AREAS_ALL.find(x => x.id === TAB_MOD[id]);
-    return (mod ? mod.nome.replace(/^\d+\s*/, "") + ": " : "") + (TAB_NAMES[id] || id);
+  // Agrupamento de permissões por módulo para UI limpa e organizada
+  function userInitials(nome, login){
+    const txt = String(nome || login || "").trim();
+    if (!txt) return "?";
+    const clean = txt.replace(/@.*$/, "").replace(/[._-]/g, " ").trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
-  const tabChecks = (sel, name, disabled) => ESCOLHAS.map(k => `<label><input type="checkbox" data-${name}="${k}"${sel.includes(k) ? " checked" : ""}${disabled ? " disabled" : ""}> ${esc(escolhaNome(k))}</label>`).join("");
+  function agruparEscolhas(){
+    const grupos = {};
+    ESCOLHAS.forEach(k => {
+      let modId = TAB_MOD[k];
+      let modNome = "";
+      const a = AREAS_ALL.find(x => x.id === k);
+      if (a) {
+        modId = k;
+        modNome = a.nome.replace(/^\d+\s*/, "");
+      } else {
+        const area = AREAS_ALL.find(x => x.id === modId);
+        modNome = area ? area.nome.replace(/^\d+\s*/, "") : (modId || "Outros");
+      }
+      if (!grupos[modId]) {
+        grupos[modId] = { id: modId, nome: modNome, itens: [] };
+      }
+      grupos[modId].itens.push({ id: k, nome: TAB_NAMES[k] || k });
+    });
+    return Object.values(grupos);
+  }
+  function renderPermissoesDrawer(sel, attr, disabled, isCustom){
+    const grupos = agruparEscolhas();
+    return `<div class="usr-perm-drawer">
+      <div class="usr-perm-drawer-notice">
+        <span>${isCustom ? "Marque os módulos e as abas liberadas para este usuário:" : "Permissões automáticas concedidas pelo perfil selecionado:"}</span>
+        ${isCustom ? `<div style="display:flex;gap:8px;align-items:center">
+          <button type="button" class="btn-link-action" data-perm-check-all>Marcar todas</button>
+          <span class="muted" style="font-size:12px">·</span>
+          <button type="button" class="btn-link-action" data-perm-uncheck-all>Desmarcar todas</button>
+        </div>` : ""}
+      </div>
+      <div class="usr-perm-modules-grid">
+        ${grupos.map(g => {
+          const total = g.itens.length;
+          const marcados = g.itens.filter(it => sel.includes(it.id)).length;
+          return `<div class="usr-perm-mod-card" data-mod="${esc(g.id)}">
+            <div class="usr-perm-mod-head">
+              <span class="usr-perm-mod-title">${esc(g.nome)}</span>
+              <span class="usr-perm-mod-badge">${marcados}/${total}</span>
+              ${isCustom ? `<div style="display:flex;gap:4px">
+                <button type="button" class="usr-perm-mod-btn" data-perm-check-all title="Marcar todas deste módulo">Todos</button>
+                <button type="button" class="usr-perm-mod-btn" data-perm-uncheck-all title="Desmarcar todas deste módulo">Nenhum</button>
+              </div>` : ""}
+            </div>
+            <div class="usr-perm-items">
+              ${g.itens.map(it => {
+                const chk = sel.includes(it.id);
+                return `<label class="usr-perm-chk-pill${chk ? " checked" : ""}">
+                  <input type="checkbox" data-${attr}="${esc(it.id)}"${chk ? " checked" : ""}${disabled ? " disabled" : ""}>
+                  <span>${esc(it.nome)}</span>
+                </label>`;
+              }).join("")}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }
+  function atualizarResumoPermissoes(scope){
+    if (!scope) return;
+    const countEl = scope.querySelector(".usr-perm-count");
+    const chks = scope.querySelectorAll("[data-utab]:checked, [data-newtab]:checked");
+    if (countEl) countEl.textContent = `${chks.length} ${chks.length === 1 ? "aba" : "abas"}`;
+    scope.querySelectorAll(".usr-perm-mod-card").forEach(card => {
+      const b = card.querySelector(".usr-perm-mod-badge");
+      if (b) {
+        const tot = card.querySelectorAll("input[type=checkbox]").length;
+        const sel = card.querySelectorAll("input[type=checkbox]:checked").length;
+        b.textContent = `${sel}/${tot}`;
+      }
+    });
+  }
   function applyFunc(scope, attr, funcao){
     const preset = FUNC_TABS[funcao];
-    scope.querySelectorAll(`[data-${attr}]`).forEach(x => { if (preset) x.checked = preset.includes(x.dataset[attr]); x.disabled = !!preset; });
+    const isCustom = funcao === "personalizado" || !preset;
+    scope.querySelectorAll(`[data-${attr}]`).forEach(x => {
+      if (preset) x.checked = preset.includes(x.dataset[attr]);
+      x.disabled = !isCustom;
+      const pill = x.closest(".usr-perm-chk-pill");
+      if (pill) {
+        pill.classList.toggle("checked", x.checked);
+      }
+    });
+    atualizarResumoPermissoes(scope);
   }
   function renderUsers(){
-    if (!$("#usr_abas").innerHTML) { $("#usr_abas").innerHTML = tabChecks([], "newtab", false); applyFunc($("#usr_abas"), "newtab", $("#usr_funcao").value); $("#usr_funcHint").textContent = FUNC_HINT[$("#usr_funcao").value] || ""; }
+    if (!$("#usr_abas").innerHTML) {
+      const isCustom = $("#usr_funcao").value === "personalizado";
+      $("#usr_abas").innerHTML = renderPermissoesDrawer([], "newtab", !isCustom, true);
+      applyFunc($("#usr_abas"), "newtab", $("#usr_funcao").value);
+      $("#usr_funcHint").textContent = FUNC_HINT[$("#usr_funcao").value] || "";
+    }
     const fmt = t => t ? new Date(t).toLocaleString("pt-BR", {day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit"}) : "Nunca entrou";
     const souMestre = ME && ME.funcao === "mestre";
     $("#usrRows").innerHTML = usrList.map(u => {
       const m = u.funcao === "mestre", proprio = u.auth === "senha", travado = m && !souMestre;
-      const tipo = `<div class="hint">${proprio ? (u.senhaTemporaria ? "Senha temporária (troca no próximo acesso)" : "Usuário com senha própria") : "E-mail Locaweb"}</div>`;
+      const tipo = `<div class="hint" style="margin-top:3px">${proprio ? (u.senhaTemporaria ? "Senha temporária" : "Senha própria") : "E-mail Locaweb"}</div>`;
       const pwd = !travado ? (usrPwdArm === u.login
-        ? `<input data-unewpwd type="password" autocomplete="new-password" placeholder="Nova senha temporária" style="width:170px;min-height:30px;padding:4px 8px"><button class="btn small primary" type="button" data-upwdsave>Gravar senha</button>`
+        ? `<input data-unewpwd type="password" autocomplete="new-password" placeholder="Nova senha" style="width:140px;min-height:30px;padding:4px 8px;font-size:13px"><button class="btn small primary" type="button" data-upwdsave>Gravar</button>`
         : `<button class="btn small" type="button" data-upwd>${proprio ? "Redefinir senha" : "Definir senha"}</button>`) : "";
+
+      const selTabs = u.abasEfetivas || u.abas || [];
+      const isCustom = u.funcao === "personalizado";
+      const perfilLabel = PERFIS[u.funcao] || (m ? "Mestre" : u.funcao);
+      const qtdAbas = selTabs.length;
+
+      const permHtml = m ? `
+        <span class="tag off" style="font-weight:600;padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          Acesso total a todos os módulos
+        </span>
+      ` : `
+        <div class="usr-perm-cell">
+          <div class="usr-perm-top">
+            <span class="usr-perm-badge${isCustom ? " custom" : ""}">${esc(perfilLabel)}</span>
+            <span class="usr-perm-count">${qtdAbas} ${qtdAbas === 1 ? "aba" : "abas"}</span>
+            <details class="usr-perm-collapse">
+              <summary class="usr-perm-sum${isCustom ? " is-custom" : ""}">
+                <span>${isCustom ? "⚙ Configurar permissões" : "Visualizar abas"}</span>
+                <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              ${renderPermissoesDrawer(selTabs, "utab", !isCustom, isCustom)}
+            </details>
+          </div>
+        </div>
+      `;
+
       return `<tr data-usr="${esc(u.login)}" class="${u.ativo ? "" : "out"}">
-        <td><input data-unome value="${esc(u.nome)}" aria-label="Nome" style="width:100%;min-width:150px"${travado ? " disabled" : ""}></td>
-        <td>${esc(u.login)}${m ? ' <span class="tag fee">Mestre</span>' : ""}${tipo}</td>
-        <td>${m ? "Mestre" : `<select data-ufunc aria-label="Perfil">${Object.entries(PERFIS).filter(([k]) => k !== "mestre").map(([k,l]) => `<option value="${k}"${u.funcao === k ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`}</td>
-        <td><div class="chk">${m ? '<span class="tag off">Acesso total</span>' : tabChecks(u.abasEfetivas || u.abas || [], "utab", u.funcao !== "personalizado")}</div></td>
-        <td><label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-upecas${u.podeEnviarPecas ? " checked" : ""}${travado ? " disabled" : ""} style="min-height:0;width:15px;height:15px"> Sim</label></td>
-        <td>${m ? "Ativo" : `<select data-uativo aria-label="Situação"><option value="1"${u.ativo ? " selected" : ""}>Ativo</option><option value="0"${u.ativo ? "" : " selected"}>Bloqueado</option></select>`}</td>
-        <td class="muted" style="white-space:nowrap">${fmt(u.ultimo_acesso)}</td>
-        <td><div class="actions" style="flex-wrap:wrap">${travado ? "" : `<button class="btn small" type="button" data-usave>Salvar</button>`}${pwd}${m ? "" : (usrDelArm === u.login ? `<button class="btn small danger" type="button" data-udel>Confirmar remoção</button>` : `<button class="btn small danger" type="button" data-udel>Remover</button>`)}</div></td>
+        <td>
+          <div class="usr-user-info">
+            <div class="usr-avatar" title="${esc(u.nome || u.login)}">${esc(userInitials(u.nome, u.login))}</div>
+            <div style="flex:1;min-width:0">
+              <input data-unome value="${esc(u.nome)}" placeholder="Nome do usuário" aria-label="Nome" class="usr-input-name"${travado ? " disabled" : ""}>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div style="font-weight:600;color:var(--ink);font-size:13px;word-break:break-word">${esc(u.login)}${m ? ' <span class="tag fee" style="font-size:10px;padding:1px 6px">Mestre</span>' : ""}</div>
+          ${tipo}
+        </td>
+        <td>
+          ${m ? '<span class="tag fee" style="font-weight:600">Mestre</span>' : `<select data-ufunc aria-label="Perfil" class="usr-select">${Object.entries(PERFIS).filter(([k]) => k !== "mestre").map(([k,l]) => `<option value="${k}"${u.funcao === k ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`}
+        </td>
+        <td>${permHtml}</td>
+        <td style="text-align:center">
+          <label class="usr-toggle-label">
+            <input type="checkbox" data-upecas${u.podeEnviarPecas ? " checked" : ""}${travado ? " disabled" : ""}>
+            <span>Sim</span>
+          </label>
+        </td>
+        <td>
+          ${m ? '<span class="tag off">Ativo</span>' : `<select data-uativo aria-label="Situação" class="usr-select"><option value="1"${u.ativo ? " selected" : ""}>Ativo</option><option value="0"${u.ativo ? "" : " selected"}>Bloqueado</option></select>`}
+        </td>
+        <td class="muted" style="white-space:nowrap;font-size:13px;font-variant-numeric:tabular-nums">${fmt(u.ultimo_acesso)}</td>
+        <td>
+          <div class="actions" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+            ${travado ? "" : `<button class="btn small primary" type="button" data-usave>Salvar</button>`}
+            ${pwd}
+            ${m ? "" : (usrDelArm === u.login ? `<button class="btn small danger" type="button" data-udel>Confirmar remoção</button>` : `<button class="btn small danger" type="button" data-udel>Remover</button>`)}
+          </div>
+        </td>
       </tr>`;
     }).join("") || `<tr><td colspan="8" class="empty">Nenhum usuário.</td></tr>`;
   }
@@ -157,12 +297,73 @@
       } catch(e) { $("#usrMsg").textContent = e.message; }
       finally { $("#usrAdd").disabled = false; }
     });
-    $("#usr_funcao").addEventListener("change", () => { applyFunc($("#usr_abas"), "newtab", $("#usr_funcao").value); $("#usr_funcHint").textContent = FUNC_HINT[$("#usr_funcao").value] || ""; });
+    $("#usr_funcao").addEventListener("change", () => {
+      applyFunc($("#usr_abas"), "newtab", $("#usr_funcao").value);
+      $("#usr_funcHint").textContent = FUNC_HINT[$("#usr_funcao").value] || "";
+      atualizarResumoPermissoes(document.getElementById("tab-users"));
+    });
     document.addEventListener("change", e => {
-      const f = e.target.closest("[data-ufunc]"); if (!f) return;
-      applyFunc(f.closest("tr"), "utab", f.value);
+      const f = e.target.closest("[data-ufunc]");
+      if (f) {
+        const tr = f.closest("tr");
+        const isCustom = f.value === "personalizado";
+        applyFunc(tr, "utab", f.value);
+        const badge = tr.querySelector(".usr-perm-badge");
+        if (badge) {
+          badge.textContent = PERFIS[f.value] || f.value;
+          badge.classList.toggle("custom", isCustom);
+        }
+        const sum = tr.querySelector(".usr-perm-sum");
+        if (sum) {
+          sum.classList.toggle("is-custom", isCustom);
+          const txt = sum.querySelector("span");
+          if (txt) txt.textContent = isCustom ? "⚙ Configurar permissões" : "Visualizar abas";
+        }
+        const notice = tr.querySelector(".usr-perm-drawer-notice span");
+        if (notice) {
+          notice.textContent = isCustom ? "Marque os módulos e as abas liberadas para este usuário:" : "Permissões automáticas concedidas pelo perfil selecionado:";
+        }
+        const details = tr.querySelector(".usr-perm-collapse");
+        if (details && isCustom) {
+          details.open = true;
+        }
+        atualizarResumoPermissoes(tr);
+        return;
+      }
+      const chk = e.target.closest("[data-utab], [data-newtab]");
+      if (chk) {
+        const pill = chk.closest(".usr-perm-chk-pill");
+        if (pill) pill.classList.toggle("checked", chk.checked);
+        atualizarResumoPermissoes(chk.closest("tr") || document.getElementById("tab-users"));
+      }
     });
     document.addEventListener("click", async e => {
+      const btnAll = e.target.closest("[data-perm-check-all]");
+      if (btnAll) {
+        const container = btnAll.closest(".usr-perm-mod-card") || btnAll.closest(".usr-perm-drawer") || btnAll.closest("#usr_abas");
+        if (container) {
+          container.querySelectorAll("input[type=checkbox]:not(:disabled)").forEach(c => {
+            c.checked = true;
+            const p = c.closest(".usr-perm-chk-pill");
+            if (p) p.classList.add("checked");
+          });
+          atualizarResumoPermissoes(btnAll.closest("tr") || document.getElementById("tab-users"));
+        }
+        return;
+      }
+      const btnNone = e.target.closest("[data-perm-uncheck-all]");
+      if (btnNone) {
+        const container = btnNone.closest(".usr-perm-mod-card") || btnNone.closest(".usr-perm-drawer") || btnNone.closest("#usr_abas");
+        if (container) {
+          container.querySelectorAll("input[type=checkbox]:not(:disabled)").forEach(c => {
+            c.checked = false;
+            const p = c.closest(".usr-perm-chk-pill");
+            if (p) p.classList.remove("checked");
+          });
+          atualizarResumoPermissoes(btnNone.closest("tr") || document.getElementById("tab-users"));
+        }
+        return;
+      }
       const tr = e.target.closest("tr[data-usr]"); if (!tr) return;
       const login = tr.dataset.usr, u = usrList.find(x => x.login === login); if (!u) return;
       const m = u.funcao === "mestre";
