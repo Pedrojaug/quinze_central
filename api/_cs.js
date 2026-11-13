@@ -163,7 +163,7 @@ export function mensagemWhatsApp({ cliente, link, hora }) {
 // ---------- NPS ----------
 // Promotores: 9 e 10. Neutros: 7 e 8. Detratores: 0 a 6. NPS = % promotores - % detratores.
 export function calcularNps(notas) {
-  const validas = notas.filter(x => Number.isFinite(x) && x >= 0 && x <= 10);
+  const validas = notas.filter(x => typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= 10);
   const n = validas.length;
   if (!n) return { n: 0, media: null, nps: null, promotores: 0, neutros: 0, detratores: 0 };
   const promotores = validas.filter(x => x >= 9).length, detratores = validas.filter(x => x <= 6).length;
@@ -208,8 +208,10 @@ function extrairMetadadosRespostas(respostasArr, atendimentoPadrao = "") {
 // Ponto de entrada da integração com o Google Forms / Planilhas / Importação
 export async function registrarResposta(pesquisaId, resposta, opt = {}) {
   const p = pesquisaId ? await ler(M, "pesquisas", pesquisaId) : null;
-  const nota = Number(resposta?.nota);
-  if (!Number.isInteger(nota) || nota < 0 || nota > 10) throw new Error("nota_invalida");
+  const semNota = resposta?.nota === null || resposta?.nota === undefined || resposta?.nota === "";
+  const nota = semNota ? null : Number(resposta.nota);
+  if (nota !== null && (!Number.isInteger(nota) || nota < 0 || nota > 10)) throw new Error("nota_invalida");
+  if (nota === null && !opt.permitirSemNps) throw new Error("nota_invalida");
   const respostasLimpas = (Array.isArray(resposta.respostas) ? resposta.respostas : []).slice(0, MAX_PERGUNTAS)
     .map(x => ({ pergunta: txt(x?.pergunta, 300), valor: txt(x?.valor, 2000) })).filter(x => x.pergunta && x.valor !== "");
   const meta = extrairMetadadosRespostas(respostasLimpas, resposta.atendimento || "");
@@ -284,32 +286,60 @@ export async function importarLinhasPlanilha(textoCsvOuTsv, pesquisa, clientes, 
   const grade = parseGradeTexto(textoCsvOuTsv);
   if (grade.length < 2) return { lidas: 0, novas: 0, ignoradas: 0 };
   const cab = grade[0].map(h => String(h || "").trim());
-  // Localiza colunas especiais
-  const idxData = cab.findIndex(h => /carimbo de data|timestamp|data/i.test(h));
-  const idxEmpresa = cab.findIndex(h => /nome da sua empresa|empresa|cliente/i.test(h));
-  let idxNps = cab.findIndex(h => /probabilidade.*indicar|recomendaria|indicar a quinze|\bnps\b/i.test(h));
-  const idxServicos = cab.findIndex(h => /0 a 10.*nota.*servi|nota.*servi.*hoje/i.test(h));
-  if (idxNps < 0) idxNps = idxServicos;
-  if (idxNps < 0) {
-    // Procura qualquer coluna cujos valores nas linhas sejam números de 0 a 10
-    idxNps = cab.findIndex((_, col) => col !== idxData && grade.slice(1).some(r => /^(10|[0-9])$/.test(String(r[col] || "").trim())));
+  const map = opt.mapeamento || null;
+
+  let idxData = -1, idxEmpresa = -1, idxNps = -1, idxAtend = -1;
+  let semNps = false, clienteFixo = null, mesPadrao = "";
+
+  if (map) {
+    idxData = Number.isInteger(map.colData) && map.colData >= 0 && map.colData < cab.length ? map.colData : -1;
+    idxEmpresa = Number.isInteger(map.colEmpresa) && map.colEmpresa >= 0 && map.colEmpresa < cab.length ? map.colEmpresa : -1;
+    idxAtend = Number.isInteger(map.colAtendimento) && map.colAtendimento >= 0 && map.colAtendimento < cab.length ? map.colAtendimento : -1;
+    semNps = !!map.semNps;
+    idxNps = !semNps && Number.isInteger(map.colNps) && map.colNps >= 0 && map.colNps < cab.length ? map.colNps : -1;
+    if (!semNps && idxNps < 0) semNps = true;
+    clienteFixo = map.clienteFixoId ? clientes.find(c => c.id === map.clienteFixoId) : null;
+    mesPadrao = mesValido(map.mesPadrao) ? map.mesPadrao : "";
+  } else {
+    idxData = cab.findIndex(h => /carimbo de data|timestamp|data/i.test(h));
+    idxEmpresa = cab.findIndex(h => /nome da sua empresa|empresa|cliente/i.test(h));
+    idxNps = cab.findIndex(h => /probabilidade.*indicar|recomendaria|indicar a quinze|\bnps\b/i.test(h));
+    const idxServicos = cab.findIndex(h => /0 a 10.*nota.*servi|nota.*servi.*hoje/i.test(h));
+    if (idxNps < 0) idxNps = idxServicos;
+    if (idxNps < 0) {
+      idxNps = cab.findIndex((_, col) => col !== idxData && grade.slice(1).some(r => /^(10|[0-9])$/.test(String(r[col] || "").trim())));
+    }
+    if (idxNps < 0) semNps = true;
   }
-  if (idxNps < 0) throw new Error("Não encontramos a coluna da nota NPS (0 a 10) na planilha/arquivo. Verifique se a linha de cabeçalho foi incluída.");
 
   let lidas = 0, novas = 0, ignoradas = 0;
   for (let i = 1; i < grade.length; i++) {
     const row = grade[i];
-    const notaStr = String(row[idxNps] ?? "").trim().replace(",", ".");
-    const nota = Number(notaStr);
-    if (!Number.isInteger(nota) || nota < 0 || nota > 10) { ignoradas++; continue; }
-    lidas++;
+    let nota = null;
+    if (!semNps && idxNps >= 0) {
+      const notaStr = String(row[idxNps] ?? "").trim().replace(",", ".");
+      if (notaStr === "") { ignoradas++; continue; }
+      const n = Number(notaStr);
+      if (!Number.isInteger(n) || n < 0 || n > 10) { ignoradas++; continue; }
+      nota = n;
+    }
+
     const dataRaw = idxData >= 0 ? row[idxData] : "";
-    const recebidaEm = converterDataPlanilha(dataRaw) || agora();
-    const nomeEmp = idxEmpresa >= 0 ? row[idxEmpresa] : "";
-    const vinc = nomeEmp ? vincularClientePorNome(nomeEmp, clientes) : {
-      clienteId: pesquisa?.clienteId || null,
-      clienteNome: pesquisa?.clienteNome || "Todos os clientes",
-    };
+    const recebidaEm = (idxData >= 0 ? converterDataPlanilha(dataRaw) : "") || (mesPadrao ? `${mesPadrao}-15T12:00:00Z` : agora());
+
+    let vinc;
+    if (clienteFixo) {
+      vinc = { clienteId: clienteFixo.id, clienteNome: clienteFixo.nome, atendimentoCarteira: clienteFixo.atendimento || "" };
+    } else {
+      const nomeEmp = idxEmpresa >= 0 ? row[idxEmpresa] : "";
+      vinc = nomeEmp ? vincularClientePorNome(nomeEmp, clientes) : {
+        clienteId: pesquisa?.clienteId || null,
+        clienteNome: pesquisa?.clienteNome || "Todos os clientes",
+        atendimentoCarteira: "",
+      };
+    }
+
+    const atendCol = idxAtend >= 0 ? String(row[idxAtend] ?? "").trim() : "";
     const respostas = [];
     for (let c = 0; c < cab.length; c++) {
       if (c === idxData || c === idxNps) continue;
@@ -317,16 +347,20 @@ export async function importarLinhasPlanilha(textoCsvOuTsv, pesquisa, clientes, 
       const valor = String(row[c] ?? "").trim();
       if (pergunta && valor !== "") respostas.push({ pergunta, valor });
     }
-    const chaveUnica = `${pesquisa?.id || FORM_OFICIAL_ID_DOC}|${dataRaw || i}|${norm(vinc.clienteNome)}|${nota}|${respostas.map(x => x.valor).join("|")}`;
+    if (semNps && !respostas.length) { ignoradas++; continue; }
+    lidas++;
+
+    const chaveUnica = `${pesquisa?.id || FORM_OFICIAL_ID_DOC}|${dataRaw || i}|${norm(vinc.clienteNome)}|${nota ?? "sn"}|${respostas.map(x => x.valor).join("|")}`;
     const id = "imp_" + crypto.createHash("sha1").update(chaveUnica).digest("hex").slice(0, 24);
     const gravada = await registrarResposta(pesquisa?.id || FORM_OFICIAL_ID_DOC, {
       nota,
       respostas,
       clienteId: vinc.clienteId,
       clienteNome: vinc.clienteNome,
-      atendimento: vinc.atendimentoCarteira || "",
+      atendimento: atendCol || vinc.atendimentoCarteira || "",
+      mes: mesPadrao || undefined,
       recebidaEm,
-    }, { id, origem: opt.origem || "planilha_forms", por: opt.por || null });
+    }, { id, origem: opt.origem || "planilha_forms", por: opt.por || null, permitirSemNps: true });
     if (gravada) novas++; else ignoradas++;
   }
   return { lidas, novas, ignoradas };
@@ -651,12 +685,46 @@ async function formsCron(req, res) {
   return res.json({ ok: true, ...(await sincronizarForms("")) });
 }
 
-// Importação direta de CSV/TSV ou planilha colada pelo usuário
+// Lê uma planilha Google Sheets pública e devolve o CSV bruto para pré-visualização no frontend
+async function planilhaLer(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  const { planilhaUrl } = corpo(req);
+  if (!planilhaUrl) return res.status(400).json({ code: "vazio", msg: "Informe o link da planilha Google Sheets." });
+  try {
+    const csv = await baixarCsvPlanilhaGoogle(planilhaUrl);
+    return res.json({ ok: true, csv });
+  } catch (e) {
+    return res.status(400).json({ code: "planilha", msg: e.message });
+  }
+}
+
+// Importação direta de CSV/TSV ou planilha colada pelo usuário (com suporte a criação de pesquisa e mapeamento)
 async function respostasImportar(u, req, res) {
   if (!so(req, res, "POST")) return;
   const b = corpo(req);
   await garantirPesquisaOficial();
-  const pesquisa = b.pesquisaId ? await ler(M, "pesquisas", b.pesquisaId) : await ler(M, "pesquisas", FORM_OFICIAL_ID_DOC);
+  let pesquisa = null;
+  if (b.pesquisaId === "__nova__" || b.novaPesquisaTitulo) {
+    const mes = mesValido(b.novaPesquisaMes) ? b.novaPesquisaMes : (mesValido(b.mapeamento?.mesPadrao) ? b.mapeamento.mesPadrao : hojeSP().slice(0, 7));
+    const titulo = txt(b.novaPesquisaTitulo, 160) || `Pesquisa de Satisfação (${mes})`;
+    const novoPid = novoId();
+    pesquisa = {
+      id: novoPid,
+      titulo,
+      clienteId: b.mapeamento?.clienteFixoId || null,
+      clienteNome: "Todos os clientes",
+      mes,
+      planilhaUrl: txt(b.planilhaUrl, 600) || "",
+      status: "enviada",
+      origem: "importacao_csv",
+      criadoEm: agora(),
+      atualizadoEm: agora(),
+    };
+    await gravar(M, "pesquisas", novoPid, pesquisa);
+  } else {
+    pesquisa = b.pesquisaId ? await ler(M, "pesquisas", b.pesquisaId) : await ler(M, "pesquisas", FORM_OFICIAL_ID_DOC);
+  }
+
   const clientes = await clientesCarteira();
   let texto = String(b.texto || b.csv || "").trim();
   if (!texto && b.planilhaUrl) {
@@ -671,9 +739,13 @@ async function respostasImportar(u, req, res) {
   }
   if (!texto) return res.status(400).json({ code: "vazio", msg: "Envie o arquivo CSV do Google Forms, cole os dados da planilha ou informe o link do Google Sheets." });
   try {
-    const r = await importarLinhasPlanilha(texto, pesquisa, clientes, { origem: "importacao_csv", por: quem(u) });
+    const r = await importarLinhasPlanilha(texto, pesquisa, clientes, {
+      origem: "importacao_csv",
+      por: quem(u),
+      mapeamento: b.mapeamento || null,
+    });
     if (pesquisa) await gravar(M, "pesquisas", pesquisa.id, { ...pesquisa, respostasSincronizadasEm: agora(), respostasNoForm: (pesquisa.respostasNoForm || 0) + r.novas });
-    return res.json({ ok: true, ...r });
+    return res.json({ ok: true, pesquisaId: pesquisa?.id || FORM_OFICIAL_ID_DOC, pesquisaTitulo: pesquisa?.titulo || "", ...r });
   } catch (e) {
     return res.status(400).json({ code: "formato", msg: e.message });
   }
@@ -723,9 +795,9 @@ function filtrar(lista, q) {
     if (q.pesquisa && r.pesquisaId !== q.pesquisa) return false;
     if (q.cliente && (r.clienteId || r.clienteNome) !== q.cliente && r.clienteNome !== q.cliente) return false;
     if (q.atendimento && String(r.atendimento || "").toUpperCase() !== q.atendimento.toUpperCase()) return false;
-    if (q.perfil === "promotor" && !(r.nota >= 9)) return false;
+    if (q.perfil === "promotor" && !(r.nota !== null && r.nota !== undefined && r.nota >= 9)) return false;
     if (q.perfil === "neutro" && !(r.nota === 7 || r.nota === 8)) return false;
-    if (q.perfil === "detrator" && !(r.nota <= 6)) return false;
+    if (q.perfil === "detrator" && !(r.nota !== null && r.nota !== undefined && r.nota <= 6)) return false;
     return true;
   });
 }
@@ -750,7 +822,7 @@ function agregarPorPergunta(respostasFiltradas) {
       let g = mapa.get(perg);
       if (!g) { g = { pergunta: perg, valores: [], numericos: [] }; mapa.set(perg, g); }
       g.valores.push(val);
-      if (/^(10|[0-9])$/.test(val)) g.numericos.push(Number(val));
+      if (/^(10|[0-9])([.,]\d+)?$/.test(val)) g.numericos.push(Number(val.replace(",", ".")));
     }
   }
   const out = [];
@@ -841,6 +913,7 @@ async function respostas(u, req, res) {
 
   const notasServGlobal = todas.map(r => r.notaServicos).filter(x => Number.isFinite(x));
   const total = {
+    totalRespostas: todas.length,
     ...calcularNps(todas.map(r => r.nota)),
     mediaServicos: notasServGlobal.length ? Math.round(notasServGlobal.reduce((a, b) => a + b, 0) / notasServGlobal.length * 10) / 10 : null,
   };
@@ -853,7 +926,7 @@ async function respostas(u, req, res) {
     porCliente: agruparCliente,
     porPergunta: agregarPorPergunta(todas),
     listaRespostas: todas.slice().sort((a, b) => (b.recebidaEm || "").localeCompare(a.recebidaEm || "")).slice(0, 200),
-    abertas: todas.flatMap(r => r.respostas.filter(x => x.valor && !/^\d+$/.test(x.valor) && !/nome da sua empresa|profissional.*atende|planejamento|relat|parceiro estrat/i.test(x.pergunta)).map(x => ({ cliente: r.clienteNome, atendimento: r.atendimento, nota: r.nota, mes: r.mes, pergunta: x.pergunta, valor: x.valor }))).slice(-200),
+    abertas: todas.flatMap(r => r.respostas.filter(x => x.valor && !/^\d+([.,]\d+)?$/.test(x.valor) && !/nome da sua empresa|qual.*empresa/i.test(x.pergunta)).map(x => ({ cliente: r.clienteNome, atendimento: r.atendimento, nota: r.nota, mes: r.mes, pergunta: x.pergunta, valor: x.valor }))).slice(-200),
     relatorio: rel,
     clientes: clientesFiltro,
     pesquisas: pesquisas.map(p => ({ id: p.id, titulo: p.titulo || p.clienteNome || "Pesquisa", mes: p.mes, formularioUrl: p.formularioUrl, planilhaUrl: p.planilhaUrl || "", perguntas: p.perguntas || [] })),
@@ -935,6 +1008,6 @@ export const rotas = {
   respostas, "respostas.importar": respostasImportar, "resposta.registrar": respostaRegistrar, "resposta.excluir": respostaExcluir,
   "relatorio.gerar": relatorioGerar,
   reclamacoes, "reclamacao.salvar": reclamacaoSalvar, "reclamacao.excluir": reclamacaoExcluir,
-  "pesquisa.formulario": pesquisaFormulario, "forms.sync": formsSync,
+  "pesquisa.formulario": pesquisaFormulario, "forms.sync": formsSync, "planilha.ler": planilhaLer,
 };
 export const publicas = { "forms.cron": formsCron };
