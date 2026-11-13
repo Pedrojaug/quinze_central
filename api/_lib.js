@@ -71,36 +71,51 @@ export function garantirContasPadrao() {
     seedContasP = (async () => {
       try {
         const flag = await sql`SELECT 1 FROM docs WHERE path = 'config/seed_contas_v2' AND NOT deleted`;
-        if (flag.length) return;
-        for (const c of CONTAS_EQUIPE) {
-          await sql`INSERT INTO usuarios (login, nome, papel, funcao, abas, ativo, auth, pode_enviar_pecas, criado_por)
-                    VALUES (${c.login}, ${c.nome}, ${c.papel}, ${c.funcao}, '[]'::jsonb, true, 'senha', true, 'sistema')
-                    ON CONFLICT (login) DO UPDATE SET
-                      papel = EXCLUDED.papel,
-                      funcao = EXCLUDED.funcao,
-                      ativo = true,
-                      pode_enviar_pecas = true,
-                      atualizado_em = now()`;
-          await sql`INSERT INTO app_users (username, pass_hash, trocar, atualizada_em)
-                    VALUES (${c.login}, crypt(${SENHA_PADRAO_INICIAL}, gen_salt('bf', 10)), true, now())
-                    ON CONFLICT (username) DO UPDATE SET pass_hash = CASE WHEN app_users.trocar THEN EXCLUDED.pass_hash ELSE app_users.pass_hash END`;
+        if (!flag.length) {
+          for (const c of CONTAS_EQUIPE) {
+            await sql`INSERT INTO usuarios (login, nome, papel, funcao, abas, ativo, auth, pode_enviar_pecas, criado_por)
+                      VALUES (${c.login}, ${c.nome}, ${c.papel}, ${c.funcao}, '[]'::jsonb, true, 'senha', true, 'sistema')
+                      ON CONFLICT (login) DO UPDATE SET
+                        papel = EXCLUDED.papel,
+                        funcao = EXCLUDED.funcao,
+                        ativo = true,
+                        pode_enviar_pecas = true,
+                        atualizado_em = now()`;
+            await sql`INSERT INTO app_users (username, pass_hash, trocar, atualizada_em)
+                      VALUES (${c.login}, crypt(${SENHA_PADRAO_INICIAL}, gen_salt('bf', 10)), true, now())
+                      ON CONFLICT (username) DO UPDATE SET pass_hash = CASE WHEN app_users.trocar THEN EXCLUDED.pass_hash ELSE app_users.pass_hash END`;
+          }
+          // Garante também que contas existentes de Eduardo ou Marcílio (ex.: com e-mail) recebam perfil Mestre
+          await sql`UPDATE usuarios SET papel = 'master', funcao = 'mestre', pode_enviar_pecas = true, atualizado_em = now()
+                    WHERE lower(login) LIKE 'eduardo@%' OR lower(login) LIKE 'marcilio@%'
+                       OR lower(nome) IN ('eduardo', 'marcilio', 'marcílio')`;
+          // Inclui as social medias na lista da equipe da Carteira (config/geral)
+          for (const sNome of ["FRANCÍLIA", "LETÍCIA", "MARI"]) {
+            await sql`UPDATE docs SET data = jsonb_set(data, '{socials}'::text[],
+                        (CASE WHEN jsonb_typeof(data->'socials') = 'array' THEN data->'socials' ELSE '[]'::jsonb END) || to_jsonb(${sNome}::text), true),
+                      updated_at = now(), seq = nextval('docs_seq')
+                      WHERE path = 'config/geral' AND NOT deleted
+                        AND NOT ((CASE WHEN jsonb_typeof(data->'socials') = 'array' THEN data->'socials' ELSE '[]'::jsonb END) ? ${sNome})`;
+          }
+          await sql`INSERT INTO docs (path, parent, id, data)
+                    VALUES ('config/seed_contas_v2', 'config', 'seed_contas_v2', '{"ok":true}'::jsonb)
+                    ON CONFLICT (path) DO UPDATE SET data = '{"ok":true}'::jsonb, deleted = false, updated_at = now()`;
+          cache.clear();
         }
-        // Garante também que contas existentes de Eduardo ou Marcílio (ex.: com e-mail) recebam perfil Mestre
-        await sql`UPDATE usuarios SET papel = 'master', funcao = 'mestre', pode_enviar_pecas = true, atualizado_em = now()
-                  WHERE lower(login) LIKE 'eduardo@%' OR lower(login) LIKE 'marcilio@%'
-                     OR lower(nome) IN ('eduardo', 'marcilio', 'marcílio')`;
-        // Inclui as social medias na lista da equipe da Carteira (config/geral)
-        for (const sNome of ["FRANCÍLIA", "LETÍCIA", "MARI"]) {
-          await sql`UPDATE docs SET data = jsonb_set(data, '{socials}'::text[],
-                      (CASE WHEN jsonb_typeof(data->'socials') = 'array' THEN data->'socials' ELSE '[]'::jsonb END) || to_jsonb(${sNome}::text), true),
-                    updated_at = now(), seq = nextval('docs_seq')
-                    WHERE path = 'config/geral' AND NOT deleted
-                      AND NOT ((CASE WHEN jsonb_typeof(data->'socials') = 'array' THEN data->'socials' ELSE '[]'::jsonb END) ? ${sNome})`;
+        // Desativa contas redundantes do seed ('eduardo', 'marcilio') quando já existe conta ativa com e-mail (@)
+        const dedupFlag = await sql`SELECT 1 FROM docs WHERE path = 'config/dedup_contas_v1' AND NOT deleted`;
+        if (!dedupFlag.length) {
+          await sql`UPDATE usuarios SET ativo = false, atualizado_em = now()
+                    WHERE login = 'eduardo' AND ativo = true
+                      AND EXISTS (SELECT 1 FROM usuarios u2 WHERE lower(u2.login) LIKE 'eduardo@%' AND u2.ativo = true)`;
+          await sql`UPDATE usuarios SET ativo = false, atualizado_em = now()
+                    WHERE login = 'marcilio' AND ativo = true
+                      AND EXISTS (SELECT 1 FROM usuarios u2 WHERE lower(u2.login) LIKE 'marcilio@%' AND u2.ativo = true)`;
+          await sql`INSERT INTO docs (path, parent, id, data)
+                    VALUES ('config/dedup_contas_v1', 'config', 'dedup_contas_v1', '{"ok":true}'::jsonb)
+                    ON CONFLICT (path) DO UPDATE SET data = '{"ok":true}'::jsonb, deleted = false, updated_at = now()`;
+          cache.clear();
         }
-        await sql`INSERT INTO docs (path, parent, id, data)
-                  VALUES ('config/seed_contas_v2', 'config', 'seed_contas_v2', '{"ok":true}'::jsonb)
-                  ON CONFLICT (path) DO UPDATE SET data = '{"ok":true}'::jsonb, deleted = false, updated_at = now()`;
-        cache.clear();
       } catch (e) {
         console.error("[lib] garantirContasPadrao:", e?.message || e);
         seedContasP = null;

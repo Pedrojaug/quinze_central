@@ -557,7 +557,7 @@ async function proximoNumeroPeca(clienteId) {
 // ---------- Rotas ----------
 async function inicio(u, req, res) {
   const todos = await usuariosAtivos();
-  const usuarios = todos.filter(podeDecidir).map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x) }));
+  const usuarios = todos.filter(x => podeDecidir(x) && x.login !== "equipe.inteligentte").map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x) }));
   return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login, funcao: perfilDe(u),
     clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
     retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
