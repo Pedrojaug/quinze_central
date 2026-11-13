@@ -129,8 +129,8 @@
     });
   }
 
-  // Visualizador ampliado (Lightbox) para imagens, vídeos e players do Drive
-  function abrirModalMidia({ tipo, url, titulo, linkExterno, labelExterno }) {
+  // Visualizador ampliado (Lightbox) para imagens (com navegação em carrossel), vídeos e players do Drive
+  function abrirModalMidia({ tipo, url, titulo, linkExterno, labelExterno, galeria, indice }) {
     let dlg = document.getElementById("qzDlgMidiaPecas");
     if (!dlg) {
       dlg = document.createElement("dialog");
@@ -142,24 +142,45 @@
         dlg.querySelectorAll("video,iframe").forEach(el => { if (el.tagName === "VIDEO") el.pause(); else el.src = "about:blank"; });
       });
     }
-    let corpo = "";
-    if (tipo === "img") {
-      corpo = `<div style="background:#0F172A;display:flex;align-items:center;justify-content:center;padding:12px;max-height:76vh;overflow:auto"><img src="${esc(url)}" alt="${esc(titulo || "")}" style="max-width:100%;max-height:72vh;object-fit:contain;border-radius:6px;display:block"></div>`;
-    } else if (tipo === "video") {
-      corpo = `<div style="background:#000;padding:8px"><video controls autoplay src="${esc(url)}" style="width:100%;max-height:74vh;display:block;border-radius:6px"></video></div>`;
-    } else if (tipo === "drive") {
-      corpo = `<div style="background:#000"><iframe src="${esc(url)}" allow="autoplay; fullscreen" allowfullscreen style="width:100%;height:74vh;border:0;display:block"></iframe></div>`;
-    }
-    dlg.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:#FAFBFD">
-        <b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(titulo || "Visualização do material")}</b>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          ${linkExterno ? `<a class="btn small" href="${esc(linkExterno)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(labelExterno || "Abrir original ↗")}</a>` : ""}
-          <button class="btn small" type="button" id="qzFecharMidiaPecas" aria-label="Fechar">✕ Fechar</button>
+    const lista = Array.isArray(galeria) && galeria.length > 1 ? galeria : null;
+    let idx = lista ? Math.max(0, Math.min(lista.length - 1, Number(indice) || 0)) : 0;
+
+    const renderizar = () => {
+      const atual = lista ? lista[idx] : { url, titulo, linkExterno, labelExterno };
+      let corpo = "";
+      if (tipo === "img") {
+        corpo = `<div style="background:#0F172A;display:flex;align-items:center;justify-content:center;padding:12px;max-height:76vh;overflow:auto;position:relative">
+          <img src="${esc(atual.url)}" alt="${esc(atual.titulo || "")}" style="max-width:100%;max-height:72vh;object-fit:contain;border-radius:6px;display:block">
+        </div>`;
+      } else if (tipo === "video") {
+        corpo = `<div style="background:#000;padding:8px"><video controls autoplay src="${esc(atual.url)}" style="width:100%;max-height:74vh;display:block;border-radius:6px"></video></div>`;
+      } else if (tipo === "drive") {
+        corpo = `<div style="background:#000"><iframe src="${esc(atual.url)}" allow="autoplay; fullscreen" allowfullscreen style="width:100%;height:74vh;border:0;display:block"></iframe></div>`;
+      }
+      const navHtml = lista ? `<div style="display:flex;align-items:center;gap:4px">
+        <button class="btn small" type="button" id="qzPrevMidiaPecas" title="Imagem anterior (←)">◀</button>
+        <span style="font-size:12px;color:var(--ink2);font-weight:600;min-width:44px;text-align:center">${idx + 1} / ${lista.length}</span>
+        <button class="btn small" type="button" id="qzNextMidiaPecas" title="Próxima imagem (→)">▶</button>
+      </div>` : "";
+      dlg.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:#FAFBFD;flex-wrap:wrap">
+          <b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:140px">${esc(atual.titulo || "Visualização do material")}</b>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            ${navHtml}
+            ${atual.linkExterno ? `<a class="btn small" href="${esc(atual.linkExterno)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(atual.labelExterno || "Abrir original ↗")}</a>` : ""}
+            <button class="btn small" type="button" id="qzFecharMidiaPecas" aria-label="Fechar">✕ Fechar</button>
+          </div>
         </div>
-      </div>
-      ${corpo}`;
-    dlg.querySelector("#qzFecharMidiaPecas").onclick = () => dlg.close();
-    dlg.showModal();
+        ${corpo}`;
+      dlg.querySelector("#qzFecharMidiaPecas").onclick = () => dlg.close();
+      const prevBtn = dlg.querySelector("#qzPrevMidiaPecas");
+      const nextBtn = dlg.querySelector("#qzNextMidiaPecas");
+      if (prevBtn) prevBtn.onclick = () => { idx = (idx - 1 + lista.length) % lista.length; renderizar(); };
+      if (nextBtn) nextBtn.onclick = () => { idx = (idx + 1) % lista.length; renderizar(); };
+    };
+
+    dlg._navMidia = lista ? (dir) => { idx = (idx + dir + lista.length) % lista.length; renderizar(); } : null;
+    renderizar();
+    if (!dlg.open) dlg.showModal();
   }
 
   if (!window.__qzPecMidiaListener) {
@@ -168,13 +189,39 @@
       const btn = ev.target.closest("[data-midia-expandir]");
       if (!btn) return;
       ev.preventDefault();
+      let galeria = null, indice = 0;
+      if (btn.dataset.midiaTipo === "img") {
+        const scope = btn.closest(".pc-thumbs-grid, .pc-media-pane");
+        if (scope) {
+          const vistos = new Set();
+          const itens = [];
+          scope.querySelectorAll('[data-midia-expandir][data-midia-tipo="img"]').forEach(el => {
+            const u = el.dataset.midiaUrl;
+            if (!u || vistos.has(u)) return;
+            vistos.add(u);
+            itens.push({ url: u, titulo: el.dataset.midiaTitulo, linkExterno: el.dataset.midiaExt, labelExterno: el.dataset.midiaExtLabel });
+          });
+          if (itens.length > 1) {
+            galeria = itens;
+            indice = Math.max(0, itens.findIndex(x => x.url === btn.dataset.midiaUrl));
+          }
+        }
+      }
       abrirModalMidia({
         tipo: btn.dataset.midiaTipo,
         url: btn.dataset.midiaUrl,
         titulo: btn.dataset.midiaTitulo,
         linkExterno: btn.dataset.midiaExt,
-        labelExterno: btn.dataset.midiaExtLabel
+        labelExterno: btn.dataset.midiaExtLabel,
+        galeria,
+        indice
       });
+    });
+    document.addEventListener("keydown", ev => {
+      const dlg = document.getElementById("qzDlgMidiaPecas");
+      if (!dlg || !dlg.open || !dlg._navMidia) return;
+      if (ev.key === "ArrowLeft") { ev.preventDefault(); dlg._navMidia(-1); }
+      else if (ev.key === "ArrowRight") { ev.preventDefault(); dlg._navMidia(1); }
     });
   }
 
@@ -224,13 +271,13 @@
       .pc-preview-foot .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2);font-weight:500}
       .pc-thumbs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px}
       .pc-th-card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;display:flex;flex-direction:column}
-      .pc-th-card .pv{height:140px;display:flex;align-items:center;justify-content:center;background:#F1F5F9;overflow:hidden;cursor:zoom-in;text-decoration:none;color:var(--ink2);font-size:12px;text-align:center;padding:6px}
-      .pc-th-card .pv img{width:100%;height:100%;object-fit:cover}
+      .pc-th-card .pv{height:165px;display:flex;align-items:center;justify-content:center;background:#F1F5F9;overflow:hidden;cursor:zoom-in;text-decoration:none;color:var(--ink2);font-size:12px;text-align:center;padding:4px}
+      .pc-th-card .pv img{width:100%;height:100%;object-fit:contain}
       .pc-th-card .ft{display:flex;justify-content:space-between;align-items:center;gap:4px;padding:5px 8px;border-top:1px solid var(--line2);font-size:11.5px;background:#FAFBFD}
       .pc-th-card .ft span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
       .pc-thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start}
       .pc-th{width:120px;height:96px;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#F6F8FB;font-size:12px;color:var(--ink2);text-align:center;text-decoration:none}
-      .pc-th img{width:100%;height:100%;object-fit:cover}
+      .pc-th img{width:100%;height:100%;object-fit:contain}
       .pc-th.exp{border-style:dashed;padding:6px;width:auto;min-width:120px;height:auto;min-height:48px}
       .pc-reel-wrap{display:flex;flex-direction:column;gap:10px}
       .pc-reel-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0F172A;width:100%;min-width:0}
