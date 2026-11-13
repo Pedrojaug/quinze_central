@@ -54,8 +54,8 @@ export const AREAS = [
     descricao: "Envio de peças, fila de aprovação, números do mês e dados consolidados" },
   { id: "administrativo", nome: "03 Administrativo", ordem: 30, funcoes: GESTAO, restrito: true,
     descricao: "Contratos, assinaturas, pessoal, férias e usuários" },
-  { id: "cs", nome: "04 CS / Sucesso do Cliente", ordem: 40, funcoes: TODOS,
-    descricao: "Pesquisas NPS, médias e reclamações dos clientes" },
+  { id: "cs", nome: "04 CS / Sucesso do Cliente", ordem: 40, funcoes: TODOS, entrada: "npsmedia",
+    descricao: "Importação de pesquisas (CSV/Planilha), médias NPS e reclamações" },
   { id: "politicas", nome: "05 Políticas da empresa", ordem: 50, funcoes: TODOS,
     descricao: "Código de ética e documentos da Quinze" },
   { id: "financeiro", nome: "06 Financeiro", ordem: 60, funcoes: GESTAO, restrito: true,
@@ -106,9 +106,8 @@ export const MODULOS = [
   { id: "pop", modulo: "administrativo", nome: "POP operacional", ordem: 60, funcoes: GESTAO, arquivo: "/modulos/pop.js", colecoes: [] },
 
   // 04 CS: dados em m/cs/..., só pela /api/m (a edição de reclamações depende de quem registrou).
-  { id: "nps", modulo: "cs", nome: "NPS Pesquisa", ordem: 10, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
-  { id: "npsmedia", modulo: "cs", nome: "NPS Média", ordem: 20, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
-  { id: "reclamacoes", modulo: "cs", nome: "Reclamações", ordem: 30, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
+  { id: "npsmedia", modulo: "cs", nome: "NPS Média", ordem: 10, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
+  { id: "reclamacoes", modulo: "cs", nome: "Reclamações", ordem: 20, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
   // 05 Políticas: dados em m/politicas/..., só pela /api/m (a lista de leituras é só da gestão).
   { id: "etica", modulo: "politicas", nome: "Código de ética", ordem: 10, funcoes: TODOS, arquivo: "/modulos/politicas.js", colecoes: [] },
 

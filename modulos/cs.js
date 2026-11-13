@@ -271,9 +271,9 @@
     const el = ctx.el; let dados = null, painelAberto = null; // 'importar' | 'manual' | null
     const ano = new Date().getFullYear();
     el.innerHTML = `<div class="cs-h"><div><h2>NPS Média e Resultados</h2><div class="cs-sub">Consolidação das respostas do Google Forms e pesquisas futuras · NPS = % promotores (9–10) − % detratores (0–6).</div></div><span class="sp"></span>
-      <button class="btn" type="button" id="mSync">🔄 Sincronizar Forms / Planilha</button>
-      <button class="btn" type="button" id="mBtnImp">📥 Importar respostas (Planilha / CSV)</button>
-      <button class="btn primary" type="button" id="mBtnMan">➕ Registrar resposta</button></div>
+      <button class="btn primary" type="button" id="mBtnImp">📥 Importar CSV / Planilha do Forms</button>
+      <button class="btn" type="button" id="mSync">🔄 Sincronizar Planilhas</button>
+      <button class="btn" type="button" id="mBtnMan">➕ Registrar resposta</button></div>
       <div id="mSyncMsg" class="cs-sub" style="margin:-6px 0 10px"></div>
       <div id="mPainel"></div>
       <div class="cs-fbar">
@@ -319,7 +319,7 @@
 
       const t = dados.total;
       $("#mKpis").innerHTML = `
-        <div class="cs-kpi"><b>${t.n}</b><span>Respostas</span></div>
+        <div class="cs-kpi"><b>${t.totalRespostas ?? t.n}</b><span>Respostas</span></div>
         <div class="cs-kpi"><b>${num1(t.nps)}</b><span>Score NPS (−100 a 100)</span></div>
         <div class="cs-kpi"><b>${num1(t.media)}</b><span>Média Recomendação (0–10)</span></div>
         <div class="cs-kpi"><b>${num1(t.mediaServicos)}</b><span>Nota Serviços (0–10)</span></div>
@@ -406,14 +406,17 @@
         return;
       }
       $("#mRespList").innerHTML = lista.map(r => {
-        const pCls = perfilNota(r.nota);
+        const temNps = r.nota !== null && r.nota !== undefined;
+        const pCls = temNps ? perfilNota(r.nota) : "";
         const det = (r.respostas || []).filter(d => d.valor && !/nome da sua empresa/i.test(d.pergunta));
         return `<div class="cs-resp-item" data-rid="${esc(r.id)}">
           <div class="cs-resp-head">
             <div>
               <b style="font-size:15px">${esc(r.clienteNome)}</b>
               ${r.atendimento ? `<span class="st" style="margin-left:6px">Atend.: ${esc(r.atendimento)}</span>` : ""}
-              <span class="st ${pCls}" style="margin-left:6px">NPS: ${r.nota != null ? r.nota : "—"} · ${PERFIL_LBL[pCls] || ""}</span>
+              ${temNps
+                ? `<span class="st ${pCls}" style="margin-left:6px">NPS: ${r.nota} · ${PERFIL_LBL[pCls] || ""}</span>`
+                : `<span class="st" style="margin-left:6px">Sem nota NPS</span>`}
               ${r.notaServicos != null ? `<span class="st" style="margin-left:6px">Serviços: ${r.notaServicos}/10</span>` : ""}
             </div>
             <div style="display:flex;gap:8px;align-items:center">
@@ -430,46 +433,196 @@
       }).join("");
     }
 
+    function parsePreviewTabela(texto) {
+      const limpo = String(texto || "").replace(/^\uFEFF/, "").trim();
+      if (!limpo) return null;
+      const firstLine = limpo.split(/\r?\n/)[0] || "";
+      const tabs = (firstLine.match(/\t/g) || []).length;
+      const semis = (firstLine.match(/;/g) || []).length;
+      const commas = (firstLine.match(/,/g) || []).length;
+      const sep = tabs >= semis && tabs >= commas && tabs > 0 ? "\t" : (semis > commas ? ";" : ",");
+      const rows = [];
+      let row = [], cur = "", inQ = false;
+      for (let i = 0; i < limpo.length; i++) {
+        const ch = limpo[i];
+        if (inQ) {
+          if (ch === '"' && limpo[i + 1] === '"') { cur += '"'; i++; }
+          else if (ch === '"') inQ = false;
+          else cur += ch;
+        } else if (ch === '"') inQ = true;
+        else if (ch === sep) { row.push(cur.trim()); cur = ""; }
+        else if (ch === "\n" || ch === "\r") {
+          if (ch === "\r" && limpo[i + 1] === "\n") i++;
+          row.push(cur.trim());
+          if (row.some(Boolean)) rows.push(row);
+          row = []; cur = "";
+        } else cur += ch;
+      }
+      row.push(cur.trim());
+      if (row.some(Boolean)) rows.push(row);
+      if (rows.length < 2) return null;
+      const headers = rows[0].map((h, i) => h || `Coluna ${i + 1}`);
+      const guess = rx => headers.find(h => rx.test(h)) || "";
+      return {
+        headers,
+        totalLinhas: rows.length - 1,
+        amostra: rows.slice(1, 3),
+        sugestao: {
+          colData: guess(/carimbo|timestamp|\bdata\b/i),
+          colEmpresa: guess(/empresa|cliente|organiza|nome da sua/i),
+          colNps: guess(/probabilidade|recomendar|indicar|\bnps\b/i),
+          colAtendimento: guess(/profissional|atend|respons[aá]vel|\bcs\b|gestor/i),
+        },
+      };
+    }
+
     function renderPainel() {
       if (!painelAberto || !dados) { $("#mPainel").innerHTML = ""; return; }
       const pesqOpts = (dados.pesquisas || []).map(p => `<option value="${esc(p.id)}">${esc(p.titulo || "Pesquisa")} (${mesBr(p.mes)})</option>`).join("");
+      const cliOpts = (dados.clientes || []).map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("");
       if (painelAberto === "importar") {
         $("#mPainel").innerHTML = `<div class="cs-card" style="border-color:var(--blue)">
-          <h3>📥 Importar respostas do Google Forms (Planilha Google Sheets ou CSV)</h3>
-          <p class="cs-sub" style="margin-top:0">No Google Forms, clique em <b>Respostas → Ver no Planilhas</b> (ou <b>Fazer o download das respostas .csv</b>). Você pode colar o link da planilha pública, enviar o arquivo <code>.csv</code> ou simplesmente copiar e colar as linhas da planilha abaixo. O sistema identifica o cliente automaticamente pelo nome da empresa!</p>
+          <h3>📥 Importar respostas do Google Forms (CSV ou Planilha)</h3>
+          <p class="cs-sub" style="margin-top:0">Funciona com <b>qualquer formulário</b>, mesmo que as perguntas mudem todo mês. Envie o arquivo <code>.csv</code> baixado do Google Forms, carregue um link do Google Sheets ou cole os dados abaixo para conferir as colunas antes de importar.</p>
           <div class="cs-grid">
-            <label>Pesquisa de destino<select id="impPesq">${pesqOpts}</select></label>
-            <label>Enviar arquivo .CSV / .TSV do Google Forms<input type="file" id="impFile" accept=".csv,.tsv,.txt"></label>
-            <label class="full">Ou Link da Planilha do Google Sheets (compartilhada para leitura)<input id="impUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit"></label>
-            <label class="full">Ou cole aqui o conteúdo copiado da Planilha / CSV (com a linha de cabeçalho)<textarea id="impCsv" rows="5" placeholder="Carimbo de data/hora\tQual o nome da sua empresa?\tQuem é o profissional da Quinze que atende sua conta? ..."></textarea></label>
+            <label>1. Enviar arquivo .CSV / .TSV do Google Forms<input type="file" id="impFile" accept=".csv,.tsv,.txt"></label>
+            <label>Ou link da Planilha Google Sheets (pública para leitura)
+              <div style="display:flex;gap:6px">
+                <input id="impUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit" style="flex:1">
+                <button class="btn" type="button" id="impLerUrl">Ler link</button>
+              </div>
+            </label>
+            <label class="full">Ou cole aqui o conteúdo copiado da Planilha / CSV (com a linha de cabeçalho)<textarea id="impCsv" rows="4" placeholder="Carimbo de data/hora, Nome da empresa, Nota..."></textarea></label>
           </div>
           <div class="cs-bar">
-            <button class="btn primary" type="button" id="impOk">Importar respostas agora</button>
+            <button class="btn" type="button" id="impAnalisar">Analisar colunas e pré-visualizar</button>
             <button class="btn" type="button" id="impCancel">Fechar</button>
             <span class="cs-sub" id="impMsg"></span>
           </div>
+          <div id="impPasso2" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <h4 style="margin:0 0 6px;font-size:14px">2. Confirmação automática das colunas (<span id="impResumo"></span>)</h4>
+            <p class="cs-sub" style="margin:0 0 10px">Já pré-selecionamos as colunas principais para você. Ajuste apenas se alguma estiver trocada; todas as outras perguntas da planilha virarão métricas automaticamente.</p>
+            <div class="cs-grid">
+              <label>Pesquisa de destino
+                <select id="impPesq">
+                  ${pesqOpts}
+                  <option value="__nova__">➕ Criar nova pesquisa para esta planilha…</option>
+                </select>
+              </label>
+              <label>Coluna do Cliente / Empresa
+                <select id="impColEmpresa"></select>
+              </label>
+              <label id="impNovaBox" style="display:none">Nome da nova pesquisa<input id="impNovaTitulo" value="Pesquisa ${esc(mesBr(mesAtual()))}"></label>
+              <label id="impNovaMesBox" style="display:none">Mês de referência da nova pesquisa<input type="month" id="impNovaMes" value="${mesAtual()}"></label>
+              <label id="impCliFixoBox" class="full" style="display:none">Qual cliente da carteira respondeu esta planilha?<select id="impCliFixoId"><option value="">Selecione o cliente…</option>${cliOpts}</select></label>
+              <label>Coluna da Nota Principal / NPS (0 a 10)<select id="impColNps"></select></label>
+              <label>Coluna da Data / Carimbo<select id="impColData"></select></label>
+              <label>Coluna de Atendimento (opcional)<select id="impColAtend"></select></label>
+              <label id="impMesPadraoBox" style="display:none">Mês padrão (quando não há data)<input type="month" id="impMesPadrao" value="${mesAtual()}"></label>
+            </div>
+            <div id="impExtras" class="cs-sub" style="margin-top:10px;background:#F8FAFC;border:1px solid var(--border);padding:8px 10px;border-radius:6px"></div>
+            <div class="cs-bar" style="margin-top:12px">
+              <button class="btn primary" type="button" id="impOk">Confirmar e importar respostas</button>
+              <span class="cs-sub" id="impMsg2"></span>
+            </div>
+          </div>
         </div>`;
+
+        const atualizarExtras = headers => {
+          const usados = new Set([$("#impColData").value, $("#impColEmpresa").value, $("#impColAtend").value].filter(v => v && v !== "__fixo__"));
+          const extras = headers.filter(h => !usados.has(h));
+          $("#impExtras").innerHTML = extras.length
+            ? `<b>Perguntas que gerarão métricas automaticamente (${extras.length}):</b> ${extras.map(h => `<code>${esc(h)}</code>`).join(" · ")}`
+            : `<b>Aviso:</b> nenhuma pergunta extra além dos campos principais foi detectada.`;
+          $("#impCliFixoBox").style.display = $("#impColEmpresa").value === "__fixo__" ? "" : "none";
+          $("#impMesPadraoBox").style.display = !$("#impColData").value ? "" : "none";
+        };
+
+        let parsedAtual = null;
+        const abrirPasso2 = () => {
+          const parsed = parsePreviewTabela($("#impCsv").value);
+          if (!parsed) {
+            $("#impMsg").textContent = "Cole ou carregue um arquivo com cabeçalho e pelo menos 1 linha de resposta.";
+            $("#impPasso2").style.display = "none";
+            return;
+          }
+          parsedAtual = parsed;
+          $("#impResumo").textContent = `${parsed.totalLinhas} resposta(s) · ${parsed.headers.length} coluna(s)`;
+          const opts = (sel, extra) => extra + parsed.headers.map(h => `<option value="${esc(h)}"${h === sel ? " selected" : ""}>${esc(h)}</option>`).join("");
+          $("#impColEmpresa").innerHTML = opts(parsed.sugestao.colEmpresa, `<option value="__fixo__">— Usar um cliente fixo da carteira —</option>`);
+          if (!parsed.sugestao.colEmpresa) $("#impColEmpresa").value = "__fixo__";
+          $("#impColNps").innerHTML = opts(parsed.sugestao.colNps, `<option value="__sem_nps__">— Este formulário não tem nota NPS —</option>`);
+          if (!parsed.sugestao.colNps) $("#impColNps").value = "__sem_nps__";
+          $("#impColData").innerHTML = opts(parsed.sugestao.colData, `<option value="">— Usar mês padrão —</option>`);
+          $("#impColAtend").innerHTML = opts(parsed.sugestao.colAtendimento, `<option value="">— Não há coluna de atendimento —</option>`);
+          $("#impPasso2").style.display = "";
+          $("#impMsg").textContent = "Colunas detectadas! Confira abaixo e clique em Confirmar.";
+          atualizarExtras(parsed.headers);
+        };
+
+        $("#impPesq").onchange = () => {
+          const nova = $("#impPesq").value === "__nova__";
+          $("#impNovaBox").style.display = nova ? "" : "none";
+          $("#impNovaMesBox").style.display = nova ? "" : "none";
+        };
+        ["#impColEmpresa", "#impColData", "#impColAtend", "#impColNps"].forEach(id => {
+          $(id).onchange = () => { if (parsedAtual) atualizarExtras(parsedAtual.headers); };
+        });
+        $("#impAnalisar").onclick = abrirPasso2;
         const fInput = $("#impFile");
         if (fInput) fInput.onchange = ev => {
           const f = ev.target.files?.[0];
           if (!f) return;
           const reader = new FileReader();
-          reader.onload = () => { $("#impCsv").value = String(reader.result || ""); $("#impMsg").textContent = `Arquivo "${f.name}" carregado. Clique em "Importar respostas agora".`; };
+          reader.onload = () => { $("#impCsv").value = String(reader.result || ""); abrirPasso2(); };
           reader.readAsText(f, "utf-8");
+        };
+        $("#impLerUrl").onclick = async () => {
+          const url = $("#impUrl").value.trim();
+          if (!url) { $("#impMsg").textContent = "Cole o link da planilha do Google Sheets primeiro."; return; }
+          $("#impLerUrl").disabled = true; $("#impMsg").textContent = "Lendo planilha do Google Sheets…";
+          try {
+            const j = await api("planilha.ler", { planilhaUrl: url });
+            $("#impCsv").value = j.texto || "";
+            abrirPasso2();
+          } catch (e) { $("#impMsg").textContent = e.message; }
+          $("#impLerUrl").disabled = false;
         };
         $("#impCancel").onclick = () => { painelAberto = null; renderPainel(); };
         $("#impOk").onclick = async () => {
-          $("#impOk").disabled = true; $("#impMsg").textContent = "Importando e vinculando clientes…";
+          const pesqId = $("#impPesq").value;
+          const colEmp = $("#impColEmpresa").value;
+          const cliFixo = $("#impCliFixoId").value;
+          if (colEmp === "__fixo__" && !cliFixo) {
+            $("#impMsg2").textContent = "Selecione o cliente da carteira ou escolha a coluna com o nome da empresa.";
+            return;
+          }
+          if (pesqId === "__nova__" && !$("#impNovaTitulo").value.trim()) {
+            $("#impMsg2").textContent = "Informe um nome para a nova pesquisa.";
+            return;
+          }
+          $("#impOk").disabled = true; $("#impMsg2").textContent = "Importando e gerando métricas…";
           try {
+            const colNps = $("#impColNps").value;
             const j = await api("respostas.importar", {
-              pesquisaId: $("#impPesq").value,
-              planilhaUrl: $("#impUrl").value,
-              texto: $("#impCsv").value
+              pesquisaId: pesqId,
+              novaPesquisaTitulo: pesqId === "__nova__" ? $("#impNovaTitulo").value.trim() : "",
+              novaPesquisaMes: pesqId === "__nova__" ? $("#impNovaMes").value : "",
+              texto: $("#impCsv").value,
+              mapeamento: {
+                colData: $("#impColData").value,
+                colEmpresa: colEmp === "__fixo__" ? "" : colEmp,
+                clienteFixoId: colEmp === "__fixo__" ? cliFixo : "",
+                colNps: colNps === "__sem_nps__" ? "" : colNps,
+                semNps: colNps === "__sem_nps__",
+                colAtendimento: $("#impColAtend").value,
+                mesPadrao: $("#impMesPadrao").value || mesAtual(),
+              },
             });
             ctx.toast(`${j.novas} nova(s) resposta(s) importada(s) (de ${j.lidas} lida(s))`);
             painelAberto = null; renderPainel(); carregar();
           } catch (e) {
-            $("#impOk").disabled = false; $("#impMsg").textContent = e.message;
+            $("#impOk").disabled = false; $("#impMsg2").textContent = e.message;
           }
         };
         return;
@@ -657,7 +810,7 @@
     return carregar;
   }
 
-  const MONTAR = { nps, npsmedia: npsMedia, reclamacoes };
+  const MONTAR = { npsmedia: npsMedia, reclamacoes };
   Object.entries(MONTAR).forEach(([id, montar]) => {
     let recarregar = null;
     QZ.modulo({ id, iniciar(ctx) { recarregar = montar(ctx); if (!ctx.el.hidden) recarregar(); }, aoMostrar() { if (recarregar) recarregar(); } });
