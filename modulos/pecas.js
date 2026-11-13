@@ -129,6 +129,55 @@
     });
   }
 
+  // Visualizador ampliado (Lightbox) para imagens, vídeos e players do Drive
+  function abrirModalMidia({ tipo, url, titulo, linkExterno, labelExterno }) {
+    let dlg = document.getElementById("qzDlgMidiaPecas");
+    if (!dlg) {
+      dlg = document.createElement("dialog");
+      dlg.id = "qzDlgMidiaPecas";
+      dlg.style.cssText = "border:1px solid var(--line);border-radius:14px;padding:0;max-width:960px;width:94vw;max-height:92vh;box-shadow:0 24px 60px rgba(0,0,0,.28);background:var(--card);overflow:hidden";
+      document.body.appendChild(dlg);
+      dlg.addEventListener("click", ev => { if (ev.target === dlg) dlg.close(); });
+      dlg.addEventListener("close", () => {
+        dlg.querySelectorAll("video,iframe").forEach(el => { if (el.tagName === "VIDEO") el.pause(); else el.src = "about:blank"; });
+      });
+    }
+    let corpo = "";
+    if (tipo === "img") {
+      corpo = `<div style="background:#0F172A;display:flex;align-items:center;justify-content:center;padding:12px;max-height:76vh;overflow:auto"><img src="${esc(url)}" alt="${esc(titulo || "")}" style="max-width:100%;max-height:72vh;object-fit:contain;border-radius:6px;display:block"></div>`;
+    } else if (tipo === "video") {
+      corpo = `<div style="background:#000;padding:8px"><video controls autoplay src="${esc(url)}" style="width:100%;max-height:74vh;display:block;border-radius:6px"></video></div>`;
+    } else if (tipo === "drive") {
+      corpo = `<div style="background:#000"><iframe src="${esc(url)}" allow="autoplay; fullscreen" allowfullscreen style="width:100%;height:74vh;border:0;display:block"></iframe></div>`;
+    }
+    dlg.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:#FAFBFD">
+        <b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(titulo || "Visualização do material")}</b>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${linkExterno ? `<a class="btn small" href="${esc(linkExterno)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(labelExterno || "Abrir original ↗")}</a>` : ""}
+          <button class="btn small" type="button" id="qzFecharMidiaPecas" aria-label="Fechar">✕ Fechar</button>
+        </div>
+      </div>
+      ${corpo}`;
+    dlg.querySelector("#qzFecharMidiaPecas").onclick = () => dlg.close();
+    dlg.showModal();
+  }
+
+  if (!window.__qzPecMidiaListener) {
+    window.__qzPecMidiaListener = true;
+    document.addEventListener("click", ev => {
+      const btn = ev.target.closest("[data-midia-expandir]");
+      if (!btn) return;
+      ev.preventDefault();
+      abrirModalMidia({
+        tipo: btn.dataset.midiaTipo,
+        url: btn.dataset.midiaUrl,
+        titulo: btn.dataset.midiaTitulo,
+        linkExterno: btn.dataset.midiaExt,
+        labelExterno: btn.dataset.midiaExtLabel
+      });
+    });
+  }
+
   if (!document.getElementById("qzPecCss")) {
     const st = document.createElement("style"); st.id = "qzPecCss";
     st.textContent = `
@@ -164,14 +213,34 @@
       .pc-f .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
       .pc-prog{height:6px;background:var(--line2);border-radius:4px;overflow:hidden}.pc-prog i{display:block;height:100%;background:var(--blue);width:0;transition:width .15s}
       .pc-f.ok .pc-prog i{background:var(--ok)}.pc-f.erro{color:var(--danger)}
+      .pc-split{display:grid;grid-template-columns:minmax(360px,450px) minmax(0,1fr);gap:18px;align-items:start;margin-top:12px}
+      @media(max-width:880px){.pc-split{grid-template-columns:1fr}}
+      .pc-media-pane{background:#F8FAFC;border:1px solid var(--line2);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:10px}
+      .pc-info-pane{min-width:0;display:flex;flex-direction:column}
+      .pc-obs-box{background:#F8FAFC;border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 8px 8px 0;font-size:13.5px;margin-top:6px;white-space:pre-wrap;color:var(--ink)}
+      .pc-preview-single{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+      .pc-preview-single img{width:100%;max-height:360px;object-fit:contain;display:block;background:#F1F5F9;cursor:zoom-in}
+      .pc-preview-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;background:#FAFBFD;border-top:1px solid var(--line2);font-size:12px}
+      .pc-preview-foot .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2);font-weight:500}
+      .pc-thumbs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px}
+      .pc-th-card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;display:flex;flex-direction:column}
+      .pc-th-card .pv{height:140px;display:flex;align-items:center;justify-content:center;background:#F1F5F9;overflow:hidden;cursor:zoom-in;text-decoration:none;color:var(--ink2);font-size:12px;text-align:center;padding:6px}
+      .pc-th-card .pv img{width:100%;height:100%;object-fit:cover}
+      .pc-th-card .ft{display:flex;justify-content:space-between;align-items:center;gap:4px;padding:5px 8px;border-top:1px solid var(--line2);font-size:11.5px;background:#FAFBFD}
+      .pc-th-card .ft span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
       .pc-thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:flex-start}
       .pc-th{width:120px;height:96px;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#F6F8FB;font-size:12px;color:var(--ink2);text-align:center;text-decoration:none}
       .pc-th img{width:100%;height:100%;object-fit:cover}
-      .pc-th.exp{border-style:dashed;padding:6px}
-      .pc-reel-wrap{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
-      .pc-reel-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0F172A;width:260px;max-width:100%}
-      .pc-reel-card iframe,.pc-reel-card video{width:100%;height:380px;border:0;display:block;background:#000}
-      .pc-reel-foot{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:#FAFBFD;border-top:1px solid var(--line);font-size:12px}
+      .pc-th.exp{border-style:dashed;padding:6px;width:auto;min-width:120px;height:auto;min-height:48px}
+      .pc-reel-wrap{display:flex;flex-direction:column;gap:10px}
+      .pc-reel-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0F172A;width:100%;min-width:0}
+      .pc-reel-card iframe,.pc-reel-card video{width:100%;height:420px;border:0;display:block;background:#000}
+      .pc-ver .pc-reel-card{max-width:460px}
+      .pc-ver .pc-reel-card iframe,.pc-ver .pc-reel-card video{height:360px}
+      .pc-reel-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;background:#FAFBFD;border-top:1px solid var(--line);font-size:12px;flex-wrap:wrap}
+      .pc-reel-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+      .pc-btn-link{background:none;border:0;padding:0;color:var(--blue);font-weight:600;font-size:12px;cursor:pointer;text-decoration:none}
+      .pc-btn-link:hover{text-decoration:underline}
       .pc-links{margin:6px 0 0;padding-left:18px;font-size:13px}
       .pc-ver{border-top:1px solid var(--line2);margin-top:10px;padding-top:10px}
       .pc-ver summary{cursor:pointer;font-size:13px;color:var(--ink2)}
@@ -426,50 +495,110 @@
   }
 
   // ---------- Cartão de uma peça (usado no Envio e na Fila) ----------
-  function versaoHtml(p, v) {
+  function versaoPartes(p, v, compacto) {
     const arqsImgPdf = (v.arquivos || []).filter(a => !String(a.tipo || "").startsWith("video/"));
     const arqsVideo = (v.arquivos || []).filter(a => String(a.tipo || "").startsWith("video/"));
-    const thumbs = arqsImgPdf.map(a => a.expirado
-      ? `<div class="pc-th exp" title="${esc(a.nome)}">arquivo expirado</div>`
-      : a.tipo === "application/pdf"
-        ? `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}">PDF<br>${esc(a.nome.slice(0, 28))}</a>`
-        : `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}"><img loading="lazy" src="${arqUrl(p, v, a)}" alt="${esc(a.nome)}"></a>`).join("");
 
-    // Vídeos enviados diretamente ou links de Reels/Vídeo do Google Drive
     const drivePlayers = [];
     const outrosLinks = [];
     for (const l of v.links || []) {
       const fid = extrairDriveFileId(l);
       if (fid) {
+        const previewUrl = `https://drive.google.com/file/d/${encodeURIComponent(fid)}/preview`;
         drivePlayers.push(`<div class="pc-reel-card">
-          <iframe src="https://drive.google.com/file/d/${encodeURIComponent(fid)}/preview" allow="autoplay; fullscreen" allowfullscreen loading="lazy" title="Reels / Vídeo do Google Drive"></iframe>
+          <iframe src="${previewUrl}" allow="autoplay; fullscreen" allowfullscreen loading="lazy" title="Reels / Vídeo do Google Drive"></iframe>
           <div class="pc-reel-foot">
             <span>🎬 <b>Reels / Vídeo (Drive)</b></span>
-            <a href="${esc(l)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Abrir no Drive ↗</a>
+            <div class="pc-reel-actions">
+              <button type="button" class="pc-btn-link" data-midia-expandir="1" data-midia-tipo="drive" data-midia-url="${previewUrl}" data-midia-titulo="${esc(p.titulo)} · Drive" data-midia-ext="${esc(l)}" data-midia-ext-label="Abrir no Drive ↗">⛶ Expandir</button>
+              <a href="${esc(l)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Abrir no Drive ↗</a>
+            </div>
           </div>
         </div>`);
       } else {
         outrosLinks.push(l);
       }
     }
-    const videoPlayers = arqsVideo.map(a => a.expirado
-      ? `<div class="pc-th exp" title="${esc(a.nome)}">vídeo expirado</div>`
-      : `<div class="pc-reel-card">
-          <video controls preload="metadata" src="${arqUrl(p, v, a)}"></video>
-          <div class="pc-reel-foot">
-            <span title="${esc(a.nome)}">🎬 <b>${esc(a.nome.slice(0, 22))}</b></span>
-            <a href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Baixar ↗</a>
-          </div>
-        </div>`).join("");
 
-    const playersHtml = (drivePlayers.length || videoPlayers) ? `<div class="pc-reel-wrap">${videoPlayers}${drivePlayers.join("")}</div>` : "";
+    const videoPlayers = arqsVideo.map(a => {
+      if (a.expirado) return `<div class="pc-th exp" title="${esc(a.nome)}">vídeo expirado</div>`;
+      const u = arqUrl(p, v, a);
+      return `<div class="pc-reel-card">
+        <video controls preload="metadata" src="${u}"></video>
+        <div class="pc-reel-foot">
+          <span title="${esc(a.nome)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎬 <b>${esc(a.nome)}</b></span>
+          <div class="pc-reel-actions">
+            <button type="button" class="pc-btn-link" data-midia-expandir="1" data-midia-tipo="video" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Baixar ↗">⛶ Expandir</button>
+            <a href="${u}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Baixar ↗</a>
+          </div>
+        </div>
+      </div>`;
+    });
+
+    let thumbsHtml = "";
+    if (arqsImgPdf.length) {
+      if (compacto) {
+        thumbsHtml = `<div class="pc-thumbs">${arqsImgPdf.map(a => a.expirado
+          ? `<div class="pc-th exp" title="${esc(a.nome)}">arquivo expirado</div>`
+          : a.tipo === "application/pdf"
+            ? `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}">PDF<br>${esc(a.nome.slice(0, 28))}</a>`
+            : `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}"><img loading="lazy" src="${arqUrl(p, v, a)}" alt="${esc(a.nome)}"></a>`).join("")}</div>`;
+      } else if (arqsImgPdf.length === 1 && !arqsImgPdf[0].expirado && arqsImgPdf[0].tipo !== "application/pdf" && !drivePlayers.length && !videoPlayers.length) {
+        const a = arqsImgPdf[0];
+        const u = arqUrl(p, v, a);
+        thumbsHtml = `<div class="pc-preview-single">
+          <img loading="lazy" src="${u}" alt="${esc(a.nome)}" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Abrir original ↗">
+          <div class="pc-preview-foot">
+            <span class="nm" title="${esc(a.nome)}">${esc(a.nome)}</span>
+            <div class="pc-reel-actions">
+              <button type="button" class="pc-btn-link" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Abrir original ↗">🔍 Ampliar</button>
+              <a href="${u}" target="_blank" rel="noopener" class="pc-btn-link">Abrir ↗</a>
+            </div>
+          </div>
+        </div>`;
+      } else {
+        thumbsHtml = `<div class="pc-thumbs-grid">${arqsImgPdf.map(a => {
+          if (a.expirado) return `<div class="pc-th exp" title="${esc(a.nome)}">arquivo expirado</div>`;
+          const u = arqUrl(p, v, a);
+          if (a.tipo === "application/pdf") {
+            return `<div class="pc-th-card">
+              <a class="pv" href="${u}" target="_blank" rel="noopener" style="cursor:pointer;flex-direction:column;gap:4px">
+                <span style="font-size:24px">📄</span>
+                <b>PDF</b>
+              </a>
+              <div class="ft"><span title="${esc(a.nome)}">${esc(a.nome)}</span><a href="${u}" target="_blank" rel="noopener" class="pc-btn-link">Abrir ↗</a></div>
+            </div>`;
+          }
+          return `<div class="pc-th-card">
+            <div class="pv" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Abrir original ↗">
+              <img loading="lazy" src="${u}" alt="${esc(a.nome)}">
+            </div>
+            <div class="ft">
+              <span title="${esc(a.nome)}">${esc(a.nome)}</span>
+              <a href="${u}" target="_blank" rel="noopener" class="pc-btn-link" title="Abrir em nova aba">↗</a>
+            </div>
+          </div>`;
+        }).join("")}</div>`;
+      }
+    }
+
+    const playersHtml = (drivePlayers.length || videoPlayers.length) ? `<div class="pc-reel-wrap">${videoPlayers.join("")}${drivePlayers.join("")}</div>` : "";
+    const mediaHtml = `${thumbsHtml}${playersHtml}`;
+    const temMidia = Boolean(mediaHtml);
+
     const linksHtml = outrosLinks.length ? `<ul class="pc-links">${outrosLinks.map(l => `<li><a href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length > 70 ? l.slice(0, 70) + "…" : l)}</a></li>`).join("")}</ul>` : "";
     const exp = v.arquivos.length && !v.arquivos.every(a => a.expirado) ? ` · arquivos até ${brDia(v.expiraEm)}` : "";
-    return `<div class="pc-sub">Versão ${v.n} · enviada em ${brHora(v.enviadaEm)}${exp}</div>${v.obs ? `<div style="font-size:13px;margin-top:4px;white-space:pre-wrap">${esc(v.obs)}</div>` : ""}
-      ${thumbs ? `<div class="pc-thumbs">${thumbs}</div>` : ""}${playersHtml}${linksHtml}`;
+    const metaHtml = `<div class="pc-sub">Versão ${v.n} · enviada em ${brHora(v.enviadaEm)}${exp}</div>${v.obs ? `<div class="pc-obs-box">${esc(v.obs)}</div>` : ""}${linksHtml}`;
+
+    return { mediaHtml, metaHtml, temMidia };
+  }
+  function versaoHtml(p, v) {
+    const { mediaHtml, metaHtml } = versaoPartes(p, v, true);
+    return `${metaHtml}${mediaHtml ? `<div style="margin-top:8px">${mediaHtml}</div>` : ""}`;
   }
   function cartao(p, extra) {
     const atual = p.versoes[p.versoes.length - 1], anteriores = p.versoes.slice(0, -1).reverse();
+    const { mediaHtml, metaHtml, temMidia } = versaoPartes(p, atual, false);
     const hist = (p.historico || []).filter(h => h.tipo !== "envio" || h.comentario).map(h => {
       const ehCom = h.tipo === "comentario";
       const acao = ehCom ? "comentou" : (ACAO[h.tipo] || esc(h.tipo));
@@ -499,6 +628,20 @@
     const tagTipo = ehOffline
       ? `<span class="pc-tag-offline" title="Material Offline (impressos, outdoors, brindes, eventos, etc.)">📦 Offline</span>`
       : `<span class="pc-tag-online" title="Material Online (redes sociais, anúncios digitais, reels, etc.)">🌐 Online</span>`;
+
+    const infoCol = `${metaHtml}
+      ${anteriores.length ? `<details class="pc-ver"><summary>Versões anteriores (${anteriores.length})</summary>${anteriores.map(v => `<div style="margin-top:8px">${versaoHtml(p, v)}</div>`).join("")}</details>` : ""}
+      ${hist ? `<div class="pc-ver"><div class="pc-sub">Comentários e decisões</div><ul class="pc-hist">${hist}</ul></div>` : ""}
+      ${boxComentario}
+      ${extra || ""}`;
+
+    const corpoCard = temMidia
+      ? `<div class="pc-split">
+          <div class="pc-media-pane">${mediaHtml}</div>
+          <div class="pc-info-pane">${infoCol}</div>
+        </div>`
+      : `<div style="margin-top:8px">${infoCol}</div>`;
+
     return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span>${tagTipo}</div>
         <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
@@ -507,11 +650,7 @@
           ${podeEditarPeca ? `<button class="btn" type="button" data-x="editar-peca" data-id="${esc(p.id)}" title="Editar material e enviar nova versão" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--blue);border-color:rgba(59,130,246,.35)">✏️ Editar</button>` : ""}
           ${podeApagarPeca ? `<button class="btn" type="button" data-del-peca="${esc(p.id)}" title="Apagar peça (exige senha mestre)" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--danger)">🗑️ Apagar</button>` : ""}
         </div></div>
-      <div style="margin-top:8px">${versaoHtml(p, atual)}</div>
-      ${anteriores.length ? `<details class="pc-ver"><summary>Versões anteriores (${anteriores.length})</summary>${anteriores.map(v => `<div style="margin-top:8px">${versaoHtml(p, v)}</div>`).join("")}</details>` : ""}
-      ${hist ? `<div class="pc-ver"><div class="pc-sub">Comentários e decisões</div><ul class="pc-hist">${hist}</ul></div>` : ""}
-      ${boxComentario}
-      ${extra || ""}
+      ${corpoCard}
       <div data-box="edit-${esc(p.id)}"></div>
     </div>`;
   }
