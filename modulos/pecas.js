@@ -702,6 +702,17 @@
     </div>`;
   }
 
+  const LIMITE_PAGINA_PECAS = 25;
+  function rodapePaginacao(total, exibindo) {
+    if (exibindo >= total) return "";
+    const faltam = total - exibindo;
+    const prox = Math.min(LIMITE_PAGINA_PECAS, faltam);
+    return `<div class="pc-card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <span class="pc-sub">Exibindo <b>${exibindo}</b> de <b>${total}</b> materiais</span>
+      <button class="btn primary" type="button" data-x="mostrar-mais">Mostrar mais ${prox} (${faltam} restante${faltam > 1 ? "s" : ""})</button>
+    </div>`;
+  }
+
   // ======================================================================
   // ENVIO (remetente: vê e reenvia só as suas)
   // ======================================================================
@@ -715,7 +726,7 @@
         <label>Cliente<select data-x="cli"><option value="">Todos</option></select></label></div>
       <div data-box="lista"><div class="pc-vazio">Carregando…</div></div>`;
     const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`).value;
-    let lista = [];
+    let lista = [], limite = LIMITE_PAGINA_PECAS;
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
     async function carregar() {
       try { await carregarBase(); lista = (await api("pecas")).pecas.filter(p => p.minha); } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
@@ -726,11 +737,13 @@
     function render() {
       const fMidia = fv("f-midia");
       const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fMidia || (p.tipoMidia || "online") === fMidia) && (!fv("cli") || p.clienteId === fv("cli")));
-      box("lista").innerHTML = l.length ? l.map(p => cartao(p, ["aprovada", "reprovada", "alteracao_solicitada"].includes(p.status)
-        ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("")
+      const visiveis = l.slice(0, limite);
+      box("lista").innerHTML = l.length ? visiveis.map(p => cartao(p, ["aprovada", "reprovada", "alteracao_solicitada"].includes(p.status)
+        ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("") + rodapePaginacao(l.length, visiveis.length)
         : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
     }
     el.addEventListener("click", async ev => {
+      if (ev.target.closest('[data-x="mostrar-mais"]')) { limite += LIMITE_PAGINA_PECAS; render(); return; }
       const editBtn = ev.target.closest('[data-x="editar-peca"]');
       if (editBtn) {
         const id = editBtn.dataset.id || editBtn.closest("[data-id]")?.dataset.id;
@@ -795,7 +808,7 @@
         }
       }
     });
-    el.addEventListener("change", ev => { if (ev.target.dataset.x) render(); });
+    el.addEventListener("change", ev => { if (ev.target.dataset.x) { limite = LIMITE_PAGINA_PECAS; render(); } });
     return carregar;
   }
 
@@ -819,7 +832,7 @@
       </div>
       <div data-box="lista"><div class="pc-vazio">Carregando…</div></div>`;
     const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`)?.value || "";
-    let lista = [];
+    let lista = [], limite = LIMITE_PAGINA_PECAS;
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
     const obterIntervaloFila = () => {
       const p = fv("f-per");
@@ -853,7 +866,8 @@
     function render() {
       const l = filtradasAtuais()
         .sort((a, b) => fv("st") === "pendente" ? a.atualizadoEm.localeCompare(b.atualizadoEm) : b.atualizadoEm.localeCompare(a.atualizadoEm));
-      box("lista").innerHTML = l.length ? l.map(p => {
+      const visiveis = l.slice(0, limite);
+      box("lista").innerHTML = l.length ? visiveis.map(p => {
         const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
         const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
         const podeDecidirEsta = !ehBloqueado && (base.podeDecidir || base.ehGestao || souAprovador);
@@ -873,7 +887,7 @@
           </div>`;
         }
         return cartao(p, acoesHtml);
-      }).join("")
+      }).join("") + rodapePaginacao(l.length, visiveis.length)
         : `<div class="pc-card pc-vazio">${
             lista.length
               ? (fv("st") === "pendente" && !fv("f-per") && !fv("cli") && !fv("rem")
@@ -931,10 +945,15 @@
         catch (e) { ctx.toast(e.message); }
         return;
       }
+      if (ev.target.closest('[data-x="mostrar-mais"]')) {
+        limite += LIMITE_PAGINA_PECAS;
+        render();
+        return;
+      }
       if (ev.target.closest('[data-x="apagar-fila"]')) {
         const visiveis = filtradasAtuais();
         if (!visiveis.length) { ctx.toast("Não há peças listadas para apagar."); return; }
-        const senhaMestre = await pedirSenhaMestre("Apagar fila de peças", `Você está prestes a apagar ${visiveis.length} peça(s) exibida(s) na fila atual. Digite a senha mestre para confirmar.`);
+        const senhaMestre = await pedirSenhaMestre("Apagar fila de peças", `Você está prestes a apagar ${visiveis.length} peça(s) da fila filtrada atual. Digite a senha mestre para confirmar.`);
         if (!senhaMestre) return;
         try {
           const r = await api("fila.apagar", { ids: visiveis.map(p => p.id), senhaMestre });
@@ -945,6 +964,7 @@
       }
       if (ev.target.closest('[data-x="ver-todas"]')) {
         el.querySelector('[data-x="st"]').value = "";
+        limite = LIMITE_PAGINA_PECAS;
         render();
         return;
       }
@@ -958,6 +978,7 @@
         const wAte = box("wrap-ate"); if (wAte) wAte.hidden = true;
         el.querySelector('[data-x="cli"]').value = "";
         el.querySelector('[data-x="rem"]').value = "";
+        limite = LIMITE_PAGINA_PECAS;
         render();
         return;
       }
@@ -975,7 +996,7 @@
         if (wDe) wDe.hidden = !ehCustom;
         if (wAte) wAte.hidden = !ehCustom;
       }
-      if (ev.target.dataset.x) render();
+      if (ev.target.dataset.x) { limite = LIMITE_PAGINA_PECAS; render(); }
     });
     return carregar;
   }
