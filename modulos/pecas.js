@@ -1661,9 +1661,21 @@
         <div><h3 style="margin:0;font-size:15px">Envios e desempenho por cliente</h3><div class="pc-sub">Quantidade de peças enviadas, decisões e taxa de aprovação para cada cliente.</div></div>
         <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" data-x="mostrar-zerados" style="min-height:0;width:14px;height:14px"> Mostrar clientes sem envios no mês</label>
       </div><div data-box="cli-barras" style="margin-bottom:14px"></div><div data-box="cli-tabela" style="overflow-x:auto"></div></div>
-      <div class="pc-2"><div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Peças aprovadas por usuário</h3><div data-box="barras"></div></div>
+      <div class="pc-2"><div class="pc-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <h3 style="margin:0;font-size:15px" data-box="titulo-barras-user">Produção por usuário (Online + Offline)</h3>
+            <div class="pc-sub" data-box="sub-barras-user">Soma de peças Online e Offline no mesmo número de produção do período.</div>
+          </div>
+          <select data-x="modo-barras-user" style="padding:3px 8px;min-height:28px;font-size:12px;font-weight:600">
+            <option value="producao">Total produzido (enviadas)</option>
+            <option value="aprovadas">Apenas já aprovadas</option>
+          </select>
+        </div>
+        <div data-box="barras"></div>
+      </div>
         <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Decisões por aprovador</h3><div data-box="dec"></div></div></div>
-      <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Envios e aprovações por usuário</h3><div data-box="env"></div></div>
+      <div class="pc-card"><h3 style="margin:0 0 10px;font-size:15px">Envios e aprovações por usuário (Online + Offline)</h3><div data-box="env"></div></div>
       <div data-box="limpeza"></div>`;
     const box = n => el.querySelector(`[data-box="${n}"]`), qx = n => el.querySelector(`[data-x="${n}"]`);
     const sel = qx("mes");
@@ -1674,7 +1686,9 @@
       s.value = pares.some(([k]) => k === atual) ? atual : "";
     };
     function agregarFiltrados(clientesFiltrados) {
-      let pecas = 0, versoes = 0, aprovada = 0, reprovada = 0, alteracao_solicitada = 0, v1d = 0, v1a = 0;
+      let pecas = 0, pecasOnline = 0, pecasOffline = 0, versoes = 0;
+      let aprovada = 0, aprovadasOnline = 0, aprovadasOffline = 0;
+      let reprovada = 0, alteracao_solicitada = 0, v1d = 0, v1a = 0;
       const porU = {}, porC = {};
       const horas = Array.from({ length: 24 }, (_, h) => ({
         hora: h,
@@ -1685,8 +1699,12 @@
       }));
       for (const c of clientesFiltrados) {
         pecas += c.pecas || 0;
+        pecasOnline += c.pecasOnline || 0;
+        pecasOffline += c.pecasOffline || 0;
         versoes += c.versoes || 0;
         aprovada += c.aprovada || 0;
+        aprovadasOnline += c.aprovadasOnline || 0;
+        aprovadasOffline += c.aprovadasOffline || 0;
         reprovada += c.reprovada || 0;
         alteracao_solicitada += c.alteracao_solicitada || 0;
         v1d += c.primeiraDecididas || 0;
@@ -1695,10 +1713,19 @@
           c.horas.forEach((qtd, h) => { horas[h].total += (qtd || 0); });
         }
         for (const u of c.enviadas || []) {
-          const x = (porU[u.login] ||= { login: u.login, nome: u.nome, pecas: 0, versoes: 0, aprovadas: 0 });
+          const x = (porU[u.login] ||= {
+            login: u.login, nome: u.nome,
+            pecas: 0, pecasOnline: 0, pecasOffline: 0,
+            versoes: 0,
+            aprovadas: 0, aprovadasOnline: 0, aprovadasOffline: 0,
+          });
           x.pecas += u.pecas || 0;
+          x.pecasOnline += u.pecasOnline || 0;
+          x.pecasOffline += u.pecasOffline || 0;
           x.versoes += u.versoes || 0;
           x.aprovadas += u.aprovadas || 0;
+          x.aprovadasOnline += u.aprovadasOnline || 0;
+          x.aprovadasOffline += u.aprovadasOffline || 0;
         }
         for (const d of c.decisoes || []) {
           const x = (porC[d.login] ||= { login: d.login, nome: d.nome, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, total: 0 });
@@ -1710,11 +1737,13 @@
       }
       return {
         totais: {
-          pecas, versoes, aprovada, reprovada, alteracao_solicitada,
+          pecas, pecasOnline, pecasOffline, versoes,
+          aprovada, aprovadasOnline, aprovadasOffline,
+          reprovada, alteracao_solicitada,
           primeiraDecididas: v1d, primeiraAprovadas: v1a,
           taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null,
         },
-        enviadas: Object.values(porU).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes),
+        enviadas: Object.values(porU).sort((a, b) => b.pecas - a.pecas || (b.aprovadas || 0) - (a.aprovadas || 0) || b.versoes - a.versoes),
         decisoes: Object.values(porC).sort((a, b) => b.total - a.total),
         horas,
       };
@@ -1760,10 +1789,16 @@
       const escopo = temFiltro ? agregarFiltrados(clientesFiltrados) : { totais: dados.totais, enviadas: dados.enviadas, decisoes: dados.decisoes, horas: dados.horas };
       const t = escopo.totais;
       const clientesComEnvio = clientesFiltrados.filter(c => c.pecas > 0 || c.versoes > 0);
+      const detPecasTotal = (!fMidia && ((t.pecasOnline || 0) > 0 || (t.pecasOffline || 0) > 0))
+        ? `🌐 ${t.pecasOnline || 0} online + 📦 ${t.pecasOffline || 0} offline · ${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"}`
+        : `${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"} com envios`;
+      const detAprovTotal = (!fMidia && ((t.aprovadasOnline || 0) > 0 || (t.aprovadasOffline || 0) > 0))
+        ? `🌐 ${t.aprovadasOnline || 0} online + 📦 ${t.aprovadasOffline || 0} offline`
+        : undefined;
       box("kpis").innerHTML = [
-        [t.pecas, "Peças enviadas", `${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"} com envios`],
+        [t.pecas, "Total produzido (On + Off)", detPecasTotal],
         [t.versoes, "Versões enviadas"],
-        [t.aprovada, "Aprovadas"],
+        [t.aprovada, "Aprovadas", detAprovTotal],
         [t.alteracao_solicitada, "Alteração solicitada"],
         [t.reprovada, "Reprovadas"],
         [t.taxaPrimeira == null ? "—" : t.taxaPrimeira.toLocaleString("pt-BR") + "%", "Aprovação na 1ª versão", t.primeiraDecididas ? `${t.primeiraAprovadas} de ${t.primeiraDecididas} peças decididas na 1ª versão` : "nenhuma decisão na 1ª versão"],
@@ -1860,20 +1895,38 @@
         : `<div class="pc-vazio">${temFiltro ? "Nenhum cliente encontrado com esses filtros." : "Nenhum cliente teve peças enviadas neste mês ainda (marque a opção acima para ver todos os clientes da carteira)."}</div>`;
 
       // Seções de Usuários e Aprovadores (mantidas e sensíveis ao filtro)
-      // Substituição solicitada na Task 6: exibir peças aprovadas por usuário no lugar de apenas enviadas
-      const listaAprovadasUsers = (escopo.enviadas || []).filter(u => (u.aprovadas || 0) > 0);
-      const listaExibir = listaAprovadasUsers.length ? listaAprovadasUsers : (escopo.enviadas || []);
-      const maxAprov = Math.max(1, ...listaExibir.map(u => u.aprovadas || 0));
+      // Contabiliza peças Online + Offline no mesmo número de produção do período (com detalhamento Online vs Offline)
+      const modoBarras = qx("modo-barras-user")?.value || "producao";
+      const ehModoAprov = modoBarras === "aprovadas";
+      const titBarras = box("titulo-barras-user"), subBarras = box("sub-barras-user");
+      if (titBarras) titBarras.textContent = ehModoAprov ? "Peças aprovadas por usuário (Online + Offline)" : "Produção por usuário (Online + Offline)";
+      if (subBarras) subBarras.textContent = ehModoAprov
+        ? "Total de materiais aprovados no período, somando peças Online e Offline."
+        : "Total de peças produzidas (Online + Offline) no mesmo número de produção do período.";
+
+      const valorBarraUser = u => ehModoAprov ? (u.aprovadas || 0) : (u.pecas || 0);
+      const valOnUser = u => ehModoAprov ? (u.aprovadasOnline || 0) : (u.pecasOnline || 0);
+      const valOffUser = u => ehModoAprov ? (u.aprovadasOffline || 0) : (u.pecasOffline || 0);
+
+      const listaUsersOrdenada = [...(escopo.enviadas || [])]
+        .filter(u => valorBarraUser(u) > 0 || (u.pecas || 0) > 0 || (u.aprovadas || 0) > 0)
+        .sort((a, b) => valorBarraUser(b) - valorBarraUser(a) || (b.pecas || 0) - (a.pecas || 0));
+
+      const maxBarra = Math.max(1, ...listaUsersOrdenada.map(valorBarraUser));
       const corBarra = ehModoOffline ? "#7E22CE" : (fMidia === "online" ? "var(--blue)" : "linear-gradient(90deg, var(--blue) 0%, #7E22CE 100%)");
-      box("barras").innerHTML = listaExibir.length ? `<div class="pc-barras">${listaExibir.map(u => {
-        const qtd = u.aprovadas || 0;
-        return `<div class="l"><span class="nm" title="${esc(u.nome)}">${esc(u.nome)}</span><span class="b"><i style="width:${maxAprov > 0 ? (qtd / maxAprov * 100) : 0}%;background:${corBarra}"></i></span><b class="num" style="${ehModoOffline ? "color:#6B21A8" : ""}">${qtd}</b></div>`;
-      }).join("")}</div>` : `<div class="pc-vazio">Nenhuma peça aprovada no período/filtro selecionado.</div>`;
+      box("barras").innerHTML = listaUsersOrdenada.length ? `<div class="pc-barras">${listaUsersOrdenada.map(u => {
+        const qtd = valorBarraUser(u);
+        const on = valOnUser(u), off = valOffUser(u);
+        const detTags = (!fMidia && (on > 0 || off > 0))
+          ? `<span style="display:inline-flex;gap:4px;margin-left:6px;font-size:11px;font-weight:600;vertical-align:middle">${on > 0 ? `<span style="background:#EAF2FF;color:#0B57D0;padding:1px 6px;border-radius:4px" title="${on} Online">🌐 ${on}</span>` : ""}${off > 0 ? `<span style="background:#F3E8FF;color:#6B21A8;padding:1px 6px;border-radius:4px" title="${off} Offline">📦 ${off}</span>` : ""}</span>`
+          : "";
+        return `<div class="l" style="grid-template-columns:minmax(150px,auto) minmax(0,1fr) auto"><span class="nm" title="${esc(u.nome)}: ${qtd} total (${on} Online + ${off} Offline)">${esc(u.nome)}${detTags}</span><span class="b"><i style="width:${maxBarra > 0 ? (qtd / maxBarra * 100) : 0}%;background:${corBarra}"></i></span><b class="num" style="min-width:28px;${ehModoOffline ? "color:#6B21A8" : ""}">${qtd}</b></div>`;
+      }).join("")}</div>` : `<div class="pc-vazio">Nenhuma peça registrada no período/filtro selecionado.</div>`;
       box("dec").innerHTML = escopo.decisoes.length ? `<table class="pc-tbl"><thead><tr><th>Quem decidiu</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Total</th></tr></thead><tbody>
         ${escopo.decisoes.map(c => `<tr><td>${esc(c.nome)}</td><td class="num">${c.aprovada}</td><td class="num">${c.alteracao_solicitada}</td><td class="num">${c.reprovada}</td><td class="num"><b>${c.total}</b></td></tr>`).join("")}</tbody></table>` : `<div class="pc-vazio">Sem decisões no período/filtro selecionado.</div>`;
-      box("env").innerHTML = escopo.enviadas.length ? `<table class="pc-tbl"><thead><tr><th>Usuário</th><th class="num">Peças aprovadas</th><th class="num">Peças novas</th><th class="num">Versões enviadas</th></tr></thead><tbody>
-        ${escopo.enviadas.map(u => `<tr><td>${esc(u.nome)}</td><td class="num"><b>${u.aprovadas || 0}</b></td><td class="num">${u.pecas}</td><td class="num">${u.versoes}</td></tr>`).join("")}
-        <tr><td><b>Total</b></td><td class="num"><b>${t.aprovada}</b></td><td class="num"><b>${t.pecas}</b></td><td class="num"><b>${t.versoes}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
+      box("env").innerHTML = escopo.enviadas.length ? `<table class="pc-tbl"><thead><tr><th>Usuário</th><th class="num">Total produzido (On + Off)</th><th class="num">🌐 Online</th><th class="num">📦 Offline</th><th class="num">Peças aprovadas</th><th class="num">Versões enviadas</th></tr></thead><tbody>
+        ${escopo.enviadas.map(u => `<tr><td><b>${esc(u.nome)}</b></td><td class="num"><b>${u.pecas || 0}</b></td><td class="num" style="color:#0B57D0">${u.pecasOnline || 0}</td><td class="num" style="color:#6B21A8">${u.pecasOffline || 0}</td><td class="num"><b>${u.aprovadas || 0}</b>${(u.aprovadasOnline || u.aprovadasOffline) ? ` <span class="pc-sub" style="font-size:11px">(${u.aprovadasOnline || 0} on · ${u.aprovadasOffline || 0} off)</span>` : ""}</td><td class="num">${u.versoes || 0}</td></tr>`).join("")}
+        <tr><td><b>Total</b></td><td class="num"><b>${t.pecas || 0}</b></td><td class="num" style="color:#0B57D0"><b>${t.pecasOnline || 0}</b></td><td class="num" style="color:#6B21A8"><b>${t.pecasOffline || 0}</b></td><td class="num"><b>${t.aprovada || 0}</b></td><td class="num"><b>${t.versoes || 0}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
     }
     const obterParamsPeriodoDash = () => {
       const per = qx("f-per")?.value || "mes";
@@ -1941,7 +1994,7 @@
         carregar();
       } else if (x === "mes" || x === "f-midia") {
         carregar();
-      } else if (["f-cli", "f-tipo", "f-nivel", "f-at", "mostrar-zerados"].includes(x)) {
+      } else if (["f-cli", "f-tipo", "f-nivel", "f-at", "mostrar-zerados", "modo-barras-user"].includes(x)) {
         renderDash();
       }
     });
