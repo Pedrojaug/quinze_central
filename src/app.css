@@ -384,8 +384,8 @@ a.lockbtn{text-decoration:none}
 .usr-table tr[data-usr].out{background:#FAFBFD;opacity:.68}
 .usr-table tr[data-usr]:has(details[open]){background:#F4F8FE}
 
-.usr-user-info{display:flex;align-items:center;gap:12px}
-.usr-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#E6EFFF 0%,#D4E4FC 100%);color:var(--blue-dk);font-family:var(--display);font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid #FFFFFF;box-shadow:0 2px 6px rgba(15,23,42,.15)}
+.usr-user-info{display:flex;align-items:center;gap:14px}
+.usr-avatar{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#E6EFFF 0%,#D4E4FC 100%);color:var(--blue-dk);font-family:var(--display);font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid #FFFFFF;box-shadow:0 2px 8px rgba(15,23,42,.18)}
 .usr-input-name{font-weight:600;color:var(--ink);font-size:14px;border:1px solid transparent;background:transparent;padding:5px 8px;border-radius:6px;transition:all .15s ease;width:100%}
 .usr-input-name:hover{border-color:var(--line);background:#FFFFFF}
 .usr-input-name:focus{border-color:var(--blue);background:#FFFFFF;outline:none;box-shadow:0 0 0 3px rgba(6,96,255,.12)}
@@ -446,12 +446,12 @@ a.lockbtn{text-decoration:none}
 .qz-notif-empty{padding:20px 14px;text-align:center;color:var(--ink2);font-size:13px}
 
 /* ---------- Botão e Modal de Perfil (Foto / Avatar e Nome) ---------- */
-.qz-profile-btn{padding:3px 12px 3px 4px;gap:8px;border-color:var(--line);background:#fff;transition:all .15s ease;font-size:13px}
+.qz-profile-btn{padding:4px 14px 4px 5px;gap:10px;border-color:var(--line);background:#fff;transition:all .15s ease;font-size:13.5px}
 .qz-profile-btn:hover{border-color:var(--blue);background:var(--blue-soft)}
-.qz-hdr-av{width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--display);font-size:12.5px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;background:var(--blue);box-shadow:0 1px 4px rgba(15,23,42,0.14)}
+.qz-hdr-av{width:42px;height:42px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--display);font-size:15px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;background:var(--blue);box-shadow:0 2px 6px rgba(15,23,42,0.16);border:2px solid #FFFFFF}
 .qz-hdr-av img{width:100%;height:100%;object-fit:cover;display:block}
-.qz-prof-hero{display:flex;align-items:center;gap:20px;padding:14px 16px;background:#F8FAFC;border:1px solid var(--line2);border-radius:12px}
-.qz-prof-av-preview{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:32px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;box-shadow:0 4px 14px rgba(15,23,42,0.16);border:3px solid #fff}
+.qz-prof-hero{display:flex;align-items:center;gap:22px;padding:16px 18px;background:#F8FAFC;border:1px solid var(--line2);border-radius:12px}
+.qz-prof-av-preview{width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:40px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;box-shadow:0 6px 18px rgba(15,23,42,0.18);border:3px solid #fff}
 .qz-prof-av-preview img{width:100%;height:100%;object-fit:cover;display:block}
 .qz-prof-av-actions{flex:1;min-width:0}
 .usr-avatar img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
