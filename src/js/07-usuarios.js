@@ -57,6 +57,126 @@
     renderAll();
     if (modAtual !== "atendimento") $("#subtitle").textContent = ME.perfil ? "Perfil: " + ME.perfil : "";
     if (allowed.has("users") && ehGestaoMe()) loadUsers();
+    if ((ME.areas || []).some(a => a.id === "pecas")) iniciarSininhoNotificacoesPecas();
+  }
+
+  // ---------- Sininho global de menções e notificações de peças ----------
+  let notifTimer = null, notifVistasGlobal = new Set(), notifPrimeiraCarga = false;
+  function iniciarSininhoNotificacoesPecas(){
+    const wrap = document.getElementById("qzNotifWrap");
+    const btn = document.getElementById("qzNotifBtn");
+    const badge = document.getElementById("qzNotifBadge");
+    const pop = document.getElementById("qzNotifPop");
+    if (!wrap || !btn || !badge || !pop) return;
+    wrap.hidden = false;
+
+    const brDataHora = iso => iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+
+    async function atualizarNotificacoes(){
+      if (document.hidden) return;
+      try {
+        const r = await fetch("/api/m?r=pec/notificacoes", { credentials: "same-origin" });
+        if (!r.ok) return;
+        const d = await r.json();
+        const mencoes = Array.isArray(d.mencoes) ? d.mencoes : [];
+        const pendentes = Number(d.pendentes) || 0;
+
+        // Dispara toast caso chegue menção nova quando o usuário está fora do módulo de peças
+        const novas = [];
+        for (const m of mencoes) {
+          if (!notifVistasGlobal.has(m.hid)) {
+            notifVistasGlobal.add(m.hid);
+            if (notifPrimeiraCarga && modAtual !== "pecas") novas.push(m);
+          }
+        }
+        notifPrimeiraCarga = true;
+        if (novas.length) {
+          const u = novas[0];
+          toast(`🔔 ${u.por?.nome || "Alguém"} marcou você em "${u.pecaTitulo}" (${u.clienteNome})`);
+        }
+
+        if (mencoes.length > 0) {
+          badge.textContent = String(mencoes.length);
+          badge.hidden = false;
+          btn.classList.add("has-unread");
+        } else {
+          badge.textContent = "0";
+          badge.hidden = true;
+          btn.classList.remove("has-unread");
+        }
+
+        pop.innerHTML = `<div class="qz-notif-pop-head">
+          <b>🔔 Menções para você (${mencoes.length})</b>
+          ${mencoes.length ? `<button type="button" class="btn-link-action" data-notif-ler-todas>Marcar todas como vistas</button>` : `<span class="muted" style="font-size:11.5px">${pendentes} pendente${pendentes === 1 ? "" : "s"} na fila</span>`}
+        </div>
+        <div class="qz-notif-pop-body">
+          ${mencoes.length ? mencoes.map(m => `<div class="qz-notif-row">
+            <div class="meta">
+              <span><b>${esc(m.por?.nome || "Alguém")}</b> · ${esc(m.clienteNome || "")}</span>
+              <span>${brDataHora(m.em)}</span>
+            </div>
+            <div style="font-weight:600;color:var(--blue-dk)">${esc(m.pecaTitulo)}</div>
+            <div class="txt">${esc(m.comentario || "")}</div>
+            <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:4px">
+              <button type="button" class="btn small" data-notif-visto="${esc(m.pecaId)}" style="padding:2px 8px;min-height:0;font-size:11.5px">✓ Visto</button>
+              <a class="btn small primary" href="/app?m=pecas#fila" data-notif-abrir="${esc(m.pecaId)}" style="padding:2px 8px;min-height:0;font-size:11.5px;text-decoration:none">Abrir peça →</a>
+            </div>
+          </div>`).join("") : `<div class="qz-notif-empty">Você não tem menções pendentes no momento.${pendentes ? `<div style="margin-top:8px"><a href="/app?m=pecas#fila" style="color:var(--blue);font-weight:600">Ver ${pendentes} peça${pendentes === 1 ? "" : "s"} pendente${pendentes === 1 ? "" : "s"} na fila →</a></div>` : ""}</div>`}
+        </div>`;
+      } catch {}
+    }
+
+    window.QZ_atualizarNotificacoesGlobais = atualizarNotificacoes;
+
+    if (!btn._notifBound) {
+      btn._notifBound = true;
+      btn.addEventListener("click", ev => {
+        ev.stopPropagation();
+        pop.hidden = !pop.hidden;
+        if (!pop.hidden) atualizarNotificacoes();
+      });
+      pop.addEventListener("click", async ev => {
+        const bTodas = ev.target.closest("[data-notif-ler-todas]");
+        if (bTodas) {
+          ev.preventDefault();
+          await fetch("/api/m?r=pec/mencao.ler", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ todas: true }) }).catch(() => {});
+          await atualizarNotificacoes();
+          return;
+        }
+        const bVisto = ev.target.closest("[data-notif-visto]");
+        if (bVisto) {
+          ev.preventDefault();
+          const pid = bVisto.dataset.notifVisto;
+          await fetch("/api/m?r=pec/mencao.ler", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ pecaId: pid }) }).catch(() => {});
+          await atualizarNotificacoes();
+          return;
+        }
+        const bAbrir = ev.target.closest("[data-notif-abrir]");
+        if (bAbrir) {
+          const pid = bAbrir.dataset.notifAbrir;
+          pop.hidden = true;
+          if (modAtual === "pecas") {
+            ev.preventDefault();
+            const tabFila = document.querySelector('nav.tabs button[data-tab="fila"]');
+            if (tabFila && !tabFila.hidden) tabFila.click();
+            setTimeout(() => {
+              const card = document.getElementById(`peca-card-${pid}`);
+              if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 150);
+          }
+        }
+      });
+      document.addEventListener("click", ev => {
+        if (!pop.hidden && !wrap.contains(ev.target)) pop.hidden = true;
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) atualizarNotificacoes();
+      });
+    }
+
+    atualizarNotificacoes();
+    clearInterval(notifTimer);
+    notifTimer = setInterval(atualizarNotificacoes, 12000);
   }
   async function usrApi(method, body, q){
     const r = await fetch("/api/users" + (q || ""), {method, credentials:"same-origin", headers:{"content-type":"application/json"}, body: body ? JSON.stringify(body) : undefined});

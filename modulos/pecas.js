@@ -345,7 +345,29 @@
       .modo-offline .pc-pico-badge:not(.destaque){background:rgba(126,34,206,0.12) !important;color:#6B21A8 !important;border-color:rgba(126,34,206,0.25) !important}
       /* Badge de notificação na aba Fila de aprovação */
       .pc-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:7px;border-radius:999px;background:#EF4444;color:#FFFFFF;font-size:11.5px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 5px rgba(239,68,68,0.35);vertical-align:middle}
-      .pc-tab-badge[hidden]{display:none !important}`;
+      .pc-tab-badge[hidden]{display:none !important}
+      /* Menções (@) e Notificações */
+      .pc-mencao-chips{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px;font-size:12px}
+      .pc-mencao-chips .lbl{color:var(--ink2);font-weight:600;margin-right:2px}
+      .pc-chip-mencao{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;border:1px solid #C8DCFC;background:#F0F6FF;color:var(--blue-dk);font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s ease;user-select:none}
+      .pc-chip-mencao:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+      .pc-chip-mencao.sug{border-color:#F59E0B;background:#FFFBEB;color:#B45309}
+      .pc-chip-mencao.sug:hover{background:#D97706;color:#fff;border-color:#D97706}
+      .pc-chip-mencao.ativo{background:var(--blue);color:#fff;border-color:var(--blue)}
+      .pc-chip-mencao.sug.ativo{background:#D97706;color:#fff;border-color:#D97706}
+      .pc-tag-mencao{display:inline-flex;align-items:center;gap:2px;padding:1px 7px;border-radius:6px;background:#E6EFFF;color:var(--blue-dk);font-weight:700;font-size:12px;border:1px solid rgba(6,96,255,0.2)}
+      .pc-tag-mencao.eu{background:#FEF3C7;color:#B45309;border-color:#F59E0B;box-shadow:0 1px 3px rgba(245,158,11,0.2)}
+      .pc-card.mencionado-nao-lido{border-color:#F59E0B;box-shadow:0 0 0 2px rgba(245,158,11,0.22)}
+      .pc-card-mencao-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:7px 12px;border-radius:8px;margin-bottom:10px;font-size:12.5px}
+      .pc-notif-panel{background:linear-gradient(180deg,#FFFBEB 0%,#FEF3C7 100%);border:1px solid #F59E0B;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 4px 14px rgba(245,158,11,0.12)}
+      .pc-notif-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+      .pc-notif-head b{font-size:14px;color:#92400E;display:flex;align-items:center;gap:6px}
+      .pc-notif-list{display:flex;flex-direction:column;gap:6px}
+      .pc-notif-item{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#FFFFFF;border:1px solid #FDE68A;border-radius:8px;padding:8px 12px;font-size:13px}
+      .pc-ac-pop{position:fixed;z-index:999;background:#FFFFFF;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,0.18);max-height:240px;overflow-y:auto;min-width:230px;padding:4px}
+      .pc-ac-item{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--ink)}
+      .pc-ac-item:hover,.pc-ac-item.on{background:var(--blue-soft);color:var(--blue-dk)}
+      .pc-ac-item small{font-size:11px;color:var(--ink2);font-weight:600}`;
     document.head.appendChild(st);
   }
 
@@ -638,7 +660,7 @@
 
     const linksHtml = outrosLinks.length ? `<ul class="pc-links">${outrosLinks.map(l => `<li><a href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length > 70 ? l.slice(0, 70) + "…" : l)}</a></li>`).join("")}</ul>` : "";
     const exp = v.arquivos.length && !v.arquivos.every(a => a.expirado) ? ` · arquivos até ${brDia(v.expiraEm)}` : "";
-    const metaHtml = `<div class="pc-sub">Versão ${v.n} · enviada em ${brHora(v.enviadaEm)}${exp}</div>${v.obs ? `<div class="pc-obs-box">${esc(v.obs)}</div>` : ""}${linksHtml}`;
+    const metaHtml = `<div class="pc-sub">Versão ${v.n} · enviada em ${brHora(v.enviadaEm)}${exp}</div>${v.obs ? `<div class="pc-obs-box">${formatarTextoComMencoes(v.obs)}</div>` : ""}${linksHtml}`;
 
     return { mediaHtml, metaHtml, temMidia };
   }
@@ -646,14 +668,244 @@
     const { mediaHtml, metaHtml } = versaoPartes(p, v, true);
     return `${metaHtml}${mediaHtml ? `<div style="margin-top:8px">${mediaHtml}</div>` : ""}`;
   }
+
+  // ---------- Menções (@) em comentários e decisões ----------
+  function candidatosMencaoParaPeca(p) {
+    const eq = (base?.equipe && base.equipe.length ? base.equipe : base?.usuarios) || [];
+    const aprovSug = new Set((p?.aprovadores || []).map(a => a.login));
+    const remLogin = p?.remetente?.login || "";
+    const meuLogin = base?.login || "";
+    return eq
+      .filter(u => u.login && u.login !== meuLogin)
+      .map(u => {
+        const ehSugerido = aprovSug.has(u.login);
+        const ehRemetente = u.login === remLogin;
+        const ehAprovador = !!(u.podeDecidir || ["coordenador", "mestre", "gestao"].includes(u.funcao));
+        const papelTxt = ehSugerido ? "⭐ Aprovador da peça" : ehAprovador ? "Coordenador / Aprovador" : ehRemetente ? "Remetente da peça" : (u.funcao || "Equipe");
+        const ordem = ehSugerido ? 1 : ehAprovador ? 2 : ehRemetente ? 3 : 4;
+        return { login: u.login, nome: u.nome || u.login, funcao: u.funcao, ehSugerido, ehAprovador, ehRemetente, papelTxt, ordem };
+      })
+      .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt-BR"));
+  }
+
+  function formatarTextoComMencoes(textoBruto, mencoesEvento = []) {
+    let html = esc(textoBruto || "");
+    const eq = (base?.equipe && base.equipe.length ? base.equipe : base?.usuarios) || [];
+    const mapa = new Map();
+    for (const u of eq) if (u.login) mapa.set(u.login, u.nome || u.login);
+    for (const m of mencoesEvento || []) if (m && m.login) mapa.set(m.login, m.nome || m.login);
+
+    const meuLogin = base?.login || "";
+    const todos = [...mapa.entries()].map(([login, nome]) => ({ login, nome })).sort((a, b) => b.nome.length - a.nome.length);
+    for (const u of todos) {
+      const alvos = [esc(u.nome), esc(u.login)].filter(Boolean);
+      for (const alvo of alvos) {
+        const escRe = alvo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(`(^|[\\s([{"'])@${escRe}(?=$|[\\s.,!?;:)\\]}"'])`, "gi");
+        const cls = u.login === meuLogin ? "pc-tag-mencao eu" : "pc-tag-mencao";
+        html = html.replace(re, (_, pre) => `${pre}<span class="${cls}" title="${esc(u.login)}">@${esc(u.nome)}</span>`);
+      }
+    }
+    return html;
+  }
+
+  function barraChipsMencaoHtml(p, alvoSelectorAttr, alvoId) {
+    const cands = candidatosMencaoParaPeca(p);
+    if (!cands.length) return "";
+    // Exibe no topo os aprovadores sugeridos, aprovadores (coordenadores/gestão) e o remetente; os demais ficam acessíveis digitando @
+    const principais = cands.filter(c => c.ehSugerido || c.ehAprovador || c.ehRemetente).slice(0, 8);
+    const exibir = principais.length ? principais : cands.slice(0, 6);
+    return `<div class="pc-mencao-chips" data-mencao-bar="${esc(alvoId)}">
+      <span class="lbl">🔔 Marcar para notificar:</span>
+      ${exibir.map(u => `<button type="button" class="pc-chip-mencao${u.ehSugerido ? " sug" : ""}" data-inserir-mencao="${esc(u.login)}" data-mencao-nome="${esc(u.nome)}" data-mencao-alvo-attr="${esc(alvoSelectorAttr)}" data-mencao-alvo-id="${esc(alvoId)}" title="${esc(u.papelTxt)} (${esc(u.login)})">${u.ehSugerido ? "⭐ " : ""}@${esc(u.nome)}</button>`).join("")}
+      <span class="pc-sub" style="font-size:11px;margin-left:2px">(ou digite <b>@</b> no texto)</span>
+    </div>`;
+  }
+
+  function inserirMencaoNoTextarea(ta, login, nome) {
+    if (!ta) return;
+    const mencaoTxt = `@${nome} `;
+    const val = ta.value || "";
+    const start = typeof ta.selectionStart === "number" ? ta.selectionStart : val.length;
+    const end = typeof ta.selectionEnd === "number" ? ta.selectionEnd : val.length;
+    const antes = val.slice(0, start);
+    const depois = val.slice(end);
+    // Se estiver completando um @parcial digitado no cursor, substitui o @parcial
+    const mAt = /(^|[\s([{"'])@([^\s@]{0,35})$/.exec(antes);
+    let novoAntes, posCursor;
+    if (mAt) {
+      const corte = antes.length - mAt[2].length - 1;
+      novoAntes = antes.slice(0, corte) + mencaoTxt;
+      posCursor = novoAntes.length;
+    } else {
+      const sep = antes.length && !/\s$/.test(antes) ? " " : "";
+      novoAntes = antes + sep + mencaoTxt;
+      posCursor = novoAntes.length;
+    }
+    ta.value = novoAntes + depois;
+    const conj = new Set((ta.dataset.mencoesLogins || "").split(",").filter(Boolean));
+    conj.add(login);
+    ta.dataset.mencoesLogins = [...conj].join(",");
+    ta.focus();
+    try { ta.setSelectionRange(posCursor, posCursor); } catch {}
+    sincronizarChipsAtivosTextarea(ta);
+  }
+
+  function sincronizarChipsAtivosTextarea(ta) {
+    if (!ta) return;
+    const wrap = ta.closest(".pc-coment-area, .pc-dec, .pc-card");
+    if (!wrap) return;
+    const valNorm = String(ta.value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const loginsAtivos = new Set();
+    wrap.querySelectorAll("[data-inserir-mencao]").forEach(btn => {
+      const lg = btn.dataset.inserirMencao;
+      const nmNorm = String(btn.dataset.mencaoNome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const presente = valNorm.includes("@" + nmNorm) || valNorm.includes("@" + lg.toLowerCase());
+      btn.classList.toggle("ativo", presente);
+      if (presente) loginsAtivos.add(lg);
+    });
+    const atuais = new Set((ta.dataset.mencoesLogins || "").split(",").filter(Boolean));
+    loginsAtivos.forEach(l => atuais.add(l));
+    ta.dataset.mencoesLogins = [...atuais].join(",");
+  }
+
+  function coletarMencoesDoTextarea(ta) {
+    if (!ta) return [];
+    sincronizarChipsAtivosTextarea(ta);
+    return (ta.dataset.mencoesLogins || "").split(",").map(s => s.trim()).filter(Boolean);
+  }
+
+  // Menu flutuante de autocomplete ao digitar @ em qualquer textarea de comentário ou parecer de peça
+  if (!window.__qzPecMencaoListener) {
+    window.__qzPecMencaoListener = true;
+    let popEl = null, taAtual = null, itensAtuais = [], idxAtivo = 0;
+
+    const fecharPop = () => {
+      if (popEl) popEl.hidden = true;
+      taAtual = null;
+      itensAtuais = [];
+    };
+
+    const garantirPop = () => {
+      if (!popEl) {
+        popEl = document.createElement("div");
+        popEl.className = "pc-ac-pop";
+        popEl.hidden = true;
+        document.body.appendChild(popEl);
+      }
+      return popEl;
+    };
+
+    const renderPop = () => {
+      if (!popEl || !itensAtuais.length) { fecharPop(); return; }
+      popEl.innerHTML = itensAtuais.map((u, i) => `<button type="button" class="pc-ac-item${i === idxAtivo ? " on" : ""}" data-ac-idx="${i}">
+        <span>${u.ehSugerido ? "⭐ " : ""}<b>@${esc(u.nome)}</b></span>
+        <small>${esc(u.papelTxt)}</small>
+      </button>`).join("");
+      popEl.querySelectorAll("[data-ac-idx]").forEach(b => {
+        b.onmousedown = ev => {
+          ev.preventDefault();
+          const u = itensAtuais[Number(b.dataset.acIdx)];
+          if (u && taAtual) inserirMencaoNoTextarea(taAtual, u.login, u.nome);
+          fecharPop();
+        };
+      });
+    };
+
+    document.addEventListener("click", ev => {
+      const chip = ev.target.closest("[data-inserir-mencao]");
+      if (chip) {
+        ev.preventDefault();
+        const attr = chip.dataset.mencaoAlvoAttr;
+        const id = chip.dataset.mencaoAlvoId;
+        const card = chip.closest(".pc-card");
+        const ta = card ? card.querySelector(`textarea[${attr}="${CSS.escape(id)}"]`) : null;
+        if (ta) inserirMencaoNoTextarea(ta, chip.dataset.inserirMencao, chip.dataset.mencaoNome);
+        return;
+      }
+      if (popEl && !popEl.hidden && !popEl.contains(ev.target)) fecharPop();
+    });
+
+    document.addEventListener("input", ev => {
+      const ta = ev.target;
+      if (!ta || ta.tagName !== "TEXTAREA") return;
+      if (!ta.matches('[data-inp-coment], [data-c="com"], [data-f="obs"]')) return;
+      sincronizarChipsAtivosTextarea(ta);
+      const pos = typeof ta.selectionStart === "number" ? ta.selectionStart : ta.value.length;
+      const antes = ta.value.slice(0, pos);
+      const m = /(^|[\s([{"'])@([^\s@]{0,35})$/.exec(antes);
+      if (!m) { fecharPop(); return; }
+      const termo = m[2].normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const card = ta.closest(".pc-card");
+      const pecaCtx = card && card._pecaRef ? card._pecaRef : null;
+      const cands = candidatosMencaoParaPeca(pecaCtx).filter(u => {
+        const nm = u.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        return !termo || nm.includes(termo) || u.login.toLowerCase().includes(termo);
+      }).slice(0, 8);
+      if (!cands.length) { fecharPop(); return; }
+      taAtual = ta;
+      itensAtuais = cands;
+      idxAtivo = 0;
+      const p = garantirPop();
+      const rect = ta.getBoundingClientRect();
+      p.style.left = Math.max(10, Math.min(window.innerWidth - 260, rect.left + 12)) + "px";
+      p.style.top = Math.min(window.innerHeight - 250, rect.bottom + 4) + "px";
+      p.hidden = false;
+      renderPop();
+    });
+
+    document.addEventListener("keydown", ev => {
+      if (!popEl || popEl.hidden || !taAtual || !itensAtuais.length) return;
+      if (ev.key === "ArrowDown") { ev.preventDefault(); idxAtivo = (idxAtivo + 1) % itensAtuais.length; renderPop(); }
+      else if (ev.key === "ArrowUp") { ev.preventDefault(); idxAtivo = (idxAtivo - 1 + itensAtuais.length) % itensAtuais.length; renderPop(); }
+      else if (ev.key === "Enter" || ev.key === "Tab") {
+        ev.preventDefault();
+        const u = itensAtuais[idxAtivo];
+        if (u) inserirMencaoNoTextarea(taAtual, u.login, u.nome);
+        fecharPop();
+      } else if (ev.key === "Escape") {
+        fecharPop();
+      }
+    });
+  }
+
+  function mencoesNaoLidasDaPecaNoCliente(p) {
+    const meuLogin = base?.login;
+    if (!meuLogin || !Array.isArray(p?.historico)) return [];
+    return p.historico.filter(h => {
+      const ms = Array.isArray(h.mencoes) ? h.mencoes : [];
+      if (!ms.some(m => (m.login || m) === meuLogin)) return false;
+      if (h.por?.login === meuLogin) return false;
+      const vistos = Array.isArray(h.vistoPor) ? h.vistoPor : [];
+      return !vistos.includes(meuLogin);
+    });
+  }
+
+  function usuarioFoiMencionadoNaPeca(p) {
+    const meuLogin = base?.login;
+    if (!meuLogin || !Array.isArray(p?.historico)) return false;
+    return p.historico.some(h => (Array.isArray(h.mencoes) ? h.mencoes : []).some(m => (m.login || m) === meuLogin));
+  }
+
   function cartao(p, extra) {
     const atual = p.versoes[p.versoes.length - 1], anteriores = p.versoes.slice(0, -1).reverse();
     const { mediaHtml, metaHtml, temMidia } = versaoPartes(p, atual, false);
+    const meuLogin = base?.login || "";
     const hist = (p.historico || []).filter(h => h.tipo !== "envio" || h.comentario).map(h => {
       const ehCom = h.tipo === "comentario";
       const acao = ehCom ? "comentou" : (ACAO[h.tipo] || esc(h.tipo));
       const det = ehCom ? "" : ` a versão ${h.versao}`;
-      return `<li><b>${esc(h.por?.nome || "")}</b> ${acao}${det} · <span class="pc-sub">${brHora(h.em)}</span>${h.comentario ? `<span class="c">${esc(h.comentario)}</span>` : ""}</li>`;
+      const mencoesEv = Array.isArray(h.mencoes) ? h.mencoes : [];
+      const mencionouEu = mencoesEv.some(m => (m.login || m) === meuLogin);
+      const pillsExtras = mencoesEv
+        .filter(m => {
+          const nm = (m.nome || m.login || "").toLowerCase();
+          const cm = (h.comentario || "").toLowerCase();
+          return nm && !cm.includes("@" + nm) && !cm.includes("@" + (m.login || "").toLowerCase());
+        })
+        .map(m => `<span class="pc-tag-mencao${(m.login || m) === meuLogin ? " eu" : ""}">@${esc(m.nome || m.login)}</span>`)
+        .join(" ");
+      return `<li style="${mencionouEu ? "background:#FFFBEB;padding:6px 8px;border-radius:6px;border-left:3px solid #F59E0B" : ""}"><b>${esc(h.por?.nome || "")}</b> ${acao}${det} · <span class="pc-sub">${brHora(h.em)}</span>${pillsExtras ? ` ${pillsExtras}` : ""}${h.comentario ? `<span class="c">${formatarTextoComMencoes(h.comentario, mencoesEv)}</span>` : ""}</li>`;
     }).join("");
     const aprovTxt = (p.aprovadores && p.aprovadores.length)
       ? ` · Aprovadores sugeridos: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
@@ -663,12 +915,18 @@
     const souRemetente = !!(p.minha || (base && p.remetente && p.remetente.login === base.login));
     const podeEditarPeca = !ehBloqueado && (souRemetente || (base && (base.podeDecidir || base.ehGestao || base.funcao === "mestre")));
     const podeComentar = p.status !== "aprovada";
+    const mencoesNaoLidas = mencoesNaoLidasDaPecaNoCliente(p);
+    const bannerMencao = mencoesNaoLidas.length ? `<div class="pc-card-mencao-banner">
+      <span>🔔 <b>Você foi marcado neste material</b> por ${esc(mencoesNaoLidas.map(m => m.por?.nome || "alguém").filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>
+      <button class="btn small" type="button" data-marcar-mencao-lida="${esc(p.id)}" style="background:#fff;border-color:#F59E0B;color:#92400E;padding:2px 9px;min-height:0">✓ Marcar como visto</button>
+    </div>` : "";
     const boxComentario = podeComentar ? `<div class="pc-coment-area" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)">
-      <details style="font-size:13px" data-coment-wrap="${esc(p.id)}">
-        <summary style="cursor:pointer;color:var(--blue);font-weight:600;user-select:none;display:inline-flex;align-items:center;gap:5px">💬 Adicionar comentário</summary>
+      <details style="font-size:13px" data-coment-wrap="${esc(p.id)}"${mencoesNaoLidas.length ? " open" : ""}>
+        <summary style="cursor:pointer;color:var(--blue);font-weight:600;user-select:none;display:inline-flex;align-items:center;gap:5px">💬 Adicionar comentário / marcar aprovador</summary>
         <div style="margin-top:8px">
-          <textarea data-inp-coment="${esc(p.id)}" placeholder="Escreva uma observação ou comentário sobre este material…" style="width:100%;min-height:56px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box"></textarea>
-          <div class="pc-bar" style="margin-top:6px;justify-content:flex-end">
+          <textarea data-inp-coment="${esc(p.id)}" placeholder="Escreva um comentário… Use @ para marcar um aprovador ou clique em um nome abaixo" style="width:100%;min-height:58px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box"></textarea>
+          ${barraChipsMencaoHtml(p, "data-inp-coment", p.id)}
+          <div class="pc-bar" style="margin-top:8px;justify-content:flex-end">
             <button class="btn small primary" type="button" data-enviar-coment="${esc(p.id)}">Enviar comentário</button>
           </div>
         </div>
@@ -692,7 +950,9 @@
         </div>`
       : `<div style="margin-top:8px">${infoCol}</div>`;
 
-    return `<div class="pc-card" data-id="${esc(p.id)}"><div class="pc-top"><div class="t">
+    return `<div class="pc-card${mencoesNaoLidas.length ? " mencionado-nao-lido" : ""}" id="peca-card-${esc(p.id)}" data-id="${esc(p.id)}">
+      ${bannerMencao}
+      <div class="pc-top"><div class="t">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span>${tagTipo}</div>
         <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
         <div style="display:flex;gap:6px;align-items:center">
@@ -738,7 +998,85 @@
     }
   }
 
-  const assinaturaListaPecas = arr => (arr || []).map(p => `${p.id}:${p.status}:${p.versao}:${p.atualizadoEm || ""}:${(p.historico || []).length}`).join("|");
+  const assinaturaListaPecas = arr => (arr || []).map(p => {
+    const hSig = (p.historico || []).map(h => `${h.id || h.em}:${(h.mencoes || []).length}:${(h.vistoPor || []).join(",")}`).join(";");
+    return `${p.id}:${p.status}:${p.versao}:${p.atualizadoEm || ""}:${hSig}`;
+  }).join("|");
+
+  // Controle de notificações em tempo real de menções (@) para o usuário logado
+  const mencoesJaNotificadas = new Set();
+  let primeiraCargaNotifConcluida = false;
+
+  function verificarNovasMencoesNotificar(todasPecas, toastFn) {
+    if (!base?.login || !Array.isArray(todasPecas)) return;
+    const novasParaNotificar = [];
+    for (const p of todasPecas) {
+      const naoLidas = mencoesNaoLidasDaPecaNoCliente(p);
+      for (const h of naoLidas) {
+        const key = `${p.id}_${h.id || h.em}`;
+        if (!mencoesJaNotificadas.has(key)) {
+          mencoesJaNotificadas.add(key);
+          if (primeiraCargaNotifConcluida) {
+            novasParaNotificar.push({ peca: p, hist: h });
+          }
+        }
+      }
+    }
+    primeiraCargaNotifConcluida = true;
+    if (!novasParaNotificar.length) return;
+    const ult = novasParaNotificar[novasParaNotificar.length - 1];
+    const msg = `🔔 ${ult.hist.por?.nome || "Alguém"} marcou você em "${ult.peca.titulo}" (${ult.peca.clienteNome})`;
+    if (typeof toastFn === "function") toastFn(msg);
+    try {
+      if ("Notification" in window && Notification.permission === "granted") {
+        const n = new Notification("Central Quinze · Menção em peça", {
+          body: `${ult.hist.por?.nome || "Alguém"} marcou você em "${ult.peca.titulo}": ${(ult.hist.comentario || "").slice(0, 120)}`,
+          tag: `qz-mencao-${ult.peca.id}`,
+        });
+        n.onclick = () => {
+          window.focus();
+          const card = document.getElementById(`peca-card-${ult.peca.id}`);
+          if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+        };
+      }
+    } catch {}
+  }
+
+  function renderPainelNotificacoesMencoes(todasPecas) {
+    if (!base?.login || !Array.isArray(todasPecas)) return "";
+    const itens = [];
+    for (const p of todasPecas) {
+      for (const h of mencoesNaoLidasDaPecaNoCliente(p)) {
+        itens.push({ peca: p, hist: h });
+      }
+    }
+    if (!itens.length) return "";
+    itens.sort((a, b) => (b.hist.em || "").localeCompare(a.hist.em || ""));
+    const permNav = ("Notification" in window && Notification.permission === "default")
+      ? `<button class="btn small" type="button" data-x="ativar-notif-nav" style="background:#fff;border-color:#F59E0B;color:#92400E">🔔 Ativar alertas do navegador</button>`
+      : "";
+    return `<div class="pc-notif-panel">
+      <div class="pc-notif-head">
+        <b>🔔 Você foi mencionado em ${itens.length} comentário${itens.length === 1 ? "" : "s"} pendente${itens.length === 1 ? "" : "s"} de leitura</b>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${permNav}
+          <button class="btn small" type="button" data-x="ler-todas-mencoes" style="background:#fff;border-color:#F59E0B;color:#92400E">✓ Marcar todas como vistas</button>
+        </div>
+      </div>
+      <div class="pc-notif-list">
+        ${itens.slice(0, 6).map(({ peca, hist }) => `<div class="pc-notif-item">
+          <div style="flex:1;min-width:200px">
+            <div><b>${esc(hist.por?.nome || "Alguém")}</b> mencionou você em <b>${esc(peca.titulo)}</b> <span class="pc-cli">${esc(peca.clienteNome)}</span> · <span class="pc-sub">${brHora(hist.em)}</span></div>
+            <div style="margin-top:3px;color:var(--ink)">${formatarTextoComMencoes(hist.comentario || "", hist.mencoes || [])}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+            <button class="btn small primary" type="button" data-ir-peca="${esc(peca.id)}">Ver peça ↓</button>
+            <button class="btn small" type="button" data-marcar-mencao-lida="${esc(peca.id)}">✓ Visto</button>
+          </div>
+        </div>`).join("")}
+      </div>
+    </div>`;
+  }
 
   function usuarioInteragindoEm(rootEl) {
     if (!rootEl) return false;
@@ -771,6 +1109,7 @@
     const el = ctx.el;
     el.innerHTML = `<div class="pc-h"><div><h2>Envio de peças</h2><div class="pc-sub">Escolha o cliente, anexe o material (ou link de Reels do Google Drive) e envie para a fila de aprovação.</div></div><span class="sp"></span>
       <button class="btn primary" type="button" data-x="nova">Nova peça</button></div>
+      <div data-box="notif-mencoes"></div>
       <div data-box="form"></div>
       <div class="pc-filtros"><label>Status<select data-x="st"><option value="">Todas</option>${Object.entries(ST).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
         <label>Tipo de peça<select data-x="f-midia"><option value="">Todos os tipos</option><option value="online">🌐 Online</option><option value="offline">📦 Offline</option></select></label>
@@ -781,6 +1120,7 @@
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
     function aplicarDados(todasPecas, { silencioso = false } = {}) {
       atualizarBadgeFila(todasPecas);
+      verificarNovasMencoesNotificar(todasPecas, ctx.toast);
       const minhas = (todasPecas || []).filter(p => p.minha);
       const sig = assinaturaListaPecas(minhas);
       if (silencioso && sig === ultAssinatura) return;
@@ -806,12 +1146,40 @@
       const fMidia = fv("f-midia");
       const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fMidia || (p.tipoMidia || "online") === fMidia) && (!fv("cli") || p.clienteId === fv("cli")));
       const visiveis = l.slice(0, limite);
+      if (box("notif-mencoes")) box("notif-mencoes").innerHTML = renderPainelNotificacoesMencoes(lista);
       box("lista").innerHTML = l.length ? visiveis.map(p => cartao(p, ["aprovada", "reprovada", "alteracao_solicitada"].includes(p.status)
         ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("") + rodapePaginacao(l.length, visiveis.length)
         : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
+      el.querySelectorAll(".pc-card[data-id]").forEach(c => { c._pecaRef = lista.find(q => q.id === c.dataset.id) || null; });
     }
     el.addEventListener("click", async ev => {
       if (ev.target.closest('[data-x="mostrar-mais"]')) { limite += LIMITE_PAGINA_PECAS; render(); return; }
+      const btnIrPeca = ev.target.closest("[data-ir-peca]");
+      if (btnIrPeca) {
+        const pid = btnIrPeca.dataset.irPeca;
+        const card = el.querySelector(`#peca-card-${CSS.escape(pid)}`);
+        if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      const btnLerMencao = ev.target.closest("[data-marcar-mencao-lida]");
+      if (btnLerMencao) {
+        const pid = btnLerMencao.dataset.marcarMencaoLida;
+        btnLerMencao.disabled = true;
+        try { await api("mencao.ler", { pecaId: pid }); carregar(); if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais(); } catch (e) { ctx.toast(e.message); }
+        return;
+      }
+      if (ev.target.closest('[data-x="ler-todas-mencoes"]')) {
+        try { await api("mencao.ler", { todas: true }); ctx.toast("Menções marcadas como vistas"); carregar(); if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais(); } catch (e) { ctx.toast(e.message); }
+        return;
+      }
+      if (ev.target.closest('[data-x="ativar-notif-nav"]')) {
+        if ("Notification" in window) {
+          const p = await Notification.requestPermission();
+          ctx.toast(p === "granted" ? "Alertas do navegador ativados!" : "Permissão de notificação não concedida.");
+          render();
+        }
+        return;
+      }
       const editBtn = ev.target.closest('[data-x="editar-peca"]');
       if (editBtn) {
         const id = editBtn.dataset.id || editBtn.closest("[data-id]")?.dataset.id;
@@ -827,6 +1195,7 @@
           aoEnviar: (novaPeca) => {
             ctx.toast(`Nova versão (v${novaPeca?.versao || (p.versao + 1)}) enviada`);
             carregar();
+            if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais();
           },
           aoCancelar: () => { alvo.innerHTML = ""; }
         });
@@ -839,11 +1208,13 @@
         const ta = card ? card.querySelector(`[data-inp-coment="${CSS.escape(id)}"]`) : null;
         const texto = (ta ? ta.value : "").trim();
         if (!texto) { ctx.toast("Escreva um comentário antes de enviar."); ta?.focus(); return; }
+        const mencoes = coletarMencoesDoTextarea(ta);
         comentBtn.disabled = true;
         try {
-          await api("peca.comentar", { id, comentario: texto });
+          await api("peca.comentar", { id, comentario: texto, mencoes });
           ctx.toast("Comentário adicionado");
           carregar();
+          if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais();
         } catch (e) {
           ctx.toast(e.message || "Erro ao adicionar comentário");
           comentBtn.disabled = false;
@@ -887,9 +1258,15 @@
     const el = ctx.el;
     el.innerHTML = `<div class="pc-h"><div><h2>Fila de aprovação</h2><div class="pc-sub" data-box="sub"></div></div><span class="sp"></span>
       <button class="btn" type="button" data-x="apagar-fila" style="color:var(--danger);border-color:rgba(192,39,26,.35)">🗑️ Apagar fila (Senha mestre)</button></div>
+      <div data-box="notif-mencoes"></div>
       <div class="pc-filtros">
         <label>Status<select data-x="st"><option value="pendente">Pendentes (inclui reenviadas)</option><option value="">Todas</option>
           <option value="aprovada">Aprovadas</option><option value="alteracao_solicitada">Alteração solicitada</option><option value="reprovada">Reprovadas</option></select></label>
+        <label>Menções<select data-x="f-mencao">
+          <option value="">Todas as peças</option>
+          <option value="nao_lidas">🔔 Marcado para mim (não lidas)</option>
+          <option value="mencionado">💬 Marcado com @mim (todas)</option>
+        </select></label>
         <label>Tipo de peça<select data-x="f-midia"><option value="">Todos os tipos (Qualquer)</option><option value="online">🌐 Apenas Online</option><option value="offline">📦 Apenas Offline</option></select></label>
         <label>Período<select data-x="f-per"><option value="">Todas as datas</option><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="semana">Essa semana</option><option value="mes">Esse mês</option><option value="custom">Personalizado…</option></select></label>
         <label data-box="wrap-de" hidden>Data inicial<input type="date" data-x="f-de" style="padding:4px 8px;font-size:13px"></label>
@@ -913,9 +1290,11 @@
       const { de, ate } = obterIntervaloFila();
       const st = fv("st");
       const fMidia = fv("f-midia");
+      const fMencao = fv("f-mencao");
       return lista.filter(p =>
         (!st || p.status === st) &&
         (!fMidia || (p.tipoMidia || "online") === fMidia) &&
+        (!fMencao || (fMencao === "nao_lidas" ? mencoesNaoLidasDaPecaNoCliente(p).length > 0 : usuarioFoiMencionadoNaPeca(p))) &&
         (!fv("cli") || p.clienteId === fv("cli")) &&
         (!fv("rem") || (p.remetente && p.remetente.login) === fv("rem")) &&
         pecaBatePeriodo(p, st, de, ate)
@@ -923,6 +1302,7 @@
     };
     function aplicarDados(todasPecas, { silencioso = false } = {}) {
       atualizarBadgeFila(todasPecas);
+      verificarNovasMencoesNotificar(todasPecas, ctx.toast);
       const novas = todasPecas || [];
       const sig = assinaturaListaPecas(novas);
       if (silencioso && sig === ultAssinatura) return;
@@ -952,6 +1332,7 @@
       const l = filtradasAtuais()
         .sort((a, b) => fv("st") === "pendente" ? a.atualizadoEm.localeCompare(b.atualizadoEm) : b.atualizadoEm.localeCompare(a.atualizadoEm));
       const visiveis = l.slice(0, limite);
+      if (box("notif-mencoes")) box("notif-mencoes").innerHTML = renderPainelNotificacoesMencoes(lista);
       box("lista").innerHTML = l.length ? visiveis.map(p => {
         const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
         const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
@@ -962,7 +1343,8 @@
         let acoesHtml = "";
         if (podeDecidirEsta && p.status === "pendente") {
           acoesHtml = `<div class="pc-dec">
-          <textarea data-c="com" placeholder="Comentário (obrigatório para reprovar ou pedir alteração)"></textarea>
+          <textarea data-c="com" data-dec-coment="${esc(p.id)}" placeholder="Comentário / parecer (obrigatório para reprovar ou pedir alteração · use @ para marcar alguém)"></textarea>
+          ${barraChipsMencaoHtml(p, "data-dec-coment", p.id)}
           <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
           <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
           <span class="pc-sub" data-c="msg"></span></div></div>`;
@@ -975,13 +1357,47 @@
       }).join("") + rodapePaginacao(l.length, visiveis.length)
         : `<div class="pc-card pc-vazio">${
             lista.length
-              ? (fv("st") === "pendente" && !fv("f-per") && !fv("cli") && !fv("rem")
+              ? (fv("st") === "pendente" && !fv("f-per") && !fv("cli") && !fv("rem") && !fv("f-mencao")
                   ? `Não há peças pendentes de aprovação no momento. <div style="margin-top:10px"><button class="btn small" type="button" data-x="ver-todas">Ver todas as peças da fila (${lista.length})</button></div>`
                   : `Nenhuma peça encontrada com esses filtros. <div style="margin-top:10px"><button class="btn small" type="button" data-x="limpar-filtros-fila">Limpar filtros</button></div>`)
               : "Nenhuma peça na fila."
           }</div>`;
+      el.querySelectorAll(".pc-card[data-id]").forEach(c => { c._pecaRef = lista.find(q => q.id === c.dataset.id) || null; });
     }
     el.addEventListener("click", async ev => {
+      const btnIrPeca = ev.target.closest("[data-ir-peca]");
+      if (btnIrPeca) {
+        const pid = btnIrPeca.dataset.irPeca;
+        let card = el.querySelector(`#peca-card-${CSS.escape(pid)}`);
+        if (!card) {
+          el.querySelector('[data-x="st"]').value = "";
+          const mEl = el.querySelector('[data-x="f-mencao"]'); if (mEl) mEl.value = "";
+          limite = Math.max(limite, lista.length);
+          render();
+          card = el.querySelector(`#peca-card-${CSS.escape(pid)}`);
+        }
+        if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      const btnLerMencao = ev.target.closest("[data-marcar-mencao-lida]");
+      if (btnLerMencao) {
+        const pid = btnLerMencao.dataset.marcarMencaoLida;
+        btnLerMencao.disabled = true;
+        try { await api("mencao.ler", { pecaId: pid }); carregar(); if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais(); } catch (e) { ctx.toast(e.message); }
+        return;
+      }
+      if (ev.target.closest('[data-x="ler-todas-mencoes"]')) {
+        try { await api("mencao.ler", { todas: true }); ctx.toast("Menções marcadas como vistas"); carregar(); if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais(); } catch (e) { ctx.toast(e.message); }
+        return;
+      }
+      if (ev.target.closest('[data-x="ativar-notif-nav"]')) {
+        if ("Notification" in window) {
+          const p = await Notification.requestPermission();
+          ctx.toast(p === "granted" ? "Alertas do navegador ativados!" : "Permissão de notificação não concedida.");
+          render();
+        }
+        return;
+      }
       const editBtn = ev.target.closest('[data-x="editar-peca"]');
       if (editBtn) {
         const id = editBtn.dataset.id || editBtn.closest("[data-id]")?.dataset.id;
@@ -997,6 +1413,7 @@
           aoEnviar: (novaPeca) => {
             ctx.toast(`Nova versão (v${novaPeca?.versao || (p.versao + 1)}) enviada para a fila de aprovação`);
             carregar();
+            if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais();
           },
           aoCancelar: () => { alvo.innerHTML = ""; }
         });
@@ -1009,11 +1426,13 @@
         const ta = card ? card.querySelector(`[data-inp-coment="${CSS.escape(id)}"]`) : null;
         const texto = (ta ? ta.value : "").trim();
         if (!texto) { ctx.toast("Escreva um comentário antes de enviar."); ta?.focus(); return; }
+        const mencoes = coletarMencoesDoTextarea(ta);
         comentBtn.disabled = true;
         try {
-          await api("peca.comentar", { id, comentario: texto });
+          await api("peca.comentar", { id, comentario: texto, mencoes });
           ctx.toast("Comentário adicionado");
           carregar();
+          if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais();
         } catch (e) {
           ctx.toast(e.message || "Erro ao adicionar comentário");
           comentBtn.disabled = false;
@@ -1026,7 +1445,7 @@
         const p = lista.find(q => q.id === id);
         const senhaMestre = await pedirSenhaMestre("Apagar peça", `Confirme a senha mestre para apagar "${p?.titulo || id}".`);
         if (!senhaMestre) return;
-        try { await api("peca.excluir", { id, senhaMestre }); ctx.toast("Peça apagada"); carregar(); }
+        try { await api("peca.excluir", { id, senhaMestre }); ctx.toast("Peça apagada"); carregar(); if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais(); }
         catch (e) { ctx.toast(e.message); }
         return;
       }
@@ -1044,6 +1463,7 @@
           const r = await api("fila.apagar", { ids: visiveis.map(p => p.id), senhaMestre });
           ctx.toast(`${r.apagadas} peça(s) apagada(s) da fila`);
           carregar();
+          if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais();
         } catch (e) { ctx.toast(e.message); }
         return;
       }
@@ -1056,6 +1476,7 @@
       if (ev.target.closest('[data-x="limpar-filtros-fila"]')) {
         el.querySelector('[data-x="st"]').value = "";
         const mEl = el.querySelector('[data-x="f-midia"]'); if (mEl) mEl.value = "";
+        const mcEl = el.querySelector('[data-x="f-mencao"]'); if (mcEl) mcEl.value = "";
         el.querySelector('[data-x="f-per"]').value = "";
         const deEl = el.querySelector('[data-x="f-de"]'); if (deEl) deEl.value = "";
         const ateEl = el.querySelector('[data-x="f-ate"]'); if (ateEl) ateEl.value = "";
@@ -1068,10 +1489,11 @@
         return;
       }
       const d = ev.target.dataset.d; if (!d) return;
-      const card = ev.target.closest("[data-id]"), com = card.querySelector('[data-c="com"]').value.trim(), msg = card.querySelector('[data-c="msg"]');
-      if (d !== "aprovada" && !com) { msg.textContent = "Escreva o comentário."; card.querySelector('[data-c="com"]').focus(); return; }
+      const card = ev.target.closest("[data-id]"), taDec = card.querySelector('[data-c="com"]'), com = taDec.value.trim(), msg = card.querySelector('[data-c="msg"]');
+      if (d !== "aprovada" && !com) { msg.textContent = "Escreva o comentário."; taDec.focus(); return; }
+      const mencoes = coletarMencoesDoTextarea(taDec);
       card.querySelectorAll("[data-d]").forEach(b => { b.disabled = true; });
-      try { await api("peca.decidir", { id: card.dataset.id, decisao: d, comentario: com }); ctx.toast(ST[d]); carregar(); }
+      try { await api("peca.decidir", { id: card.dataset.id, decisao: d, comentario: com, mencoes }); ctx.toast(ST[d]); carregar(); if (window.QZ_atualizarNotificacoesGlobais) window.QZ_atualizarNotificacoesGlobais(); }
       catch (e) { msg.textContent = e.message; card.querySelectorAll("[data-d]").forEach(b => { b.disabled = false; }); }
     });
     el.addEventListener("change", ev => {

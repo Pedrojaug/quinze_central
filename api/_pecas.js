@@ -509,6 +509,86 @@ function publica(p, u) {
     historico: p.historico };
 }
 
+// Extrai usuários mencionados por @Nome ou @login no texto do comentário/observação, somados aos logins explicitamente marcados.
+const normTextoMencao = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+function resolverMencoes(texto, mencoesInput, todosUsuarios, autorLogin) {
+  const selecionados = new Map();
+  const ativos = (todosUsuarios || []).filter(x => x.login && x.login !== "equipe.inteligentte");
+  const porLogin = new Map(ativos.map(x => [x.login.toLowerCase(), x]));
+
+  if (Array.isArray(mencoesInput)) {
+    for (const raw of mencoesInput) {
+      const lg = String(raw && typeof raw === "object" ? raw.login : raw || "").trim().toLowerCase();
+      const u = porLogin.get(lg);
+      if (u && u.login !== autorLogin) selecionados.set(u.login, { login: u.login, nome: u.nome || u.login });
+    }
+  }
+
+  const txtNorm = normTextoMencao(texto);
+  if (txtNorm.includes("@")) {
+    // Ordena por nomes mais longos primeiro para casar "@André Silva" antes de "@André"
+    const ordenados = [...ativos].sort((a, b) => (b.nome || b.login).length - (a.nome || a.login).length);
+    for (const u of ordenados) {
+      if (u.login === autorLogin || selecionados.has(u.login)) continue;
+      const nomeNorm = normTextoMencao(u.nome || "");
+      const primeiroNome = nomeNorm.split(/\s+/)[0] || "";
+      const loginNorm = normTextoMencao(u.login);
+      const candidatos = [nomeNorm, loginNorm, primeiroNome.length >= 3 ? primeiroNome : ""].filter(Boolean);
+      for (const cand of candidatos) {
+        const escRe = cand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(`(^|[\\s([{"'])@${escRe}(?=$|[\\s.,!?;:)\\]}"'])`, "i");
+        if (re.test(txtNorm)) {
+          selecionados.set(u.login, { login: u.login, nome: u.nome || u.login });
+          break;
+        }
+      }
+    }
+  }
+  return [...selecionados.values()];
+}
+
+function mencoesNaoLidasPara(p, login) {
+  if (!login || !Array.isArray(p.historico)) return [];
+  const out = [];
+  p.historico.forEach((h, idx) => {
+    const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
+    if (!listaM.some(m => (m.login || m) === login)) return;
+    if (h.por?.login === login) return;
+    const vistos = Array.isArray(h.vistoPor) ? h.vistoPor : [];
+    if (vistos.includes(login)) return;
+    out.push({
+      hid: h.id || `${p.id}_${idx}`,
+      pecaId: p.id,
+      pecaTitulo: p.titulo,
+      clienteNome: p.clienteNome,
+      statusPeca: p.status,
+      versao: h.versao || p.versao || 1,
+      tipo: h.tipo,
+      em: h.em,
+      por: h.por || { login: "", nome: "Alguém" },
+      comentario: h.comentario || "",
+    });
+  });
+  return out;
+}
+
+function marcarMencoesLidasNaPeca(p, login, hidAlvo = null) {
+  if (!login || !Array.isArray(p.historico)) return false;
+  let alterou = false;
+  p.historico.forEach((h, idx) => {
+    const hid = h.id || `${p.id}_${idx}`;
+    if (hidAlvo && hid !== hidAlvo) return;
+    const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
+    if (!listaM.some(m => (m.login || m) === login)) return;
+    h.vistoPor = Array.isArray(h.vistoPor) ? h.vistoPor : [];
+    if (!h.vistoPor.includes(login)) {
+      h.vistoPor.push(login);
+      alterou = true;
+    }
+  });
+  return alterou;
+}
+
 // ---------- Validação de arquivos e links enviados ----------
 async function conferirArquivos(u, lista) {
   const arr = Array.isArray(lista) ? lista : [];
@@ -557,9 +637,15 @@ async function proximoNumeroPeca(clienteId) {
 // ---------- Rotas ----------
 async function inicio(u, req, res) {
   const todos = await usuariosAtivos();
-  const usuarios = todos.filter(x => podeDecidir(x) && x.login !== "equipe.inteligentte").map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x) }));
+  const usuarios = todos.filter(x => podeDecidir(x) && x.login !== "equipe.inteligentte").map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x), podeDecidir: true }));
+  const equipe = todos.filter(x => x.login !== "equipe.inteligentte").map(x => ({
+    login: x.login,
+    nome: x.nome || x.login,
+    funcao: perfilDe(x),
+    podeDecidir: podeDecidir(x),
+  }));
   return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login, funcao: perfilDe(u),
-    clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
+    clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, equipe, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
     retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
 }
 
@@ -602,9 +688,10 @@ async function pecaEnviar(u, req, res) {
   const em = agora(), id = novoId();
   const numPeca = await proximoNumeroPeca(cli.id);
   const titulo = tituloInformado || `Peça #${numPeca} | ${cli.nome}`;
+  const mencoesEnvio = resolverMencoes(obs, b.mencoes, todos, u.login);
   const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, tipoMidia, remetente: quem(u), aprovadores, status: "pendente", versao: 1,
     versoes: [{ n: 1, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links }],
-    historico: [{ tipo: "envio", versao: 1, em, por: quem(u), comentario: obs }], criadoEm: em, atualizadoEm: em };
+    historico: [{ id: novoId(), tipo: "envio", versao: 1, em, por: quem(u), comentario: obs, mencoes: mencoesEnvio, vistoPor: [u.login] }], criadoEm: em, atualizadoEm: em };
   await gravar(M, "pecas", id, p);
   await contar(mesAtual(), {
     pecas: 1, versoes: 1, [`enviadas:${u.login}`]: 1, [`versoes:${u.login}`]: 1,
@@ -639,7 +726,10 @@ async function pecaReenviar(u, req, res) {
   }
   p.versoes.push({ n, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links });
   const tipoHist = statusAnterior === "aprovada" ? "edicao_aprovada" : "reenvio";
-  p.historico.push({ tipo: tipoHist, versao: n, em, por: quem(u), comentario: obs || (statusAnterior === "aprovada" ? "Material aprovado foi editado (nova versão)" : "Nova versão enviada") });
+  const todos = await usuariosAtivos();
+  const mencoesReenvio = resolverMencoes(obs, b.mencoes, todos, u.login);
+  marcarMencoesLidasNaPeca(p, u.login);
+  p.historico.push({ id: novoId(), tipo: tipoHist, versao: n, em, por: quem(u), comentario: obs || (statusAnterior === "aprovada" ? "Material aprovado foi editado (nova versão)" : "Nova versão enviada"), mencoes: mencoesReenvio, vistoPor: [u.login] });
   Object.assign(p, { versao: n, status: "pendente", atualizadoEm: em });
   await gravar(M, "pecas", p.id, p);
   const incReenvio = { versoes: 1, [`versoes:${u.login}`]: 1 };
@@ -676,7 +766,10 @@ async function pecaDecidir(u, req, res) {
   if (!autorizado) return negado(res, "Apenas coordenadores e gestão podem aprovar ou decidir peças.");
   if (p.status !== "pendente") return res.status(409).json({ code: "status", msg: "Esta peça já foi decidida." });
   const em = agora();
-  p.historico.push({ tipo: decisao, versao: p.versao, em, por: quem(u), comentario });
+  const todos = await usuariosAtivos();
+  const mencoesDec = resolverMencoes(comentario, b.mencoes, todos, u.login);
+  marcarMencoesLidasNaPeca(p, u.login);
+  p.historico.push({ id: novoId(), tipo: decisao, versao: p.versao, em, por: quem(u), comentario, mencoes: mencoesDec, vistoPor: [u.login] });
   Object.assign(p, { status: decisao, atualizadoEm: em, decididoEm: em, decididoPor: quem(u) });
   await gravar(M, "pecas", p.id, p);
   const inc = { [decisao]: 1, [`dec:${u.login}:${decisao}`]: 1 };
@@ -719,11 +812,54 @@ async function pecaComentar(u, req, res) {
     return res.status(400).json({ code: "ja_aprovada", msg: "Esta peça já foi aprovada. Comentários só são permitidos em materiais não aprovados." });
   }
   const em = agora();
+  const todos = await usuariosAtivos();
+  const mencoesCom = resolverMencoes(comentario, b.mencoes, todos, u.login);
+  marcarMencoesLidasNaPeca(p, u.login);
   p.historico = Array.isArray(p.historico) ? p.historico : [];
-  p.historico.push({ tipo: "comentario", versao: p.versao, em, por: quem(u), comentario });
+  p.historico.push({ id: novoId(), tipo: "comentario", versao: p.versao, em, por: quem(u), comentario, mencoes: mencoesCom, vistoPor: [u.login] });
   p.atualizadoEm = em;
   await gravar(M, "pecas", p.id, p);
   return res.json({ ok: true, peca: publica(p, u) });
+}
+
+// Notificações leves para o cabeçalho global e o módulo de peças: menções não lidas para o usuário logado + total de pendentes
+async function notificacoes(u, req, res) {
+  if (!veTodas(u) && !podeEnviar(u)) return res.json({ mencoes: [], pendentes: 0 });
+  const lista = (await listar(M, "pecas")).filter(p => podeVer(u, p));
+  const pendentes = lista.filter(p => p.status === "pendente").length;
+  const mencoes = [];
+  for (const p of lista) {
+    mencoes.push(...mencoesNaoLidasPara(p, u.login));
+  }
+  mencoes.sort((a, b) => (b.em || "").localeCompare(a.em || ""));
+  return res.json({ mencoes, pendentes });
+}
+
+// Marcar menção(ões) como lida(s) pelo usuário logado (por peça, por evento específico ou todas)
+async function mencaoLer(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  const b = corpo(req);
+  const pecaId = b.pecaId ? String(b.pecaId).trim() : "";
+  const hid = b.hid ? String(b.hid).trim() : null;
+  const todas = !!b.todas;
+
+  if (pecaId && !todas) {
+    const p = await ler(M, "pecas", pecaId);
+    if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada." });
+    if (marcarMencoesLidasNaPeca(p, u.login, hid)) {
+      await gravar(M, "pecas", p.id, p);
+    }
+    return res.json({ ok: true });
+  }
+
+  let marcadas = 0;
+  for (const p of await listar(M, "pecas")) {
+    if (marcarMencoesLidasNaPeca(p, u.login, null)) {
+      await gravar(M, "pecas", p.id, p);
+      marcadas++;
+    }
+  }
+  return res.json({ ok: true, marcadas });
 }
 
 // Excluir uma peça individual mediante senha mestre
@@ -939,6 +1075,6 @@ export const rotas = {
   inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
   "peca.comentar": pecaComentar, "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
   pecas, "peca.arquivo": pecaArquivo, dashboard, "limpeza.executar": limpezaExecutar,
-  "limpar.testes": limparTestesEndpoint,
+  "limpar.testes": limparTestesEndpoint, notificacoes, "mencao.ler": mencaoLer,
 };
 export const publicas = { "pecas.cron": pecasCron };
