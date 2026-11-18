@@ -82,7 +82,7 @@
         const mencoes = Array.isArray(d.mencoes) ? d.mencoes : [];
         const pendentes = Number(d.pendentes) || 0;
 
-        // Dispara toast caso chegue menção nova quando o usuário está fora do módulo de peças
+        // Dispara toast caso chegue menção/alteração nova quando o usuário está fora do módulo de peças
         const novas = [];
         for (const m of mencoes) {
           if (!notifVistasGlobal.has(m.hid)) {
@@ -93,7 +93,14 @@
         notifPrimeiraCarga = true;
         if (novas.length) {
           const u = novas[0];
-          toast(`🔔 ${u.por?.nome || "Alguém"} marcou você em "${u.pecaTitulo}" (${u.clienteNome})`);
+          const acaoTxt = u.tipo === "alteracao_solicitada"
+            ? "pediu alteração em"
+            : u.tipo === "reprovada"
+              ? "reprovou"
+              : u.souRemetente
+                ? "comentou na sua peça"
+                : "marcou você em";
+          toast(`🔔 ${u.por?.nome || "Alguém"} ${acaoTxt} "${u.pecaTitulo}" (${u.clienteNome})`);
         }
 
         if (mencoes.length > 0) {
@@ -106,8 +113,15 @@
           btn.classList.remove("has-unread");
         }
 
+        const badgeTipoNotif = m => {
+          if (m.tipo === "alteracao_solicitada") return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#E5EFFC;color:#1D4F91">🛠️ Alteração solicitada</span>`;
+          if (m.tipo === "reprovada") return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#FDE8E8;color:#A12020">❌ Reprovada</span>`;
+          if (m.souRemetente) return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#EAF2FF;color:#0B57D0">💬 Comentário na sua peça</span>`;
+          return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#FEF3C7;color:#92400E">🔔 Menção (@)</span>`;
+        };
+
         pop.innerHTML = `<div class="qz-notif-pop-head">
-          <b>🔔 Menções para você (${mencoes.length})</b>
+          <b>🔔 Notificações de peças (${mencoes.length})</b>
           ${mencoes.length ? `<button type="button" class="btn-link-action" data-notif-ler-todas>Marcar todas como vistas</button>` : `<span class="muted" style="font-size:11.5px">${pendentes} pendente${pendentes === 1 ? "" : "s"} na fila</span>`}
         </div>
         <div class="qz-notif-pop-body">
@@ -116,13 +130,16 @@
               <span><b>${esc(m.por?.nome || "Alguém")}</b> · ${esc(m.clienteNome || "")}</span>
               <span>${brDataHora(m.em)}</span>
             </div>
-            <div style="font-weight:600;color:var(--blue-dk)">${esc(m.pecaTitulo)}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
+              ${badgeTipoNotif(m)}
+              <span style="font-weight:600;color:var(--blue-dk)">${esc(m.pecaTitulo)}</span>
+            </div>
             <div class="txt">${esc(m.comentario || "")}</div>
             <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:4px">
               <button type="button" class="btn small" data-notif-visto="${esc(m.pecaId)}" style="padding:2px 8px;min-height:0;font-size:11.5px">✓ Visto</button>
-              <a class="btn small primary" href="/app?m=pecas#fila" data-notif-abrir="${esc(m.pecaId)}" style="padding:2px 8px;min-height:0;font-size:11.5px;text-decoration:none">Abrir peça →</a>
+              <a class="btn small primary" href="/app?m=pecas#${m.souRemetente ? "envio" : "fila"}" data-notif-abrir="${esc(m.pecaId)}" data-notif-aba="${m.souRemetente ? "envio" : "fila"}" style="padding:2px 8px;min-height:0;font-size:11.5px;text-decoration:none">Abrir peça →</a>
             </div>
-          </div>`).join("") : `<div class="qz-notif-empty">Você não tem menções pendentes no momento.${pendentes ? `<div style="margin-top:8px"><a href="/app?m=pecas#fila" style="color:var(--blue);font-weight:600">Ver ${pendentes} peça${pendentes === 1 ? "" : "s"} pendente${pendentes === 1 ? "" : "s"} na fila →</a></div>` : ""}</div>`}
+          </div>`).join("") : `<div class="qz-notif-empty">Você não tem notificações pendentes no momento.${pendentes ? `<div style="margin-top:8px"><a href="/app?m=pecas#fila" style="color:var(--blue);font-weight:600">Ver ${pendentes} peça${pendentes === 1 ? "" : "s"} pendente${pendentes === 1 ? "" : "s"} na fila →</a></div>` : ""}</div>`}
         </div>`;
       } catch {}
     }
@@ -155,13 +172,15 @@
         const bAbrir = ev.target.closest("[data-notif-abrir]");
         if (bAbrir) {
           const pid = bAbrir.dataset.notifAbrir;
+          const abaAlvo = bAbrir.dataset.notifAba || "fila";
           pop.hidden = true;
           if (modAtual === "pecas") {
             ev.preventDefault();
-            const tabFila = document.querySelector('nav.tabs button[data-tab="fila"]');
-            if (tabFila && !tabFila.hidden) tabFila.click();
+            let tabBtn = document.querySelector(`nav.tabs button[data-tab="${abaAlvo}"]`);
+            if (!tabBtn || tabBtn.hidden) tabBtn = document.querySelector('nav.tabs button[data-tab="fila"]');
+            if (tabBtn && !tabBtn.hidden) tabBtn.click();
             setTimeout(() => {
-              const card = document.getElementById(`peca-card-${pid}`);
+              const card = document.querySelector(`#tab-${tabBtn?.dataset.tab || "fila"} #peca-card-${CSS.escape(pid)}`) || document.getElementById(`peca-card-${pid}`);
               if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
             }, 150);
           }

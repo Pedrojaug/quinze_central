@@ -947,13 +947,20 @@
     });
   }
 
+  function eventoNotificaUsuarioCliente(p, h, meuLogin) {
+    if (!meuLogin || !h || h.por?.login === meuLogin) return false;
+    const ms = Array.isArray(h.mencoes) ? h.mencoes : [];
+    if (ms.some(m => (m.login || m) === meuLogin)) return true;
+    const souRem = !!(p?.minha || p?.remetente?.login === meuLogin);
+    if (souRem && ["comentario", "alteracao_solicitada", "reprovada"].includes(h.tipo)) return true;
+    return false;
+  }
+
   function mencoesNaoLidasDaPecaNoCliente(p) {
     const meuLogin = base?.login;
     if (!meuLogin || !Array.isArray(p?.historico)) return [];
     return p.historico.filter(h => {
-      const ms = Array.isArray(h.mencoes) ? h.mencoes : [];
-      if (!ms.some(m => (m.login || m) === meuLogin)) return false;
-      if (h.por?.login === meuLogin) return false;
+      if (!eventoNotificaUsuarioCliente(p, h, meuLogin)) return false;
       const vistos = Array.isArray(h.vistoPor) ? h.vistoPor : [];
       return !vistos.includes(meuLogin);
     });
@@ -962,7 +969,23 @@
   function usuarioFoiMencionadoNaPeca(p) {
     const meuLogin = base?.login;
     if (!meuLogin || !Array.isArray(p?.historico)) return false;
-    return p.historico.some(h => (Array.isArray(h.mencoes) ? h.mencoes : []).some(m => (m.login || m) === meuLogin));
+    return p.historico.some(h => eventoNotificaUsuarioCliente(p, h, meuLogin));
+  }
+
+  function rotuloEventoNotificacao(p, h) {
+    const souRem = !!(p?.minha || p?.remetente?.login === base?.login);
+    if (h.tipo === "alteracao_solicitada") {
+      return { icone: "🛠️", badge: "Alteração solicitada", cor: "#1D4F91", bg: "#E5EFFC", verbo: souRem ? "pediu alteração na sua peça" : "pediu alteração e marcou você em" };
+    }
+    if (h.tipo === "reprovada") {
+      return { icone: "❌", badge: "Peça reprovada", cor: "#A12020", bg: "#FDE8E8", verbo: souRem ? "reprovou sua peça" : "reprovou e marcou você em" };
+    }
+    const ms = Array.isArray(h.mencoes) ? h.mencoes : [];
+    const marcouExplicito = (h.comentario || "").includes("@") && ms.some(m => (m.login || m) === base?.login);
+    if (souRem && !marcouExplicito) {
+      return { icone: "💬", badge: "Novo comentário", cor: "#0B57D0", bg: "#EAF2FF", verbo: "comentou na sua peça" };
+    }
+    return { icone: "🔔", badge: "Menção (@)", cor: "#92400E", bg: "#FEF3C7", verbo: "mencionou você em" };
   }
 
   function cartao(p, extra) {
@@ -1004,8 +1027,17 @@
     const podeEditarPeca = !ehBloqueado && (souRemetente || (base && (base.podeDecidir || base.ehGestao || base.funcao === "mestre")));
     const podeComentar = p.status !== "aprovada";
     const mencoesNaoLidas = mencoesNaoLidasDaPecaNoCliente(p);
+    const temAlteracaoNaoLida = mencoesNaoLidas.some(h => h.tipo === "alteracao_solicitada");
+    const temReprovacaoNaoLida = mencoesNaoLidas.some(h => h.tipo === "reprovada");
+    const rotuloBannerCard = temAlteracaoNaoLida
+      ? "🛠️ <b>Alteração solicitada neste material</b> por"
+      : temReprovacaoNaoLida
+        ? "❌ <b>Este material foi reprovado</b> por"
+        : souRemetente
+          ? "💬 <b>Novo comentário / marcação no seu material</b> por"
+          : "🔔 <b>Você foi marcado neste material</b> por";
     const bannerMencao = mencoesNaoLidas.length ? `<div class="pc-card-mencao-banner">
-      <span>🔔 <b>Você foi marcado neste material</b> por ${esc(mencoesNaoLidas.map(m => resolverInfoUsuario(m.por).nome).filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>
+      <span>${rotuloBannerCard} ${esc(mencoesNaoLidas.map(m => resolverInfoUsuario(m.por).nome).filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>
       <button class="btn small" type="button" data-marcar-mencao-lida="${esc(p.id)}" style="background:#fff;border-color:#F59E0B;color:#92400E;padding:2px 9px;min-height:0">✓ Marcar como visto</button>
     </div>` : "";
     const boxComentario = podeComentar ? `<div class="pc-coment-area" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)">
@@ -1066,25 +1098,45 @@
     </div>`;
   }
 
-  // ---------- Badge de notificação na aba Fila de aprovação e sincronização em tempo real ----------
+  // ---------- Badge de notificação nas abas Fila de aprovação e Envio e sincronização em tempo real ----------
   function atualizarBadgeFila(pecasLista) {
     if (!Array.isArray(pecasLista)) return;
     const qtdPendentes = pecasLista.filter(p => p && p.status === "pendente").length;
     const tabBtn = document.querySelector('nav.tabs button[data-tab="fila"]');
-    if (!tabBtn) return;
-    let badge = tabBtn.querySelector(".pc-tab-badge");
-    if (!badge) {
-      badge = document.createElement("span");
-      badge.className = "pc-tab-badge";
-      tabBtn.appendChild(badge);
+    if (tabBtn) {
+      let badge = tabBtn.querySelector(".pc-tab-badge");
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "pc-tab-badge";
+        tabBtn.appendChild(badge);
+      }
+      if (qtdPendentes > 0) {
+        badge.textContent = String(qtdPendentes);
+        badge.title = `${qtdPendentes} peça${qtdPendentes === 1 ? "" : "s"} pendente${qtdPendentes === 1 ? "" : "s"} de aprovação`;
+        badge.hidden = false;
+      } else {
+        badge.textContent = "0";
+        badge.hidden = true;
+      }
     }
-    if (qtdPendentes > 0) {
-      badge.textContent = String(qtdPendentes);
-      badge.title = `${qtdPendentes} peça${qtdPendentes === 1 ? "" : "s"} pendente${qtdPendentes === 1 ? "" : "s"} de aprovação`;
-      badge.hidden = false;
-    } else {
-      badge.textContent = "0";
-      badge.hidden = true;
+    // Badge na aba Envio para o designer ver peças suas com alteração solicitada ou comentários não lidos
+    const tabEnvio = document.querySelector('nav.tabs button[data-tab="envio"]');
+    if (tabEnvio) {
+      const minhasComAlerta = pecasLista.filter(p => p && p.minha && (p.status === "alteracao_solicitada" || mencoesNaoLidasDaPecaNoCliente(p).length > 0)).length;
+      let badgeEnv = tabEnvio.querySelector(".pc-tab-badge");
+      if (!badgeEnv) {
+        badgeEnv = document.createElement("span");
+        badgeEnv.className = "pc-tab-badge";
+        tabEnvio.appendChild(badgeEnv);
+      }
+      if (minhasComAlerta > 0) {
+        badgeEnv.textContent = String(minhasComAlerta);
+        badgeEnv.title = `${minhasComAlerta} peça${minhasComAlerta === 1 ? "" : "s"} sua${minhasComAlerta === 1 ? "" : "s"} com pedido de alteração ou comentário novo`;
+        badgeEnv.hidden = false;
+      } else {
+        badgeEnv.textContent = "0";
+        badgeEnv.hidden = true;
+      }
     }
   }
 
@@ -1118,12 +1170,13 @@
     primeiraCargaNotifConcluida = true;
     if (!novasParaNotificar.length) return;
     const ult = novasParaNotificar[novasParaNotificar.length - 1];
-    const msg = `🔔 ${ult.hist.por?.nome || "Alguém"} marcou você em "${ult.peca.titulo}" (${ult.peca.clienteNome})`;
+    const rot = rotuloEventoNotificacao(ult.peca, ult.hist);
+    const msg = `${rot.icone} ${ult.hist.por?.nome || "Alguém"} ${rot.verbo} "${ult.peca.titulo}" (${ult.peca.clienteNome})`;
     if (typeof toastFn === "function") toastFn(msg);
     try {
       if ("Notification" in window && Notification.permission === "granted") {
-        const n = new Notification("Central Quinze · Menção em peça", {
-          body: `${ult.hist.por?.nome || "Alguém"} marcou você em "${ult.peca.titulo}": ${(ult.hist.comentario || "").slice(0, 120)}`,
+        const n = new Notification(`Central Quinze · ${rot.badge}`, {
+          body: `${ult.hist.por?.nome || "Alguém"} ${rot.verbo} "${ult.peca.titulo}": ${(ult.hist.comentario || "").slice(0, 120)}`,
           tag: `qz-mencao-${ult.peca.id}`,
         });
         n.onclick = () => {
@@ -1150,21 +1203,27 @@
       : "";
     return `<div class="pc-notif-panel">
       <div class="pc-notif-head">
-        <b>🔔 Você foi mencionado em ${itens.length} comentário${itens.length === 1 ? "" : "s"} pendente${itens.length === 1 ? "" : "s"} de leitura</b>
+        <b>🔔 Você tem ${itens.length} notificação${itens.length === 1 ? "" : "ões"} pendente${itens.length === 1 ? "" : "s"} (pedidos de alteração, comentários ou menções)</b>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           ${permNav}
           <button class="btn small" type="button" data-x="ler-todas-mencoes" style="background:#fff;border-color:#F59E0B;color:#92400E">✓ Marcar todas como vistas</button>
         </div>
       </div>
       <div class="pc-notif-list">
-        ${itens.slice(0, 6).map(({ peca, hist }) => {
+        ${itens.slice(0, 8).map(({ peca, hist }) => {
           const autorInfo = resolverInfoUsuario(hist.por);
+          const rot = rotuloEventoNotificacao(peca, hist);
           return `<div class="pc-notif-item">
-          <div style="display:flex;align-items:flex-start;gap:10px;flex:1;min-width:200px">
+          <div style="display:flex;align-items:flex-start;gap:12px;flex:1;min-width:200px">
             ${avatarHtml(autorInfo, "md")}
             <div style="flex:1;min-width:0">
-              <div><b>${esc(autorInfo.nome)}</b> mencionou você em <b>${esc(peca.titulo)}</b> <span class="pc-cli">${esc(peca.clienteNome)}</span> · <span class="pc-sub">${brHora(hist.em)}</span></div>
-              <div style="margin-top:3px;color:var(--ink)">${formatarTextoComMencoes(hist.comentario || "", hist.mencoes || [])}</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:${rot.bg};color:${rot.cor}">${rot.icone} ${esc(rot.badge)}</span>
+                <span><b>${esc(autorInfo.nome)}</b> ${esc(rot.verbo)} <b>${esc(peca.titulo)}</b></span>
+                <span class="pc-cli">${esc(peca.clienteNome)}</span>
+                <span class="pc-sub">· ${brHora(hist.em)}</span>
+              </div>
+              <div style="margin-top:4px;color:var(--ink)">${formatarTextoComMencoes(hist.comentario || "", hist.mencoes || [])}</div>
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
