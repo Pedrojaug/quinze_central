@@ -342,7 +342,10 @@
       /* Modo Offline no Dashboard */
       .modo-offline .pc-barras .b i{background:#7E22CE !important}
       .modo-offline .pc-col-bar:not(.zerada):not(.pico){background:#7E22CE !important}
-      .modo-offline .pc-pico-badge:not(.destaque){background:rgba(126,34,206,0.12) !important;color:#6B21A8 !important;border-color:rgba(126,34,206,0.25) !important}`;
+      .modo-offline .pc-pico-badge:not(.destaque){background:rgba(126,34,206,0.12) !important;color:#6B21A8 !important;border-color:rgba(126,34,206,0.25) !important}
+      /* Badge de notificação na aba Fila de aprovação */
+      .pc-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:7px;border-radius:999px;background:#EF4444;color:#FFFFFF;font-size:11.5px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 5px rgba(239,68,68,0.35);vertical-align:middle}
+      .pc-tab-badge[hidden]{display:none !important}`;
     document.head.appendChild(st);
   }
 
@@ -713,6 +716,54 @@
     </div>`;
   }
 
+  // ---------- Badge de notificação na aba Fila de aprovação e sincronização em tempo real ----------
+  function atualizarBadgeFila(pecasLista) {
+    if (!Array.isArray(pecasLista)) return;
+    const qtdPendentes = pecasLista.filter(p => p && p.status === "pendente").length;
+    const tabBtn = document.querySelector('nav.tabs button[data-tab="fila"]');
+    if (!tabBtn) return;
+    let badge = tabBtn.querySelector(".pc-tab-badge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "pc-tab-badge";
+      tabBtn.appendChild(badge);
+    }
+    if (qtdPendentes > 0) {
+      badge.textContent = String(qtdPendentes);
+      badge.title = `${qtdPendentes} peça${qtdPendentes === 1 ? "" : "s"} pendente${qtdPendentes === 1 ? "" : "s"} de aprovação`;
+      badge.hidden = false;
+    } else {
+      badge.textContent = "0";
+      badge.hidden = true;
+    }
+  }
+
+  const assinaturaListaPecas = arr => (arr || []).map(p => `${p.id}:${p.status}:${p.versao}:${p.atualizadoEm || ""}:${(p.historico || []).length}`).join("|");
+
+  function usuarioInteragindoEm(rootEl) {
+    if (!rootEl) return false;
+    const dlgMidia = document.getElementById("qzDlgMidiaPecas");
+    const dlgMestre = document.getElementById("qzDlgMestrePecas");
+    if ((dlgMidia && dlgMidia.open) || (dlgMestre && dlgMestre.open)) return true;
+    const ae = document.activeElement;
+    if (ae && rootEl.contains(ae) && ["TEXTAREA", "INPUT", "SELECT"].includes(ae.tagName)) {
+      if (ae.closest(".pc-card, .pc-dec, .pc-coment-area")) return true;
+    }
+    for (const ta of rootEl.querySelectorAll('textarea[data-c="com"], textarea[data-inp-coment]')) {
+      if (ta.value && ta.value.trim()) return true;
+    }
+    for (const det of rootEl.querySelectorAll("details[open]")) {
+      if (det.closest(".pc-card")) return true;
+    }
+    for (const boxEdit of rootEl.querySelectorAll('[data-box^="edit-"], [data-box^="re-"]')) {
+      if (boxEdit.children.length > 0) return true;
+    }
+    for (const vid of rootEl.querySelectorAll("video")) {
+      if (!vid.paused && !vid.ended) return true;
+    }
+    return false;
+  }
+
   // ======================================================================
   // ENVIO (remetente: vê e reenvia só as suas)
   // ======================================================================
@@ -726,13 +777,30 @@
         <label>Cliente<select data-x="cli"><option value="">Todos</option></select></label></div>
       <div data-box="lista"><div class="pc-vazio">Carregando…</div></div>`;
     const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`).value;
-    let lista = [], limite = LIMITE_PAGINA_PECAS;
+    let lista = [], limite = LIMITE_PAGINA_PECAS, ultAssinatura = null;
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
-    async function carregar() {
-      try { await carregarBase(); lista = (await api("pecas")).pecas.filter(p => p.minha); } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+    function aplicarDados(todasPecas, { silencioso = false } = {}) {
+      atualizarBadgeFila(todasPecas);
+      const minhas = (todasPecas || []).filter(p => p.minha);
+      const sig = assinaturaListaPecas(minhas);
+      if (silencioso && sig === ultAssinatura) return;
+      if (silencioso && usuarioInteragindoEm(el)) return;
+      lista = minhas;
+      ultAssinatura = sig;
       const uniq = f => [...new Map(lista.map(f)).entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
       opcoes(el.querySelector('[data-x="cli"]'), uniq(p => [p.clienteId, p.clienteNome]));
       render();
+    }
+    async function carregar(opcoesCarga) {
+      const silencioso = !!(opcoesCarga && opcoesCarga.silencioso);
+      if (Array.isArray(opcoesCarga?.pecas)) {
+        try { await carregarBase(); } catch { return; }
+        aplicarDados(opcoesCarga.pecas, { silencioso });
+        return;
+      }
+      let todas;
+      try { await carregarBase(); todas = (await api("pecas")).pecas; } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      aplicarDados(todas, { silencioso });
     }
     function render() {
       const fMidia = fv("f-midia");
@@ -832,7 +900,7 @@
       </div>
       <div data-box="lista"><div class="pc-vazio">Carregando…</div></div>`;
     const box = n => el.querySelector(`[data-box="${n}"]`), fv = n => el.querySelector(`[data-x="${n}"]`)?.value || "";
-    let lista = [], limite = LIMITE_PAGINA_PECAS;
+    let lista = [], limite = LIMITE_PAGINA_PECAS, ultAssinatura = null;
     const opcoes = (sel, pares) => { const v = sel.value; sel.innerHTML = sel.options[0].outerHTML + pares.map(([k, n]) => `<option value="${esc(k)}">${esc(n)}</option>`).join(""); sel.value = pares.some(([k]) => k === v) ? v : ""; };
     const obterIntervaloFila = () => {
       const p = fv("f-per");
@@ -853,8 +921,14 @@
         pecaBatePeriodo(p, st, de, ate)
       );
     };
-    async function carregar() {
-      try { await carregarBase(); lista = (await api("pecas")).pecas; } catch (e) { box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+    function aplicarDados(todasPecas, { silencioso = false } = {}) {
+      atualizarBadgeFila(todasPecas);
+      const novas = todasPecas || [];
+      const sig = assinaturaListaPecas(novas);
+      if (silencioso && sig === ultAssinatura) return;
+      if (silencioso && usuarioInteragindoEm(el)) return;
+      lista = novas;
+      ultAssinatura = sig;
       box("sub").textContent = base.podeDecidir ? "Coordenadores e gestão podem aprovar, pedir alteração ou reprovar qualquer peça." : "Acompanhamento das peças.";
       const apagarBtn = el.querySelector('[data-x="apagar-fila"]');
       if (apagarBtn) apagarBtn.hidden = !(base && (base.ehGestao || base.funcao === "mestre"));
@@ -862,6 +936,17 @@
       opcoes(el.querySelector('[data-x="cli"]'), uniq(p => [p.clienteId || "", p.clienteNome || ""]));
       opcoes(el.querySelector('[data-x="rem"]'), uniq(p => [p.remetente?.login || "", p.remetente?.nome || p.remetente?.login || ""]).filter(x => x[0]));
       render();
+    }
+    async function carregar(opcoesCarga) {
+      const silencioso = !!(opcoesCarga && opcoesCarga.silencioso);
+      if (Array.isArray(opcoesCarga?.pecas)) {
+        try { await carregarBase(); } catch { return; }
+        aplicarDados(opcoesCarga.pecas, { silencioso });
+        return;
+      }
+      let todas;
+      try { await carregarBase(); todas = (await api("pecas")).pecas; } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      aplicarDados(todas, { silencioso });
     }
     function render() {
       const l = filtradasAtuais()
@@ -1379,9 +1464,63 @@
   }
 
   const MONTAR = { envio, fila, pecasdash: dash };
+  const recarregadores = {};
+  const secoesModulo = {};
+
+  let syncEmAndamento = false;
+  let timerPollPecas = null;
+
+  async function sincronizarPecasTempoReal() {
+    if (syncEmAndamento || document.hidden) return;
+    const temAbaMontada = !!(secoesModulo.fila || secoesModulo.envio || secoesModulo.pecasdash);
+    if (!temAbaMontada) return;
+    syncEmAndamento = true;
+    try {
+      const r = await api("pecas");
+      const todas = r.pecas || [];
+      atualizarBadgeFila(todas);
+      if (secoesModulo.fila && !secoesModulo.fila.hidden && recarregadores.fila) {
+        await recarregadores.fila({ pecas: todas, silencioso: true });
+      }
+      if (secoesModulo.envio && !secoesModulo.envio.hidden && recarregadores.envio) {
+        await recarregadores.envio({ pecas: todas, silencioso: true });
+      }
+    } catch {}
+    finally { syncEmAndamento = false; }
+  }
+
+  function agendarPollPecas() {
+    clearTimeout(timerPollPecas);
+    timerPollPecas = setTimeout(async () => {
+      await sincronizarPecasTempoReal();
+      agendarPollPecas();
+    }, document.hidden ? 20000 : 8000);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      sincronizarPecasTempoReal();
+      agendarPollPecas();
+    }
+  });
+
   Object.entries(MONTAR).forEach(([id, montar]) => {
     let recarregar = null;
     // Cada perfil recebe só algumas destas abas: as que não existem para o usuário não são montadas.
-    QZ.modulo({ id, iniciar(ctx) { if (!ctx.el) return; recarregar = montar(ctx); if (!ctx.el.hidden) recarregar(); }, aoMostrar() { if (recarregar) recarregar(); } });
+    QZ.modulo({
+      id,
+      iniciar(ctx) {
+        if (!ctx.el) return;
+        recarregar = montar(ctx);
+        recarregadores[id] = recarregar;
+        secoesModulo[id] = ctx.el;
+        if (!ctx.el.hidden) recarregar();
+        else sincronizarPecasTempoReal();
+        agendarPollPecas();
+      },
+      aoMostrar() {
+        if (recarregar) recarregar();
+      }
+    });
   });
 })();
