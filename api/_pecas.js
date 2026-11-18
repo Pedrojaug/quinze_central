@@ -267,22 +267,32 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
   const nomes = {};
   const porUsuario = {}, porCoord = {}, porCli = {};
   const cliObj = id => (porCli[id] ||= {
-    pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0,
+    pecas: 0, pecasOnline: 0, pecasOffline: 0,
+    versoes: 0, aprovada: 0, aprovadasOnline: 0, aprovadasOffline: 0,
+    reprovada: 0, alteracao_solicitada: 0, pendente: 0,
     v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {},
   });
+  const initUserStats = () => ({
+    pecas: 0, pecasOnline: 0, pecasOffline: 0,
+    versoes: 0,
+    aprovadas: 0, aprovadasOnline: 0, aprovadasOffline: 0,
+  });
 
-  let totPecas = 0, totVersoes = 0, totAprovadas = 0, totReprovadas = 0, totAlt = 0, totV1d = 0, totV1a = 0;
+  let totPecas = 0, totPecasOnline = 0, totPecasOffline = 0;
+  let totVersoes = 0, totAprovadas = 0, totAprovadasOnline = 0, totAprovadasOffline = 0;
+  let totReprovadas = 0, totAlt = 0, totV1d = 0, totV1a = 0;
 
   for (const p of todasPecas) {
     if (!p.clienteId) continue;
     const cid = p.clienteId;
     if (p.clienteNome && !nomes[`cli:${cid}`]) nomes[`cli:${cid}`] = p.clienteNome;
     const cObj = cliObj(cid);
+    const ehOffline = String(p.tipoMidia || "online").toLowerCase() === "offline";
 
     const rem = p.remetente?.login;
     if (rem) {
       if (p.remetente?.nome && !nomes[rem]) nomes[rem] = p.remetente.nome;
-      porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 };
+      porUsuario[rem] ||= initUserStats();
     }
 
     // 1. Envio da peça inicial (versão 1)
@@ -290,9 +300,14 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
     if (diaCriacao && filtroFn(diaCriacao)) {
       cObj.pecas++;
       totPecas++;
+      if (ehOffline) { cObj.pecasOffline++; totPecasOffline++; }
+      else { cObj.pecasOnline++; totPecasOnline++; }
       if (rem) {
         porUsuario[rem].pecas++;
-        (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas++;
+        const uCli = (cObj.porUsuario[rem] ||= initUserStats());
+        uCli.pecas++;
+        if (ehOffline) { porUsuario[rem].pecasOffline++; uCli.pecasOffline++; }
+        else { porUsuario[rem].pecasOnline++; uCli.pecasOnline++; }
       }
     }
 
@@ -304,7 +319,7 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
         totVersoes++;
         if (rem) {
           porUsuario[rem].versoes++;
-          (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes++;
+          (cObj.porUsuario[rem] ||= initUserStats()).versoes++;
         }
       }
     }
@@ -318,12 +333,16 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
           cObj[h.tipo]++;
           if (h.tipo === "aprovada") {
             totAprovadas++;
+            if (ehOffline) { cObj.aprovadasOffline++; totAprovadasOffline++; }
+            else { cObj.aprovadasOnline++; totAprovadasOnline++; }
             teveAprovacaoNoHist = true;
             if (rem) {
-              const u = (porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+              const u = (porUsuario[rem] ||= initUserStats());
               u.aprovadas = (u.aprovadas || 0) + 1;
-              const uCli = (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+              const uCli = (cObj.porUsuario[rem] ||= initUserStats());
               uCli.aprovadas = (uCli.aprovadas || 0) + 1;
+              if (ehOffline) { u.aprovadasOffline++; uCli.aprovadasOffline++; }
+              else { u.aprovadasOnline++; uCli.aprovadasOnline++; }
             }
           } else if (h.tipo === "reprovada") totReprovadas++;
           else if (h.tipo === "alteracao_solicitada") totAlt++;
@@ -355,11 +374,15 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       if (diaAprov && filtroFn(diaAprov)) {
         cObj.aprovada++;
         totAprovadas++;
+        if (ehOffline) { cObj.aprovadasOffline++; totAprovadasOffline++; }
+        else { cObj.aprovadasOnline++; totAprovadasOnline++; }
         if (rem) {
-          const u = (porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+          const u = (porUsuario[rem] ||= initUserStats());
           u.aprovadas = (u.aprovadas || 0) + 1;
-          const uCli = (cObj.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
+          const uCli = (cObj.porUsuario[rem] ||= initUserStats());
           uCli.aprovadas = (uCli.aprovadas || 0) + 1;
+          if (ehOffline) { u.aprovadasOffline++; uCli.aprovadasOffline++; }
+          else { u.aprovadasOnline++; uCli.aprovadasOnline++; }
         }
       }
     }
@@ -376,7 +399,7 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
   const enviadas = Object.entries(porUsuario)
     .filter(([_, x]) => x.pecas > 0 || x.versoes > 0 || (x.aprovadas || 0) > 0)
     .map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x }))
-    .sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
+    .sort((a, b) => b.pecas - a.pecas || (b.aprovadas || 0) - (a.aprovadas || 0) || b.versoes - a.versoes);
 
   const decisoes = Object.entries(porCoord)
     .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
@@ -388,11 +411,11 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
 
   const clientes = [...idsClientes].map(id => {
     const meta = mapaCarteira.get(id) || {};
-    const st = porCli[id] || { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
+    const st = porCli[id] || { pecas: 0, pecasOnline: 0, pecasOffline: 0, versoes: 0, aprovada: 0, aprovadasOnline: 0, aprovadasOffline: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
     const envCli = Object.entries(st.porUsuario)
       .filter(([_, x]) => x.pecas > 0 || x.versoes > 0 || (x.aprovadas || 0) > 0)
       .map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x }))
-      .sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
+      .sort((a, b) => b.pecas - a.pecas || (b.aprovadas || 0) - (a.aprovadas || 0) || b.versoes - a.versoes);
     const decCli = Object.entries(st.porCoord)
       .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
       .filter(x => x.total > 0)
@@ -407,8 +430,12 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       social: meta.social || "",
       metaConteudos: (Number(meta.conteudos) || 0) + (Number(meta.motions) || 0),
       pecas: st.pecas || 0,
+      pecasOnline: st.pecasOnline || 0,
+      pecasOffline: st.pecasOffline || 0,
       versoes: st.versoes || 0,
       aprovada: st.aprovada || 0,
+      aprovadasOnline: st.aprovadasOnline || 0,
+      aprovadasOffline: st.aprovadasOffline || 0,
       reprovada: st.reprovada || 0,
       alteracao_solicitada: st.alteracao_solicitada || 0,
       pendente: st.pendente || 0,
@@ -428,8 +455,12 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
     decisoes,
     totais: {
       pecas: totPecas,
+      pecasOnline: totPecasOnline,
+      pecasOffline: totPecasOffline,
       versoes: totVersoes,
       aprovada: totAprovadas,
+      aprovadasOnline: totAprovadasOnline,
+      aprovadasOffline: totAprovadasOffline,
       reprovada: totReprovadas,
       alteracao_solicitada: totAlt,
       primeiraDecididas: totV1d,
