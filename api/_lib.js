@@ -70,7 +70,6 @@ export function garantirContasPadrao() {
   if (!seedContasP) {
     seedContasP = (async () => {
       try {
-        await sql`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS avatar text`;
         const flag = await sql`SELECT 1 FROM docs WHERE path = 'config/seed_contas_v2' AND NOT deleted`;
         if (!flag.length) {
           for (const c of CONTAS_EQUIPE) {
@@ -128,18 +127,48 @@ export function garantirContasPadrao() {
 
 // ---------- Usuário da sessão ----------
 // Sempre conferido no cadastro: quem for bloqueado perde o acesso em até 15 s.
+// Avatares ficam armazenados na tabela docs (m/pecas/config/avatares) para não exigir DDL na tabela usuarios.
 const cache = new Map();
+let avataresCache = { map: {}, at: 0 };
+
+export async function carregarMapaAvatares(forcar = false) {
+  if (!forcar && Date.now() - avataresCache.at < 15000) return avataresCache.map;
+  try {
+    const r = await sql`SELECT data FROM docs WHERE path = 'm/pecas/config/avatares' AND NOT deleted`;
+    const map = (r[0] && r[0].data && typeof r[0].data === "object") ? r[0].data : {};
+    avataresCache = { map, at: Date.now() };
+    return map;
+  } catch {
+    return avataresCache.map || {};
+  }
+}
+
+export async function salvarAvatarUsuario(login, avatarDataUrl) {
+  const mapaAtual = { ...(await carregarMapaAvatares(true)) };
+  if (avatarDataUrl) mapaAtual[login] = avatarDataUrl;
+  else delete mapaAtual[login];
+  await sql`INSERT INTO docs (path, parent, id, data)
+            VALUES ('m/pecas/config/avatares', 'm/pecas/config', 'avatares', ${JSON.stringify(mapaAtual)}::jsonb)
+            ON CONFLICT (path) DO UPDATE SET data = EXCLUDED.data, deleted = false, updated_at = now()`;
+  avataresCache = { map: mapaAtual, at: Date.now() };
+  forgetUser(login);
+}
+
 export async function loadUser(login) {
   await garantirContasPadrao();
   const c = cache.get(login);
   if (c && Date.now() - c.at < 15000 && !(c.u && c.u.trocarSenha)) return c.u; // senha temporária: sempre confere de novo
-  const r = (await sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas, u.avatar,
-                              coalesce(a.trocar, false) AS trocar
-                       FROM usuarios u LEFT JOIN app_users a ON u.auth = 'senha' AND lower(a.username) = u.login
-                       WHERE u.login = ${login}`)[0];
+  const [rows, mapaAv] = await Promise.all([
+    sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas,
+               coalesce(a.trocar, false) AS trocar
+        FROM usuarios u LEFT JOIN app_users a ON u.auth = 'senha' AND lower(a.username) = u.login
+        WHERE u.login = ${login}`,
+    carregarMapaAvatares(),
+  ]);
+  const r = rows[0];
   const u = r && r.ativo ? {
     login: r.login, nome: r.nome, papel: r.papel, funcao: perfilDe(r), auth: r.auth,
-    avatar: r.avatar || null,
+    avatar: mapaAv[r.login] || null,
     abas: abasDe(r), areas: areasDe(r), podeEnviarPecas: !!r.pode_enviar_pecas,
     trocarSenha: r.auth === "senha" && !!r.trocar,
   } : null;

@@ -1,6 +1,6 @@
 // Acesso aos dados dos módulos servidos só pela rota /api/m (m/<modulo>/<colecao>/<id> na tabela docs).
 import crypto from "node:crypto";
-import { sql } from "./_lib.js";
+import { sql, carregarMapaAvatares } from "./_lib.js";
 
 export const novoId = () => Date.now().toString(36) + crypto.randomBytes(4).toString("hex");
 const ID = /^[A-Za-z0-9_\-.@+]{1,120}$/;
@@ -57,8 +57,11 @@ export async function clientesCarteira() {
   return (mes ? porMes[mes] : []).filter(c => c.status !== "inativo").sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 export async function usuariosAtivos() {
-  const r = await sql`SELECT login, nome, funcao, papel, avatar FROM usuarios WHERE ativo ORDER BY nome`;
-  return r;
+  const [r, mapaAv] = await Promise.all([
+    sql`SELECT login, nome, funcao, papel FROM usuarios WHERE ativo ORDER BY nome`,
+    carregarMapaAvatares(),
+  ]);
+  return r.map(u => ({ ...u, avatar: mapaAv[u.login] || null }));
 }
 // Corpo JSON com limite de texto por campo (evita lixo gigante nos documentos).
 export const txt = (v, max = 2000) => String(v ?? "").trim().slice(0, max);
