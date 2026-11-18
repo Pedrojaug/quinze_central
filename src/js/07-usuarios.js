@@ -260,7 +260,7 @@
         const img = new Image();
         img.onerror = () => reject(new Error("Imagem inválida."));
         img.onload = () => {
-          const size = 128;
+          const size = 256;
           const canvas = document.createElement("canvas");
           canvas.width = size;
           canvas.height = size;
@@ -271,9 +271,9 @@
           ctx.fillStyle = "#FFFFFF";
           ctx.fillRect(0, 0, size, size);
           ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
-          let dataUrl = canvas.toDataURL("image/webp", 0.85);
+          let dataUrl = canvas.toDataURL("image/webp", 0.88);
           if (!/^data:image\/webp/.test(dataUrl)) {
-            dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+            dataUrl = canvas.toDataURL("image/jpeg", 0.88);
           }
           resolve(dataUrl);
         };
