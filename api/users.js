@@ -1,4 +1,4 @@
-import { sql, requireSession, forgetUser, ehGestao, gravarSenha, senhaValida, SENHA_MIN } from "./_lib.js";
+import { sql, requireSession, forgetUser, ehGestao, gravarSenha, senhaValida, SENHA_MIN, carregarMapaAvatares } from "./_lib.js";
 import { MODULOS, AREAS, FUNCOES, PERFIS, ESCOLHAS, abasDe, areasDe, perfilDe, publico, ALL_TABS } from "./_modules.js";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,12 +28,15 @@ export default async function handler(req, res) {
   const souMestre = me.funcao === "mestre";
 
   if (req.method === "GET") {
-    const rows = await sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas, u.avatar, u.criado_em, u.ultimo_acesso,
-                                  coalesce(a.trocar, false) AS trocar
-                           FROM usuarios u LEFT JOIN app_users a ON u.auth = 'senha' AND lower(a.username) = u.login
-                           ORDER BY u.papel = 'master' DESC, u.nome`;
+    const [rows, mapaAv] = await Promise.all([
+      sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas, u.criado_em, u.ultimo_acesso,
+                 coalesce(a.trocar, false) AS trocar
+          FROM usuarios u LEFT JOIN app_users a ON u.auth = 'senha' AND lower(a.username) = u.login
+          ORDER BY u.papel = 'master' DESC, u.nome`,
+      carregarMapaAvatares(),
+    ]);
     const users = rows.map(r => ({
-      login: r.login, nome: r.nome, avatar: r.avatar || null, papel: r.papel, funcao: perfilDe(r), abas: r.abas, ativo: r.ativo, auth: r.auth,
+      login: r.login, nome: r.nome, avatar: mapaAv[r.login] || null, papel: r.papel, funcao: perfilDe(r), abas: r.abas, ativo: r.ativo, auth: r.auth,
       podeEnviarPecas: !!r.pode_enviar_pecas, senhaTemporaria: r.auth === "senha" && !!r.trocar,
       criado_em: r.criado_em, ultimo_acesso: r.ultimo_acesso, abasEfetivas: [...abasDe(r), ...areasDe(r).filter(a => !ALL_TABS.includes(a))],
     }));

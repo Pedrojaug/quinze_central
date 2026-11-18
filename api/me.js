@@ -1,4 +1,4 @@
-import { session, sql, forgetUser } from "./_lib.js";
+import { session, sql, forgetUser, salvarAvatarUsuario } from "./_lib.js";
 import { publico, areasPublicas, PERFIS } from "./_modules.js";
 import { eticaPendente } from "./_pol.js";
 
@@ -19,17 +19,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "O nome precisa ter pelo menos 2 caracteres." });
     }
     let avatar = u.avatar || null;
+    let alterouAvatar = false;
     if (b.avatar === null || b.avatar === "") {
       avatar = null;
+      alterouAvatar = true;
     } else if (typeof b.avatar === "string") {
       const av = b.avatar.trim();
       if (!AVATAR_DATA_RE.test(av)) {
         return res.status(400).json({ error: "Formato de imagem inválido ou imagem muito grande. Escolha outra foto." });
       }
       avatar = av;
+      alterouAvatar = true;
     }
-    await sql`UPDATE usuarios SET nome = ${nome || u.login}, avatar = ${avatar}, atualizado_em = now() WHERE login = ${u.login}`;
-    forgetUser(u.login);
+    await sql`UPDATE usuarios SET nome = ${nome || u.login}, atualizado_em = now() WHERE login = ${u.login}`;
+    if (alterouAvatar) {
+      await salvarAvatarUsuario(u.login, avatar);
+    } else {
+      forgetUser(u.login);
+    }
     return res.status(200).json({
       ok: true,
       login: u.login,
