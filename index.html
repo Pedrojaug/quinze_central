@@ -139,7 +139,13 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     </div>
 
     <div class="card" id="homeBox" hidden>
-      <h2 id="hello">Olá!</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="homeAv" style="width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 16px var(--display);overflow:hidden;flex-shrink:0"></div>
+          <h2 id="hello" style="margin:0">Olá!</h2>
+        </div>
+        <button class="out" type="button" id="myProfile" style="margin:0;font-size:13.5px">Editar perfil</button>
+      </div>
       <p class="lead" id="homeLead">Escolha o módulo.</p>
       <a class="aviso" id="avisoEtica" href="/app?m=politicas#etica" hidden>Leitura pendente: o código de ética tem uma versão que você ainda não leu. <b>Ler agora →</b></a>
       <div class="apps" id="apps"></div>
@@ -151,6 +157,28 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
       </div>
       <button class="out" type="button" id="myPwd" hidden>Trocar minha senha</button>
       <button class="out" type="button" id="out">Sair</button>
+    </div>
+
+    <div class="card" id="profileBox" hidden>
+      <h2>Meu perfil</h2>
+      <p class="lead">Personalize sua foto e seu nome de exibição na Central Quinze.</p>
+      <form id="frmHomeProfile" novalidate>
+        <div class="err" id="profHomeErr" role="alert" hidden></div>
+        <div style="display:flex;align-items:center;gap:16px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:16px">
+          <div id="profHomeAv" style="width:68px;height:68px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 22px var(--display);overflow:hidden;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px;margin-bottom:6px">Foto de perfil</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="out" type="button" id="profHomePick" style="margin:0;color:var(--blue)">📷 Escolher foto</button>
+              <button class="out" type="button" id="profHomeRm" style="margin:0;color:var(--danger)" hidden>Remover</button>
+              <input type="file" id="profHomeFile" accept="image/jpeg,image/png,image/webp" hidden>
+            </div>
+          </div>
+        </div>
+        <div class="field"><label for="profHomeNome">Nome de exibição</label><input id="profHomeNome" maxlength="80" required></div>
+        <button class="btn" type="submit" id="profHomeGo">Salvar perfil</button>
+      </form>
+      <p class="foot"><button class="out" type="button" id="profHomeCancel">Voltar</button></p>
     </div>
   </main>
 </div>
@@ -174,7 +202,22 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
   };
   let ME = null;
 
-  function show(id){ ["#loginBox","#pwdBox","#homeBox"].forEach(s => $(s).hidden = s !== id); }
+  function show(id){ ["#loginBox","#pwdBox","#homeBox","#profileBox"].forEach(s => $(s).hidden = s !== id); }
+
+  function initials(nome, login){
+    const txt = String(nome || login || "").trim().replace(/@.*$/, "").replace(/[._-]/g, " ").trim();
+    const p = txt.split(/\s+/).filter(Boolean);
+    if (!p.length) return "?";
+    return (p.length === 1 ? p[0].slice(0, 2) : p[0][0] + p[p.length - 1][0]).toUpperCase();
+  }
+  function paintAv(el, nome, login, avatar){
+    if (!el) return;
+    if (avatar && /^data:image\//.test(avatar)) {
+      el.innerHTML = `<img src="${esc(avatar)}" alt="${esc(nome || login || "")}" style="width:100%;height:100%;object-fit:cover;display:block">`;
+    } else {
+      el.textContent = initials(nome, login);
+    }
+  }
 
   // Tela de módulos: só os módulos liberados para a pessoa. Com um único módulo, entra direto.
   async function showHome(){
@@ -185,6 +228,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     if (areas.length === 1 && !areas[0].emBreve && !ficar) { location.replace(areas[0].entrada); return; }
     show("#homeBox");
     if (ME.nome) $("#hello").textContent = `Olá, ${ME.nome.split(" ")[0]}!`;
+    paintAv($("#homeAv"), ME.nome, ME.login, ME.avatar);
     $("#homeLead").textContent = areas.length ? "Escolha o módulo." : "Você ainda não tem módulos liberados. Fale com a gestão.";
     $("#myPwd").hidden = ME.auth !== "senha";
     $("#avisoEtica").hidden = !(ME.pendencias && ME.pendencias.etica);
@@ -237,6 +281,61 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     showHome();
   });
   $("#myPwd").addEventListener("click", () => openPwd(false));
+
+  let homeDraftAv = null;
+  $("#myProfile").addEventListener("click", () => {
+    if (!ME) return;
+    homeDraftAv = ME.avatar || null;
+    $("#profHomeNome").value = ME.nome || ME.login || "";
+    $("#profHomeErr").hidden = true;
+    paintAv($("#profHomeAv"), $("#profHomeNome").value, ME.login, homeDraftAv);
+    $("#profHomeRm").hidden = !homeDraftAv;
+    show("#profileBox");
+    $("#profHomeNome").focus();
+  });
+  $("#profHomeCancel").addEventListener("click", () => show("#homeBox"));
+  $("#profHomePick").addEventListener("click", () => $("#profHomeFile").click());
+  $("#profHomeRm").addEventListener("click", () => {
+    homeDraftAv = null;
+    paintAv($("#profHomeAv"), $("#profHomeNome").value, ME?.login, null);
+    $("#profHomeRm").hidden = true;
+  });
+  $("#profHomeFile").addEventListener("change", () => {
+    const f = $("#profHomeFile").files && $("#profHomeFile").files[0];
+    $("#profHomeFile").value = "";
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const cv = document.createElement("canvas"); cv.width = 128; cv.height = 128;
+        const cx = cv.getContext("2d"), m = Math.min(im.width, im.height);
+        cx.fillStyle = "#fff"; cx.fillRect(0, 0, 128, 128);
+        cx.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, 128, 128);
+        let u = cv.toDataURL("image/webp", 0.85);
+        if (!/^data:image\/webp/.test(u)) u = cv.toDataURL("image/jpeg", 0.85);
+        homeDraftAv = u;
+        paintAv($("#profHomeAv"), $("#profHomeNome").value, ME?.login, homeDraftAv);
+        $("#profHomeRm").hidden = false;
+      };
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  });
+  $("#frmHomeProfile").addEventListener("submit", async e => {
+    e.preventDefault();
+    const err = $("#profHomeErr"); err.hidden = true;
+    const nome = $("#profHomeNome").value.trim();
+    if (nome.length < 2) { err.textContent = "Informe seu nome."; err.hidden = false; return; }
+    const b = $("#profHomeGo"); b.disabled = true;
+    try {
+      const r = await fetch("/api/me", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ nome, avatar: homeDraftAv }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { err.textContent = j.error || "Não foi possível salvar."; err.hidden = false; return; }
+      showHome();
+    } catch { err.textContent = "Sem conexão."; err.hidden = false; }
+    finally { b.disabled = false; }
+  });
 
   $("#show").addEventListener("click", () => {
     const p = $("#pass"), on = p.type === "password";

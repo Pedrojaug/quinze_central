@@ -46,7 +46,8 @@
     const atalho = document.getElementById("atalhoProd"); if (atalho) atalho.hidden = !(ME.abas || []).includes("prod") || modAtual !== "atendimento";
     const atalhoPec = document.getElementById("atalhoPecas"); if (atalhoPec) atalhoPec.hidden = !(ME.areas || []).some(a => a.id === "pecas") || modAtual !== "atendimento";
     $("#lockBtn").hidden = modAtual !== "atendimento";
-    const who = document.getElementById("whoami"); if (who) who.textContent = ME.nome || ME.login;
+    atualizarBotaoPerfilHeader();
+    iniciarModalMeuPerfil();
     const st = $("#syncTxt"); if (st && ME.nome) st.title = ME.login;
     if (semAcesso) { $("#subtitle").textContent = "Sem acesso a este módulo"; showSections(currentTab()); return; }
     const defTab = hashTab || (modAtual === "atendimento" && allowed.has("tarefas") ? "tarefas" : "");
@@ -198,6 +199,24 @@
     try { renderTeam(); } catch {}
   }
   // Agrupamento de permissões por módulo para UI limpa e organizada
+  const AVATAR_PALETTE = [
+    ["#0660FF", "#0049CC"],
+    ["#0E8A7B", "#0A695E"],
+    ["#7E22CE", "#581C87"],
+    ["#D97706", "#B45309"],
+    ["#E11D48", "#BE123C"],
+    ["#2563EB", "#1D4ED8"],
+    ["#059669", "#047857"],
+    ["#9333EA", "#6B21A8"],
+    ["#EA580C", "#C2410C"],
+    ["#0284C7", "#0369A1"],
+  ];
+  function userColorPair(seed){
+    const s = String(seed || "").toLowerCase();
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+  }
   function userInitials(nome, login){
     const txt = String(nome || login || "").trim();
     if (!txt) return "?";
@@ -206,6 +225,162 @@
     if (!parts.length) return "?";
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  window.QZ_userInitials = userInitials;
+  window.QZ_userColorPair = userColorPair;
+
+  function renderAvatarContent(el, { nome, login, avatar }){
+    if (!el) return;
+    if (avatar && /^data:image\//.test(avatar)) {
+      el.style.background = "#E2E8F0";
+      el.innerHTML = `<img src="${esc(avatar)}" alt="${esc(nome || login || "")}">`;
+    } else {
+      const [c1, c2] = userColorPair(login || nome);
+      el.style.background = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+      el.textContent = userInitials(nome, login);
+    }
+  }
+
+  function atualizarBotaoPerfilHeader(){
+    if (!ME) return;
+    const who = document.getElementById("whoami");
+    if (who) who.textContent = ME.nome || ME.login;
+    const av = document.getElementById("whoamiAv");
+    if (av) renderAvatarContent(av, ME);
+  }
+
+  function comprimirImagemAvatar(file){
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+        return reject(new Error("Escolha uma imagem JPG, PNG ou WebP."));
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Imagem inválida."));
+        img.onload = () => {
+          const size = 128;
+          const canvas = document.createElement("canvas");
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          const minSide = Math.min(img.width, img.height);
+          const sx = Math.max(0, (img.width - minSide) / 2);
+          const sy = Math.max(0, (img.height - minSide) / 2);
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+          let dataUrl = canvas.toDataURL("image/webp", 0.85);
+          if (!/^data:image\/webp/.test(dataUrl)) {
+            dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          }
+          resolve(dataUrl);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function iniciarModalMeuPerfil(){
+    const btn = document.getElementById("whoamiBtn");
+    const dlg = document.getElementById("dlgProfile");
+    const frm = document.getElementById("frmProfile");
+    if (!btn || !dlg || !frm || btn._profBound) return;
+    btn._profBound = true;
+
+    let draftAvatar = null;
+    const prevEl = document.getElementById("profAvPreview");
+    const rmBtn = document.getElementById("profBtnRemove");
+    const pickBtn = document.getElementById("profBtnPick");
+    const fileIn = document.getElementById("profFileIn");
+    const nomeIn = document.getElementById("profNome");
+    const loginIn = document.getElementById("profLogin");
+    const perfilIn = document.getElementById("profPerfil");
+    const msgEl = document.getElementById("profMsg");
+    const saveBtn = document.getElementById("profSave");
+
+    const atualizarPreviewModal = () => {
+      renderAvatarContent(prevEl, { nome: nomeIn.value.trim() || ME?.nome, login: ME?.login, avatar: draftAvatar });
+      rmBtn.hidden = !draftAvatar;
+    };
+
+    btn.addEventListener("click", () => {
+      if (!ME) return;
+      draftAvatar = ME.avatar || null;
+      nomeIn.value = ME.nome || ME.login || "";
+      loginIn.value = ME.login || "";
+      perfilIn.value = ME.perfil || ME.funcao || "";
+      msgEl.textContent = "";
+      atualizarPreviewModal();
+      dlg.showModal();
+      setTimeout(() => nomeIn.focus(), 30);
+    });
+
+    nomeIn.addEventListener("input", () => {
+      if (!draftAvatar) atualizarPreviewModal();
+    });
+
+    pickBtn.addEventListener("click", () => fileIn.click());
+    fileIn.addEventListener("change", async () => {
+      const f = fileIn.files && fileIn.files[0];
+      fileIn.value = "";
+      if (!f) return;
+      msgEl.textContent = "";
+      try {
+        draftAvatar = await comprimirImagemAvatar(f);
+        atualizarPreviewModal();
+      } catch (e) {
+        msgEl.textContent = e.message || "Erro ao processar a foto.";
+      }
+    });
+
+    rmBtn.addEventListener("click", () => {
+      draftAvatar = null;
+      atualizarPreviewModal();
+    });
+
+    document.getElementById("profCancel").addEventListener("click", () => dlg.close());
+
+    frm.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const novoNome = nomeIn.value.trim();
+      if (novoNome.length < 2) {
+        msgEl.textContent = "O nome precisa ter pelo menos 2 caracteres.";
+        nomeIn.focus();
+        return;
+      }
+      saveBtn.disabled = true;
+      msgEl.textContent = "";
+      try {
+        const r = await fetch("/api/me", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ nome: novoNome, avatar: draftAvatar }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || "Não foi possível salvar seu perfil.");
+        ME.nome = j.nome || novoNome;
+        ME.avatar = j.avatar || null;
+        atualizarBotaoPerfilHeader();
+        if (window.QZ_atualizarPerfilLocalPecas) {
+          window.QZ_atualizarPerfilLocalPecas({ login: ME.login, nome: ME.nome, avatar: ME.avatar });
+        }
+        if (allowedUsersLoaded()) loadUsers();
+        dlg.close();
+        toast("Perfil atualizado!");
+      } catch (e) {
+        msgEl.textContent = e.message || "Erro ao salvar.";
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  }
+  function allowedUsersLoaded(){
+    const b = document.querySelector('nav.tabs button[data-tab="users"]');
+    return !!(b && !b.hidden && ehGestaoMe());
   }
   function agruparEscolhas(){
     const grupos = {};
@@ -334,10 +509,15 @@
         </div>
       `;
 
+      const [c1, c2] = userColorPair(u.login || u.nome);
+      const avHtml = u.avatar && /^data:image\//.test(u.avatar)
+        ? `<div class="usr-avatar" title="${esc(u.nome || u.login)}" style="padding:0;overflow:hidden;border-color:#CBD5E1"><img src="${esc(u.avatar)}" alt="${esc(u.nome || u.login)}"></div>`
+        : `<div class="usr-avatar" title="${esc(u.nome || u.login)}" style="background:linear-gradient(135deg,${c1} 0%,${c2} 100%);color:#fff;border-color:transparent">${esc(userInitials(u.nome, u.login))}</div>`;
+
       return `<tr data-usr="${esc(u.login)}" class="${u.ativo ? "" : "out"}">
         <td>
           <div class="usr-user-info">
-            <div class="usr-avatar" title="${esc(u.nome || u.login)}">${esc(userInitials(u.nome, u.login))}</div>
+            ${avHtml}
             <div style="flex:1;min-width:0">
               <input data-unome value="${esc(u.nome)}" placeholder="Nome do usuário" aria-label="Nome" class="usr-input-name"${travado ? " disabled" : ""}>
             </div>

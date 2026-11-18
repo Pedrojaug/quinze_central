@@ -367,7 +367,15 @@
       .pc-ac-pop{position:fixed;z-index:999;background:#FFFFFF;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,0.18);max-height:240px;overflow-y:auto;min-width:230px;padding:4px}
       .pc-ac-item{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--ink)}
       .pc-ac-item:hover,.pc-ac-item.on{background:var(--blue-soft);color:var(--blue-dk)}
-      .pc-ac-item small{font-size:11px;color:var(--ink2);font-weight:600}`;
+      .pc-ac-item small{font-size:11px;color:var(--ink2);font-weight:600}
+      /* Avatares nos comentários, cabeçalho do card e chips */
+      .pc-av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-family:var(--display);font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;user-select:none;vertical-align:middle;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
+      .pc-av img{width:100%;height:100%;object-fit:cover;display:block}
+      .pc-av.sm{width:20px;height:20px;font-size:9.5px}
+      .pc-av.md{width:28px;height:28px;font-size:11.5px}
+      .pc-av.xs{width:17px;height:17px;font-size:8.5px}
+      .pc-hist-item{display:flex;align-items:flex-start;gap:10px}
+      .pc-hist-body{flex:1;min-width:0;line-height:1.45}`;
     document.head.appendChild(st);
   }
 
@@ -669,8 +677,75 @@
     return `${metaHtml}${mediaHtml ? `<div style="margin-top:8px">${mediaHtml}</div>` : ""}`;
   }
 
+  // ---------- Avatares de usuários (foto ou iniciais com cor determinística) ----------
+  const CORES_AVATAR_PECAS = [
+    ["#0660FF", "#0049CC"],
+    ["#0E8A7B", "#0A695E"],
+    ["#7E22CE", "#581C87"],
+    ["#D97706", "#B45309"],
+    ["#E11D48", "#BE123C"],
+    ["#2563EB", "#1D4ED8"],
+    ["#059669", "#047857"],
+    ["#9333EA", "#6B21A8"],
+    ["#EA580C", "#C2410C"],
+    ["#0284C7", "#0369A1"],
+  ];
+  let mapaPerfisUsuarios = {};
+
+  function atualizarMapaPerfis(perfisNovos) {
+    if (perfisNovos && typeof perfisNovos === "object") {
+      mapaPerfisUsuarios = { ...mapaPerfisUsuarios, ...perfisNovos };
+    }
+    for (const u of (base?.equipe || base?.usuarios || [])) {
+      if (u && u.login) {
+        mapaPerfisUsuarios[u.login] = {
+          nome: u.nome || mapaPerfisUsuarios[u.login]?.nome || u.login,
+          avatar: u.avatar !== undefined ? u.avatar : (mapaPerfisUsuarios[u.login]?.avatar || null),
+          funcao: u.funcao || mapaPerfisUsuarios[u.login]?.funcao || "",
+        };
+      }
+    }
+  }
+
+  function iniciaisDe(nome, login) {
+    if (window.QZ_userInitials) return window.QZ_userInitials(nome, login);
+    const txt = String(nome || login || "").trim();
+    if (!txt) return "?";
+    const clean = txt.replace(/@.*$/, "").replace(/[._-]/g, " ").trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function corParDe(seed) {
+    if (window.QZ_userColorPair) return window.QZ_userColorPair(seed);
+    const s = String(seed || "").toLowerCase();
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    return CORES_AVATAR_PECAS[Math.abs(h) % CORES_AVATAR_PECAS.length];
+  }
+
+  function resolverInfoUsuario(ref) {
+    const login = String(ref?.login || (typeof ref === "string" ? ref : "") || "").trim();
+    const cadastrado = login ? mapaPerfisUsuarios[login] : null;
+    const nome = cadastrado?.nome || ref?.nome || login || "Usuário";
+    const avatar = cadastrado?.avatar || ref?.avatar || null;
+    return { login, nome, avatar };
+  }
+
+  function avatarHtml(ref, tamanho = "md") {
+    const { login, nome, avatar } = resolverInfoUsuario(ref);
+    if (avatar && /^data:image\//.test(avatar)) {
+      return `<span class="pc-av ${tamanho}" title="${esc(nome)}" style="background:#E2E8F0"><img src="${esc(avatar)}" alt="${esc(nome)}"></span>`;
+    }
+    const [c1, c2] = corParDe(login || nome);
+    return `<span class="pc-av ${tamanho}" title="${esc(nome)}" style="background:linear-gradient(135deg,${c1} 0%,${c2} 100%)">${esc(iniciaisDe(nome, login))}</span>`;
+  }
+
   // ---------- Menções (@) em comentários e decisões ----------
   function candidatosMencaoParaPeca(p) {
+    atualizarMapaPerfis();
     const eq = (base?.equipe && base.equipe.length ? base.equipe : base?.usuarios) || [];
     const aprovSug = new Set((p?.aprovadores || []).map(a => a.login));
     const remLogin = p?.remetente?.login || "";
@@ -678,12 +753,13 @@
     return eq
       .filter(u => u.login && u.login !== meuLogin)
       .map(u => {
+        const info = resolverInfoUsuario(u);
         const ehSugerido = aprovSug.has(u.login);
         const ehRemetente = u.login === remLogin;
         const ehAprovador = !!(u.podeDecidir || ["coordenador", "mestre", "gestao"].includes(u.funcao));
         const papelTxt = ehSugerido ? "⭐ Aprovador da peça" : ehAprovador ? "Coordenador / Aprovador" : ehRemetente ? "Remetente da peça" : (u.funcao || "Equipe");
         const ordem = ehSugerido ? 1 : ehAprovador ? 2 : ehRemetente ? 3 : 4;
-        return { login: u.login, nome: u.nome || u.login, funcao: u.funcao, ehSugerido, ehAprovador, ehRemetente, papelTxt, ordem };
+        return { login: u.login, nome: info.nome, avatar: info.avatar, funcao: u.funcao, ehSugerido, ehAprovador, ehRemetente, papelTxt, ordem };
       })
       .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt-BR"));
   }
@@ -717,7 +793,7 @@
     const exibir = principais.length ? principais : cands.slice(0, 6);
     return `<div class="pc-mencao-chips" data-mencao-bar="${esc(alvoId)}">
       <span class="lbl">🔔 Marcar para notificar:</span>
-      ${exibir.map(u => `<button type="button" class="pc-chip-mencao${u.ehSugerido ? " sug" : ""}" data-inserir-mencao="${esc(u.login)}" data-mencao-nome="${esc(u.nome)}" data-mencao-alvo-attr="${esc(alvoSelectorAttr)}" data-mencao-alvo-id="${esc(alvoId)}" title="${esc(u.papelTxt)} (${esc(u.login)})">${u.ehSugerido ? "⭐ " : ""}@${esc(u.nome)}</button>`).join("")}
+      ${exibir.map(u => `<button type="button" class="pc-chip-mencao${u.ehSugerido ? " sug" : ""}" data-inserir-mencao="${esc(u.login)}" data-mencao-nome="${esc(u.nome)}" data-mencao-alvo-attr="${esc(alvoSelectorAttr)}" data-mencao-alvo-id="${esc(alvoId)}" title="${esc(u.papelTxt)} (${esc(u.login)})">${avatarHtml(u, "xs")}${u.ehSugerido ? "⭐ " : ""}@${esc(u.nome)}</button>`).join("")}
       <span class="pc-sub" style="font-size:11px;margin-left:2px">(ou digite <b>@</b> no texto)</span>
     </div>`;
   }
@@ -799,7 +875,7 @@
     const renderPop = () => {
       if (!popEl || !itensAtuais.length) { fecharPop(); return; }
       popEl.innerHTML = itensAtuais.map((u, i) => `<button type="button" class="pc-ac-item${i === idxAtivo ? " on" : ""}" data-ac-idx="${i}">
-        <span>${u.ehSugerido ? "⭐ " : ""}<b>@${esc(u.nome)}</b></span>
+        <span style="display:inline-flex;align-items:center;gap:7px">${avatarHtml(u, "sm")}${u.ehSugerido ? "⭐ " : ""}<b>@${esc(u.nome)}</b></span>
         <small>${esc(u.papelTxt)}</small>
       </button>`).join("");
       popEl.querySelectorAll("[data-ac-idx]").forEach(b => {
@@ -888,6 +964,7 @@
   }
 
   function cartao(p, extra) {
+    atualizarMapaPerfis();
     const atual = p.versoes[p.versoes.length - 1], anteriores = p.versoes.slice(0, -1).reverse();
     const { mediaHtml, metaHtml, temMidia } = versaoPartes(p, atual, false);
     const meuLogin = base?.login || "";
@@ -897,18 +974,27 @@
       const det = ehCom ? "" : ` a versão ${h.versao}`;
       const mencoesEv = Array.isArray(h.mencoes) ? h.mencoes : [];
       const mencionouEu = mencoesEv.some(m => (m.login || m) === meuLogin);
+      const autorInfo = resolverInfoUsuario(h.por);
       const pillsExtras = mencoesEv
         .filter(m => {
           const nm = (m.nome || m.login || "").toLowerCase();
           const cm = (h.comentario || "").toLowerCase();
           return nm && !cm.includes("@" + nm) && !cm.includes("@" + (m.login || "").toLowerCase());
         })
-        .map(m => `<span class="pc-tag-mencao${(m.login || m) === meuLogin ? " eu" : ""}">@${esc(m.nome || m.login)}</span>`)
+        .map(m => `<span class="pc-tag-mencao${(m.login || m) === meuLogin ? " eu" : ""}">@${esc(resolverInfoUsuario(m).nome)}</span>`)
         .join(" ");
-      return `<li style="${mencionouEu ? "background:#FFFBEB;padding:6px 8px;border-radius:6px;border-left:3px solid #F59E0B" : ""}"><b>${esc(h.por?.nome || "")}</b> ${acao}${det} · <span class="pc-sub">${brHora(h.em)}</span>${pillsExtras ? ` ${pillsExtras}` : ""}${h.comentario ? `<span class="c">${formatarTextoComMencoes(h.comentario, mencoesEv)}</span>` : ""}</li>`;
+      return `<li style="${mencionouEu ? "background:#FFFBEB;padding:7px 9px;border-radius:6px;border-left:3px solid #F59E0B" : ""}">
+        <div class="pc-hist-item">
+          ${avatarHtml(autorInfo, "md")}
+          <div class="pc-hist-body">
+            <div><b>${esc(autorInfo.nome)}</b> ${acao}${det} · <span class="pc-sub">${brHora(h.em)}</span>${pillsExtras ? ` ${pillsExtras}` : ""}</div>
+            ${h.comentario ? `<span class="c">${formatarTextoComMencoes(h.comentario, mencoesEv)}</span>` : ""}
+          </div>
+        </div>
+      </li>`;
     }).join("");
     const aprovTxt = (p.aprovadores && p.aprovadores.length)
-      ? ` · Aprovadores sugeridos: <b>${esc(p.aprovadores.map(a => a.nome).join(", "))}</b>`
+      ? ` · Aprovadores sugeridos: <b>${esc(p.aprovadores.map(a => resolverInfoUsuario(a).nome).join(", "))}</b>`
       : " · Aprovador: <i>Qualquer coordenador</i>";
     const podeApagarPeca = !!(base && (base.ehGestao || base.funcao === "mestre"));
     const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
@@ -917,7 +1003,7 @@
     const podeComentar = p.status !== "aprovada";
     const mencoesNaoLidas = mencoesNaoLidasDaPecaNoCliente(p);
     const bannerMencao = mencoesNaoLidas.length ? `<div class="pc-card-mencao-banner">
-      <span>🔔 <b>Você foi marcado neste material</b> por ${esc(mencoesNaoLidas.map(m => m.por?.nome || "alguém").filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>
+      <span>🔔 <b>Você foi marcado neste material</b> por ${esc(mencoesNaoLidas.map(m => resolverInfoUsuario(m.por).nome).filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>
       <button class="btn small" type="button" data-marcar-mencao-lida="${esc(p.id)}" style="background:#fff;border-color:#F59E0B;color:#92400E;padding:2px 9px;min-height:0">✓ Marcar como visto</button>
     </div>` : "";
     const boxComentario = podeComentar ? `<div class="pc-coment-area" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)">
@@ -950,11 +1036,13 @@
         </div>`
       : `<div style="margin-top:8px">${infoCol}</div>`;
 
+    const remInfo = resolverInfoUsuario(p.remetente);
+
     return `<div class="pc-card${mencoesNaoLidas.length ? " mencionado-nao-lido" : ""}" id="peca-card-${esc(p.id)}" data-id="${esc(p.id)}">
       ${bannerMencao}
       <div class="pc-top"><div class="t">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(p.titulo)}</b><span class="pc-cli">${esc(p.clienteNome)}</span>${tagTipo}</div>
-        <div class="pc-sub" style="margin-top:2px">Enviada por ${esc(p.remetente?.nome || "")}${p.versao > 1 ? ` · <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</div></div>
+        <div class="pc-sub" style="margin-top:4px;display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span>Enviada por</span>${avatarHtml(remInfo, "sm")}<b>${esc(remInfo.nome)}</b><span>${p.versao > 1 ? `· <b>v${p.versao}</b> (reenviada)` : ""}${aprovTxt}</span></div></div>
         <div style="display:flex;gap:6px;align-items:center">
           <span class="st ${p.status}">${ST[p.status]}</span>
           ${podeEditarPeca ? `<button class="btn" type="button" data-x="editar-peca" data-id="${esc(p.id)}" title="Editar material e enviar nova versão" style="padding:3px 8px;min-height:0;font-size:12px;color:var(--blue);border-color:rgba(59,130,246,.35)">✏️ Editar</button>` : ""}
@@ -998,10 +1086,13 @@
     }
   }
 
-  const assinaturaListaPecas = arr => (arr || []).map(p => {
-    const hSig = (p.historico || []).map(h => `${h.id || h.em}:${(h.mencoes || []).length}:${(h.vistoPor || []).join(",")}`).join(";");
-    return `${p.id}:${p.status}:${p.versao}:${p.atualizadoEm || ""}:${hSig}`;
-  }).join("|");
+  const assinaturaListaPecas = arr => {
+    const pSig = Object.entries(mapaPerfisUsuarios || {}).map(([lg, u]) => `${lg}:${u.nome}:${(u.avatar || "").length}`).join(",");
+    return pSig + "||" + (arr || []).map(p => {
+      const hSig = (p.historico || []).map(h => `${h.id || h.em}:${(h.mencoes || []).length}:${(h.vistoPor || []).join(",")}`).join(";");
+      return `${p.id}:${p.status}:${p.versao}:${p.atualizadoEm || ""}:${hSig}`;
+    }).join("|");
+  };
 
   // Controle de notificações em tempo real de menções (@) para o usuário logado
   const mencoesJaNotificadas = new Set();
@@ -1064,16 +1155,22 @@
         </div>
       </div>
       <div class="pc-notif-list">
-        ${itens.slice(0, 6).map(({ peca, hist }) => `<div class="pc-notif-item">
-          <div style="flex:1;min-width:200px">
-            <div><b>${esc(hist.por?.nome || "Alguém")}</b> mencionou você em <b>${esc(peca.titulo)}</b> <span class="pc-cli">${esc(peca.clienteNome)}</span> · <span class="pc-sub">${brHora(hist.em)}</span></div>
-            <div style="margin-top:3px;color:var(--ink)">${formatarTextoComMencoes(hist.comentario || "", hist.mencoes || [])}</div>
+        ${itens.slice(0, 6).map(({ peca, hist }) => {
+          const autorInfo = resolverInfoUsuario(hist.por);
+          return `<div class="pc-notif-item">
+          <div style="display:flex;align-items:flex-start;gap:10px;flex:1;min-width:200px">
+            ${avatarHtml(autorInfo, "md")}
+            <div style="flex:1;min-width:0">
+              <div><b>${esc(autorInfo.nome)}</b> mencionou você em <b>${esc(peca.titulo)}</b> <span class="pc-cli">${esc(peca.clienteNome)}</span> · <span class="pc-sub">${brHora(hist.em)}</span></div>
+              <div style="margin-top:3px;color:var(--ink)">${formatarTextoComMencoes(hist.comentario || "", hist.mencoes || [])}</div>
+            </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
             <button class="btn small primary" type="button" data-ir-peca="${esc(peca.id)}">Ver peça ↓</button>
             <button class="btn small" type="button" data-marcar-mencao-lida="${esc(peca.id)}">✓ Visto</button>
           </div>
-        </div>`).join("")}
+        </div>`;
+        }).join("")}
       </div>
     </div>`;
   }
@@ -1135,12 +1232,14 @@
       const silencioso = !!(opcoesCarga && opcoesCarga.silencioso);
       if (Array.isArray(opcoesCarga?.pecas)) {
         try { await carregarBase(); } catch { return; }
+        if (opcoesCarga.perfis) atualizarMapaPerfis(opcoesCarga.perfis);
         aplicarDados(opcoesCarga.pecas, { silencioso });
         return;
       }
-      let todas;
-      try { await carregarBase(); todas = (await api("pecas")).pecas; } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
-      aplicarDados(todas, { silencioso });
+      let r;
+      try { await carregarBase(); r = await api("pecas"); } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      if (r.perfis) atualizarMapaPerfis(r.perfis);
+      aplicarDados(r.pecas, { silencioso });
     }
     function render() {
       const fMidia = fv("f-midia");
@@ -1321,12 +1420,14 @@
       const silencioso = !!(opcoesCarga && opcoesCarga.silencioso);
       if (Array.isArray(opcoesCarga?.pecas)) {
         try { await carregarBase(); } catch { return; }
+        if (opcoesCarga.perfis) atualizarMapaPerfis(opcoesCarga.perfis);
         aplicarDados(opcoesCarga.pecas, { silencioso });
         return;
       }
-      let todas;
-      try { await carregarBase(); todas = (await api("pecas")).pecas; } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
-      aplicarDados(todas, { silencioso });
+      let r;
+      try { await carregarBase(); r = await api("pecas"); } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      if (r.perfis) atualizarMapaPerfis(r.perfis);
+      aplicarDados(r.pecas, { silencioso });
     }
     function render() {
       const l = filtradasAtuais()
@@ -1900,16 +2001,31 @@
     try {
       const r = await api("pecas");
       const todas = r.pecas || [];
+      if (r.perfis) atualizarMapaPerfis(r.perfis);
       atualizarBadgeFila(todas);
       if (secoesModulo.fila && !secoesModulo.fila.hidden && recarregadores.fila) {
-        await recarregadores.fila({ pecas: todas, silencioso: true });
+        await recarregadores.fila({ pecas: todas, perfis: r.perfis, silencioso: true });
       }
       if (secoesModulo.envio && !secoesModulo.envio.hidden && recarregadores.envio) {
-        await recarregadores.envio({ pecas: todas, silencioso: true });
+        await recarregadores.envio({ pecas: todas, perfis: r.perfis, silencioso: true });
       }
     } catch {}
     finally { syncEmAndamento = false; }
   }
+
+  window.QZ_atualizarPerfilLocalPecas = info => {
+    if (!info || !info.login) return;
+    atualizarMapaPerfis({ [info.login]: { nome: info.nome || info.login, avatar: info.avatar || null } });
+    if (base) {
+      for (const listaU of [base.equipe, base.usuarios]) {
+        if (Array.isArray(listaU)) {
+          const item = listaU.find(x => x.login === info.login);
+          if (item) { item.nome = info.nome || item.nome; item.avatar = info.avatar || null; }
+        }
+      }
+    }
+    sincronizarPecasTempoReal();
+  };
 
   function agendarPollPecas() {
     clearTimeout(timerPollPecas);

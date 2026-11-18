@@ -1,15 +1,48 @@
-import { session } from "./_lib.js";
+import { session, sql, forgetUser } from "./_lib.js";
 import { publico, areasPublicas, PERFIS } from "./_modules.js";
 import { eticaPendente } from "./_pol.js";
 
+const AVATAR_DATA_RE = /^data:image\/(webp|jpeg|jpg|png);base64,[A-Za-z0-9+/=]{20,120000}$/;
+
 // Quem está logado, que módulos e abas pode usar (monta a tela de módulos e o menu).
+// POST /api/me permite que a própria pessoa atualize seu Nome de exibição e Foto de perfil (avatar).
 export default async function handler(req, res) {
   const u = await session(req);
   if (!u) return res.status(401).json({ error: "unauthorized" });
+
+  if (req.method === "POST") {
+    if (u.trocarSenha) return res.status(403).json({ error: "trocar_senha", code: "trocar_senha" });
+    const b = req.body && typeof req.body === "object" ? req.body : {};
+    const temNome = typeof b.nome === "string";
+    const nome = temNome ? b.nome.trim().replace(/\s+/g, " ").slice(0, 80) : u.nome;
+    if (temNome && nome.length < 2) {
+      return res.status(400).json({ error: "O nome precisa ter pelo menos 2 caracteres." });
+    }
+    let avatar = u.avatar || null;
+    if (b.avatar === null || b.avatar === "") {
+      avatar = null;
+    } else if (typeof b.avatar === "string") {
+      const av = b.avatar.trim();
+      if (!AVATAR_DATA_RE.test(av)) {
+        return res.status(400).json({ error: "Formato de imagem inválido ou imagem muito grande. Escolha outra foto." });
+      }
+      avatar = av;
+    }
+    await sql`UPDATE usuarios SET nome = ${nome || u.login}, avatar = ${avatar}, atualizado_em = now() WHERE login = ${u.login}`;
+    forgetUser(u.login);
+    return res.status(200).json({
+      ok: true,
+      login: u.login,
+      nome: nome || u.login,
+      avatar,
+      perfil: PERFIS[u.funcao] || u.funcao,
+    });
+  }
+
   let pendencias = {};
   try { if (!u.trocarSenha && await eticaPendente(u)) pendencias.etica = true; } catch { /* aviso é opcional */ }
   return res.status(200).json({
-    login: u.login, nome: u.nome, papel: u.papel, funcao: u.funcao, perfil: PERFIS[u.funcao] || u.funcao,
+    login: u.login, nome: u.nome, avatar: u.avatar || null, papel: u.papel, funcao: u.funcao, perfil: PERFIS[u.funcao] || u.funcao,
     auth: u.auth, trocarSenha: u.trocarSenha, podeEnviarPecas: u.podeEnviarPecas,
     abas: u.trocarSenha ? [] : u.abas,
     modulos: u.trocarSenha ? [] : publico(u.abas),
