@@ -57,7 +57,7 @@ export async function clientesCarteira() {
   return (mes ? porMes[mes] : []).filter(c => c.status !== "inativo").sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 export async function usuariosAtivos() {
-  const r = await sql`SELECT login, nome, funcao, papel FROM usuarios WHERE ativo ORDER BY nome`;
+  const r = await sql`SELECT login, nome, funcao, papel, avatar FROM usuarios WHERE ativo ORDER BY nome`;
   return r;
 }
 // Corpo JSON com limite de texto por campo (evita lixo gigante nos documentos).

@@ -445,5 +445,17 @@ a.lockbtn{text-decoration:none}
 .qz-notif-row .txt{color:var(--ink);font-size:12.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .qz-notif-empty{padding:20px 14px;text-align:center;color:var(--ink2);font-size:13px}
 
+/* ---------- Botão e Modal de Perfil (Foto / Avatar e Nome) ---------- */
+.qz-profile-btn{padding:3px 10px 3px 4px;gap:7px;border-color:var(--line);background:#fff;transition:all .15s ease}
+.qz-profile-btn:hover{border-color:var(--blue);background:var(--blue-soft)}
+.qz-hdr-av{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--display);font-size:10.5px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;background:var(--blue)}
+.qz-hdr-av img{width:100%;height:100%;object-fit:cover;display:block}
+.qz-prof-hero{display:flex;align-items:center;gap:18px;padding:12px 14px;background:#F8FAFC;border:1px solid var(--line2);border-radius:12px}
+.qz-prof-av-preview{width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:26px;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(15,23,42,0.12);border:2px solid #fff}
+.qz-prof-av-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.qz-prof-av-actions{flex:1;min-width:0}
+.usr-avatar img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
+
+
 
 

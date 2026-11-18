@@ -637,14 +637,15 @@ async function proximoNumeroPeca(clienteId) {
 // ---------- Rotas ----------
 async function inicio(u, req, res) {
   const todos = await usuariosAtivos();
-  const usuarios = todos.filter(x => podeDecidir(x) && x.login !== "equipe.inteligentte").map(x => ({ login: x.login, nome: x.nome || x.login, funcao: perfilDe(x), podeDecidir: true }));
+  const usuarios = todos.filter(x => podeDecidir(x) && x.login !== "equipe.inteligentte").map(x => ({ login: x.login, nome: x.nome || x.login, avatar: x.avatar || null, funcao: perfilDe(x), podeDecidir: true }));
   const equipe = todos.filter(x => x.login !== "equipe.inteligentte").map(x => ({
     login: x.login,
     nome: x.nome || x.login,
+    avatar: x.avatar || null,
     funcao: perfilDe(x),
     podeDecidir: podeDecidir(x),
   }));
-  return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login, funcao: perfilDe(u),
+  return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login, nome: u.nome || u.login, avatar: u.avatar || null, funcao: perfilDe(u),
     clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, equipe, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
     retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
 }
@@ -926,9 +927,14 @@ async function filaApagar(u, req, res) {
 
 async function pecas(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return negado(res);
-  const lista = (await listar(M, "pecas")).filter(p => podeVer(u, p))
+  const [todasPecas, todosUsers] = await Promise.all([listar(M, "pecas"), usuariosAtivos()]);
+  const lista = todasPecas.filter(p => podeVer(u, p))
     .sort((a, b) => (b.atualizadoEm || "").localeCompare(a.atualizadoEm || ""));
-  return res.json({ pecas: lista.map(p => publica(p, u)) });
+  const perfis = {};
+  for (const x of todosUsers) {
+    if (x.login) perfis[x.login] = { nome: x.nome || x.login, avatar: x.avatar || null, funcao: perfilDe(x) };
+  }
+  return res.json({ pecas: lista.map(p => publica(p, u)), perfis });
 }
 
 // Visualização de um arquivo: confere a permissão e manda para um link temporário (ou envia o arquivo, no teste local).

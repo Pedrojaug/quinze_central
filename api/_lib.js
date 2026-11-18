@@ -70,6 +70,7 @@ export function garantirContasPadrao() {
   if (!seedContasP) {
     seedContasP = (async () => {
       try {
+        await sql`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS avatar text`;
         const flag = await sql`SELECT 1 FROM docs WHERE path = 'config/seed_contas_v2' AND NOT deleted`;
         if (!flag.length) {
           for (const c of CONTAS_EQUIPE) {
@@ -132,12 +133,13 @@ export async function loadUser(login) {
   await garantirContasPadrao();
   const c = cache.get(login);
   if (c && Date.now() - c.at < 15000 && !(c.u && c.u.trocarSenha)) return c.u; // senha temporária: sempre confere de novo
-  const r = (await sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas,
+  const r = (await sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas, u.avatar,
                               coalesce(a.trocar, false) AS trocar
                        FROM usuarios u LEFT JOIN app_users a ON u.auth = 'senha' AND lower(a.username) = u.login
                        WHERE u.login = ${login}`)[0];
   const u = r && r.ativo ? {
     login: r.login, nome: r.nome, papel: r.papel, funcao: perfilDe(r), auth: r.auth,
+    avatar: r.avatar || null,
     abas: abasDe(r), areas: areasDe(r), podeEnviarPecas: !!r.pode_enviar_pecas,
     trocarSenha: r.auth === "senha" && !!r.trocar,
   } : null;
