@@ -139,9 +139,9 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     </div>
 
     <div class="card" id="homeBox" hidden>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div id="homeAv" style="width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 16px var(--display);overflow:hidden;flex-shrink:0"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div id="homeAv" style="width:56px;height:56px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 20px var(--display);overflow:hidden;flex-shrink:0;box-shadow:0 3px 10px rgba(15,23,42,.15);border:2px solid #fff"></div>
           <h2 id="hello" style="margin:0">Olá!</h2>
         </div>
         <button class="out" type="button" id="myProfile" style="margin:0;font-size:13.5px">Editar perfil</button>
@@ -164,8 +164,8 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
       <p class="lead">Personalize sua foto e seu nome de exibição na Central Quinze.</p>
       <form id="frmHomeProfile" novalidate>
         <div class="err" id="profHomeErr" role="alert" hidden></div>
-        <div style="display:flex;align-items:center;gap:16px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:16px">
-          <div id="profHomeAv" style="width:68px;height:68px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 22px var(--display);overflow:hidden;flex-shrink:0"></div>
+        <div style="display:flex;align-items:center;gap:16px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:16px">
+          <div id="profHomeAv" style="width:88px;height:88px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 28px var(--display);overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(15,23,42,.15);border:2px solid #fff"></div>
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;font-size:14px;margin-bottom:6px">Foto de perfil</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -308,12 +308,12 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     rd.onload = () => {
       const im = new Image();
       im.onload = () => {
-        const cv = document.createElement("canvas"); cv.width = 128; cv.height = 128;
+        const cv = document.createElement("canvas"); cv.width = 256; cv.height = 256;
         const cx = cv.getContext("2d"), m = Math.min(im.width, im.height);
-        cx.fillStyle = "#fff"; cx.fillRect(0, 0, 128, 128);
-        cx.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, 128, 128);
-        let u = cv.toDataURL("image/webp", 0.85);
-        if (!/^data:image\/webp/.test(u)) u = cv.toDataURL("image/jpeg", 0.85);
+        cx.fillStyle = "#fff"; cx.fillRect(0, 0, 256, 256);
+        cx.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, 256, 256);
+        let u = cv.toDataURL("image/webp", 0.88);
+        if (!/^data:image\/webp/.test(u)) u = cv.toDataURL("image/jpeg", 0.88);
         homeDraftAv = u;
         paintAv($("#profHomeAv"), $("#profHomeNome").value, ME?.login, homeDraftAv);
         $("#profHomeRm").hidden = false;
