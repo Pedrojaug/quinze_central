@@ -578,15 +578,27 @@ function resolverMencoes(texto, mencoesInput, todosUsuarios, autorLogin) {
   return [...selecionados.values()];
 }
 
+function eventoNotificaUsuario(p, h, login) {
+  if (!login || !h || h.por?.login === login) return false;
+  const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
+  if (listaM.some(m => (m.login || m) === login)) return true;
+  // O designer/remetente que enviou a peça sempre é notificado quando a peça recebe comentário, pedido de alteração ou reprovação
+  if (p?.remetente?.login === login && ["comentario", "alteracao_solicitada", "reprovada"].includes(h.tipo)) {
+    return true;
+  }
+  return false;
+}
+
 function mencoesNaoLidasPara(p, login) {
   if (!login || !Array.isArray(p.historico)) return [];
   const out = [];
+  const souRemetente = p?.remetente?.login === login;
   p.historico.forEach((h, idx) => {
-    const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
-    if (!listaM.some(m => (m.login || m) === login)) return;
-    if (h.por?.login === login) return;
+    if (!eventoNotificaUsuario(p, h, login)) return;
     const vistos = Array.isArray(h.vistoPor) ? h.vistoPor : [];
     if (vistos.includes(login)) return;
+    const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
+    const foiMencionado = listaM.some(m => (m.login || m) === login);
     out.push({
       hid: h.id || `${p.id}_${idx}`,
       pecaId: p.id,
@@ -595,6 +607,8 @@ function mencoesNaoLidasPara(p, login) {
       statusPeca: p.status,
       versao: h.versao || p.versao || 1,
       tipo: h.tipo,
+      souRemetente,
+      foiMencionado,
       em: h.em,
       por: h.por || { login: "", nome: "Alguém" },
       comentario: h.comentario || "",
@@ -609,8 +623,7 @@ function marcarMencoesLidasNaPeca(p, login, hidAlvo = null) {
   p.historico.forEach((h, idx) => {
     const hid = h.id || `${p.id}_${idx}`;
     if (hidAlvo && hid !== hidAlvo) return;
-    const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
-    if (!listaM.some(m => (m.login || m) === login)) return;
+    if (!eventoNotificaUsuario(p, h, login)) return;
     h.vistoPor = Array.isArray(h.vistoPor) ? h.vistoPor : [];
     if (!h.vistoPor.includes(login)) {
       h.vistoPor.push(login);
@@ -800,6 +813,11 @@ async function pecaDecidir(u, req, res) {
   const em = agora();
   const todos = await usuariosAtivos();
   const mencoesDec = resolverMencoes(comentario, b.mencoes, todos, u.login);
+  if (["alteracao_solicitada", "reprovada"].includes(decisao) && p.remetente?.login && p.remetente.login !== u.login) {
+    if (!mencoesDec.some(m => m.login === p.remetente.login)) {
+      mencoesDec.push({ login: p.remetente.login, nome: p.remetente.nome || p.remetente.login });
+    }
+  }
   marcarMencoesLidasNaPeca(p, u.login);
   p.historico.push({ id: novoId(), tipo: decisao, versao: p.versao, em, por: quem(u), comentario, mencoes: mencoesDec, vistoPor: [u.login] });
   Object.assign(p, { status: decisao, atualizadoEm: em, decididoEm: em, decididoPor: quem(u) });
@@ -846,6 +864,11 @@ async function pecaComentar(u, req, res) {
   const em = agora();
   const todos = await usuariosAtivos();
   const mencoesCom = resolverMencoes(comentario, b.mencoes, todos, u.login);
+  if (p.remetente?.login && p.remetente.login !== u.login) {
+    if (!mencoesCom.some(m => m.login === p.remetente.login)) {
+      mencoesCom.push({ login: p.remetente.login, nome: p.remetente.nome || p.remetente.login });
+    }
+  }
   marcarMencoesLidasNaPeca(p, u.login);
   p.historico = Array.isArray(p.historico) ? p.historico : [];
   p.historico.push({ id: novoId(), tipo: "comentario", versao: p.versao, em, por: quem(u), comentario, mencoes: mencoesCom, vistoPor: [u.login] });
