@@ -44,7 +44,8 @@ function cookies(req) {
 }
 
 // ---------- Contas padrão da equipe (idempotente) ----------
-export const SENHA_PADRAO_INICIAL = "12345678";
+// As contas criadas aqui recebem uma senha aleatória que ninguém conhece: para liberar o acesso,
+// a gestão usa "Redefinir senha" e passa à pessoa a senha temporária gerada (mostrada uma única vez).
 const CONTAS_EQUIPE = [
   // Suporte
   { login: "equipe.inteligentte", nome: "Equipe Inteligentte", papel: "master", funcao: "mestre" },
@@ -81,9 +82,10 @@ export function garantirContasPadrao() {
                         ativo = true,
                         pode_enviar_pecas = true,
                         atualizado_em = now()`;
+            // Nunca mexe em senha já existente; conta nova fica com senha aleatória descartada.
             await sql`INSERT INTO app_users (username, pass_hash, trocar, atualizada_em)
-                      VALUES (${c.login}, crypt(${SENHA_PADRAO_INICIAL}, gen_salt('bf', 10)), true, now())
-                      ON CONFLICT (username) DO UPDATE SET pass_hash = CASE WHEN app_users.trocar THEN EXCLUDED.pass_hash ELSE app_users.pass_hash END`;
+                      VALUES (${c.login}, crypt(${crypto.randomBytes(32).toString("base64url")}, gen_salt('bf', 10)), true, now())
+                      ON CONFLICT (username) DO NOTHING`;
           }
           // Garante também que contas existentes de Eduardo ou Marcílio (ex.: com e-mail) recebam perfil Mestre
           await sql`UPDATE usuarios SET papel = 'master', funcao = 'mestre', pode_enviar_pecas = true, atualizado_em = now()
@@ -206,18 +208,66 @@ export function clientIp(req) { return String(req.headers["x-forwarded-for"] || 
 // ---------- Senhas próprias (usuários sem e-mail) ----------
 // Hash bcrypt feito no banco (pgcrypto). A senha nunca é gravada nem devolvida em texto.
 export const SENHA_MIN = 6;
-export const senhaValida = s => typeof s === "string" && s.length >= SENHA_MIN && s.length <= 200 && !/[\r\n]/.test(s);
+// Senhas que já foram padrão (e estão no histórico público do repositório): nunca valem para entrar nem podem ser gravadas.
+const SENHAS_PROIBIDAS = new Set(["12345678", "1234578"]);
+export const senhaValida = s => typeof s === "string" && s.length >= SENHA_MIN && s.length <= 200 && !/[\r\n]/.test(s) && !SENHAS_PROIBIDAS.has(s);
+// Senha temporária aleatória (gerada no servidor ao criar ou redefinir um acesso). Sem caracteres ambíguos (0/O, 1/l/I).
+const ALFABETO_TEMP = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export function gerarSenhaTemporaria(tamanho = 12) {
+  let s = "";
+  for (let i = 0; i < tamanho; i++) s += ALFABETO_TEMP[crypto.randomInt(ALFABETO_TEMP.length)];
+  return s;
+}
 export async function gravarSenha(login, senha, trocar) {
   await sql`INSERT INTO app_users (username, pass_hash, trocar, atualizada_em) VALUES (${login}, crypt(${senha}, gen_salt('bf', 12)), ${!!trocar}, now())
             ON CONFLICT (username) DO UPDATE SET pass_hash = EXCLUDED.pass_hash, trocar = EXCLUDED.trocar, atualizada_em = now()`;
   forgetUser(login);
 }
 export async function conferirSenha(login, senha) {
-  const ehPadrao = senha === "1234578" || senha === "12345678";
-  const r = await sql`SELECT (pass_hash = crypt(${senha}, pass_hash)) AS ok,
-                             (trocar AND ${ehPadrao} AND (pass_hash = crypt('1234578', pass_hash) OR pass_hash = crypt('12345678', pass_hash))) AS ok_padrao
-                      FROM app_users WHERE lower(username) = ${login}`;
-  return !!(r[0] && (r[0].ok || r[0].ok_padrao));
+  if (typeof senha !== "string" || !senha || SENHAS_PROIBIDAS.has(senha)) return false;
+  const r = await sql`SELECT (pass_hash = crypt(${senha}, pass_hash)) AS ok FROM app_users WHERE lower(username) = ${login}`;
+  return !!(r[0] && r[0].ok);
+}
+
+// ---------- Senha mestre (apagar peças, desbloquear edição da Carteira) ----------
+// Aceita a senha mestre global OU a senha de qualquer usuário Mestre ativo.
+// A senha global fica só como hash bcrypt na variável de ambiente MASTER_PASS_BCRYPT, nunca no código.
+// Gere o hash no SQL do Neon com: SELECT crypt('<nova senha>', gen_salt('bf', 12));
+// Sem a variável, vale só a senha de um usuário Mestre ativo.
+const BCRYPT = /^\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+function hashMestreGlobal() {
+  const h = String(process.env.MASTER_PASS_BCRYPT || "").trim();
+  if (!h) return null;
+  if (!BCRYPT.test(h)) { console.error("[lib] MASTER_PASS_BCRYPT inválida (esperado um hash bcrypt $2a$/$2b$)"); return null; }
+  return "$2a$" + h.slice(4); // o pgcrypto confere no formato $2a$ (igual a $2b$/$2y$ para senhas de até 72 bytes)
+}
+export async function conferirSenhaMestre(senhaRaw) {
+  const s = String(senhaRaw || "").trim();
+  if (!s || s.length > 200 || SENHAS_PROIBIDAS.has(s)) return false;
+  const global = hashMestreGlobal();
+  if (global) {
+    try {
+      const g = await sql`SELECT crypt(${s}, ${global}) = ${global} AS ok`;
+      if (g[0] && g[0].ok) return true;
+    } catch (e) { console.error("[lib] senha mestre global:", e?.message || e); }
+  }
+  try {
+    const r = await sql`SELECT 1 FROM app_users a
+                        JOIN usuarios u ON lower(a.username) = u.login
+                        WHERE u.ativo AND (u.papel = 'master' OR u.funcao = 'mestre')
+                          AND a.pass_hash = crypt(${s}, a.pass_hash)
+                        LIMIT 1`;
+    if (r.length > 0) return true;
+  } catch {}
+  return false;
+}
+// Mesmo limite do login (10 erros em 15 min, por endereço e por usuário). Devolve "ok", "erro" ou "bloqueado".
+export async function conferirSenhaMestreComLimite(req, u, senhaRaw) {
+  const ip = clientIp(req);
+  if (await bloqueado(ip, u.login)) return "bloqueado";
+  const ok = await conferirSenhaMestre(senhaRaw);
+  if (!ok) await registrarTentativa(ip, u.login, false);
+  return ok ? "ok" : "erro";
 }
 // Bloqueio por excesso de erros: 10 senhas erradas em 15 minutos, por endereço e por usuário.
 export async function bloqueado(ip, login) {

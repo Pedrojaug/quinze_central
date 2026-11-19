@@ -1,7 +1,7 @@
 // Rota única dos módulos 01 Atendimento (tarefas, relatório, pendências), 02 Aprovação de peças, 03 Administrativo, 04 CS, 05 Políticas e 06 Financeiro: /api/m?r=<modulo>/<acao>
 // (uma função só, para caber no limite de funções do plano da Vercel).
 // A permissão é sempre conferida aqui no servidor: primeiro o módulo (perfil), depois a ação.
-import { requireSession } from "./_lib.js";
+import { requireSession, conferirSenhaMestreComLimite } from "./_lib.js";
 import * as adm from "./_adm.js";
 import * as cs from "./_cs.js";
 import * as pol from "./_pol.js";
@@ -13,8 +13,17 @@ import * as pop from "./_pop.js";
 import * as onb from "./_onb.js";
 import * as onbExc from "./_onbexcluir.js";
 
+// Confere a senha mestre no servidor (desbloqueio da edição da Carteira). Antes o hash ia para o navegador.
+async function mestreConferir(u, req, res) {
+  if (req.method !== "POST") return res.status(405).json({ code: "method" });
+  const r = await conferirSenhaMestreComLimite(req, u, (req.body || {}).senha);
+  if (r === "bloqueado") return res.status(429).json({ code: "too_many", msg: "Muitas tentativas erradas. Aguarde 15 minutos." });
+  return res.status(r === "ok" ? 200 : 403).json({ ok: r === "ok" });
+}
+
 // pop: "area" null = qualquer pessoa logada (Meu POP); as ações de edição conferem o perfil dentro de _pop.js.
-const MODULOS = { pop: { area: null, h: pop }, tar: { area: "atendimento", h: tar }, onb: { area: "atendimento", h: { rotas: { ...onb.rotas, ...onbExc.rotas } } }, pen: { area: "atendimento", h: pen }, pec: { area: "pecas", h: pec }, adm: { area: "administrativo", h: adm }, cs: { area: "cs", h: cs }, pol: { area: "politicas", h: pol }, fin: { area: "financeiro", h: fin } };
+// aut: "area" null = qualquer pessoa logada; só confere a senha mestre.
+const MODULOS = { aut: { area: null, h: { rotas: { "mestre.conferir": mestreConferir } } }, pop: { area: null, h: pop }, tar: { area: "atendimento", h: tar }, onb: { area: "atendimento", h: { rotas: { ...onb.rotas, ...onbExc.rotas } } }, pen: { area: "atendimento", h: pen }, pec: { area: "pecas", h: pec }, adm: { area: "administrativo", h: adm }, cs: { area: "cs", h: cs }, pol: { area: "politicas", h: pol }, fin: { area: "financeiro", h: fin } };
 
 export default async function handler(req, res) {
   const r = String(req.query.r || "");
