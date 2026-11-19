@@ -6,7 +6,7 @@
 // Arquivos: o navegador envia direto ao Vercel Blob com um token do servidor; ficam 7 dias e são apagados pela rotina diária.
 // Os contadores mensais (m/pecas/contadores/<AAAA-MM>) são atualizados a cada envio e decisão e nunca são apagados.
 import crypto from "node:crypto";
-import { sql } from "./_lib.js";
+import { sql, conferirSenhaMestreComLimite } from "./_lib.js";
 import { perfilDe, podeEnviarPecas, ehGestao } from "./_modules.js";
 import { listar, ler, gravar, apagar, novoId, clientesCarteira, clientesCarteiraComMes, txt, usuariosAtivos } from "./_mdados.js";
 import { tokenEnvioDireto, infoArquivo, apagarArquivos, listarArquivos, linkTemporario, enviar, nomeSeguro, extensao } from "./_arquivos.js";
@@ -28,7 +28,6 @@ const TIPOS = {
 export const STATUS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
 const DECISOES = ["aprovada", "reprovada", "alteracao_solicitada"];
 const DIA = 864e5;
-const MASTER_PASS_HASH = "a8698d96861f332be3627b5461c3d4ac120295ae33c8e26b9c0db82afa657084";
 
 const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
 const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
@@ -89,20 +88,13 @@ const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login ===
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;
 
-// Confere a senha mestre (aceita a senha mestre global da plataforma OU a senha de qualquer usuário Mestre ativo)
-async function conferirSenhaMestre(senhaRaw) {
-  const s = String(senhaRaw || "").trim();
-  if (!s || s.length > 200) return false;
-  const hash = crypto.createHash("sha256").update(s).digest("hex");
-  if (hash === MASTER_PASS_HASH) return true;
-  try {
-    const r = await sql`SELECT 1 FROM app_users a
-                        JOIN usuarios u ON lower(a.username) = u.login
-                        WHERE u.ativo AND (u.papel = 'master' OR u.funcao = 'mestre')
-                          AND a.pass_hash = crypt(${s}, a.pass_hash)
-                        LIMIT 1`;
-    if (r.length > 0) return true;
-  } catch {}
+// Confere a senha mestre (global em MASTER_PASS_BCRYPT ou de um usuário Mestre ativo), com limite de tentativas. Ver _lib.js.
+// Devolve true se pode seguir; caso contrário já respondeu 403/429.
+async function exigirSenhaMestre(u, req, res, senha) {
+  const r = await conferirSenhaMestreComLimite(req, u, senha);
+  if (r === "ok") return true;
+  if (r === "bloqueado") res.status(429).json({ code: "too_many", msg: "Muitas tentativas erradas. Aguarde 15 minutos." });
+  else res.status(403).json({ code: "senha_mestre", msg: "Senha mestre incorreta." });
   return false;
 }
 
@@ -954,9 +946,7 @@ async function mencaoLer(u, req, res) {
 async function pecaExcluir(u, req, res) {
   if (!so(req, res, "POST")) return;
   const b = corpo(req);
-  if (!(await conferirSenhaMestre(b.senhaMestre))) {
-    return res.status(403).json({ code: "senha_mestre", msg: "Senha mestre incorreta." });
-  }
+  if (!(await exigirSenhaMestre(u, req, res, b.senhaMestre))) return;
   const p = await ler(M, "pecas", String(b.id || ""));
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada." });
   const chaves = [];
@@ -981,9 +971,7 @@ async function pecaExcluir(u, req, res) {
 async function filaApagar(u, req, res) {
   if (!so(req, res, "POST")) return;
   const b = corpo(req);
-  if (!(await conferirSenhaMestre(b.senhaMestre))) {
-    return res.status(403).json({ code: "senha_mestre", msg: "Senha mestre incorreta." });
-  }
+  if (!(await exigirSenhaMestre(u, req, res, b.senhaMestre))) return;
   const todas = await listar(M, "pecas");
   const idsFiltro = Array.isArray(b.ids) && b.ids.length ? new Set(b.ids.map(String)) : null;
   const alvos = todas.filter(p => {
