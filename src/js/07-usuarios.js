@@ -585,7 +585,7 @@
     const normLogin = raw => {
       const s = String(raw || "").trim().toLowerCase();
       if (!s || s.includes("@")) return s;
-      return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, ".").replace(/[^a-z0-9._-]/g, "").replace(/^[^a-z0-9]+/, "").slice(0, 40);
+      return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ".").replace(/[^a-z0-9._-]/g, "").replace(/^[^a-z0-9]+/, "").slice(0, 40);
     };
     const ehEmailQuinze = v => /@quinzecomunicacao\.com(\.br)?$/i.test(v);
     const senhaBox = () => {
