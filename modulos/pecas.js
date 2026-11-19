@@ -347,14 +347,6 @@
       .pc-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:7px;border-radius:999px;background:#EF4444;color:#FFFFFF;font-size:11.5px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 5px rgba(239,68,68,0.35);vertical-align:middle}
       .pc-tab-badge[hidden]{display:none !important}
       /* Menções (@) e Notificações */
-      .pc-mencao-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;font-size:13px}
-      .pc-mencao-chips .lbl{color:var(--ink2);font-weight:600;margin-right:2px}
-      .pc-chip-mencao{display:inline-flex;align-items:center;gap:7px;padding:4px 13px 4px 5px;border-radius:999px;border:1px solid #C8DCFC;background:#F0F6FF;color:var(--blue-dk);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s ease;user-select:none}
-      .pc-chip-mencao:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
-      .pc-chip-mencao.sug{border-color:#F59E0B;background:#FFFBEB;color:#B45309}
-      .pc-chip-mencao.sug:hover{background:#D97706;color:#fff;border-color:#D97706}
-      .pc-chip-mencao.ativo{background:var(--blue);color:#fff;border-color:var(--blue)}
-      .pc-chip-mencao.sug.ativo{background:#D97706;color:#fff;border-color:#D97706}
       .pc-tag-mencao{display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:6px;background:#E6EFFF;color:var(--blue-dk);font-weight:700;font-size:12.5px;border:1px solid rgba(6,96,255,0.2)}
       .pc-tag-mencao.eu{background:#FEF3C7;color:#B45309;border-color:#F59E0B;box-shadow:0 1px 3px rgba(245,158,11,0.2)}
       .pc-card.mencionado-nao-lido{border-color:#F59E0B;box-shadow:0 0 0 2px rgba(245,158,11,0.22)}
@@ -591,7 +583,7 @@
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
       const links = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
       if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo ou informe o link do Reels/Google Drive.");
-      const corpo = { obs: $("obs").value, arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links, tipoMidia };
+      const corpo = { obs: $("obs").value, mencoes: coletarMencoesDoTextarea($("obs")), arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links, tipoMidia };
       if (nova) {
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
         const tituloFinal = $("titulo").value.trim() || tituloPadraoCliente($("cliente").value);
@@ -823,19 +815,6 @@
     return html;
   }
 
-  function barraChipsMencaoHtml(p, alvoSelectorAttr, alvoId) {
-    const cands = candidatosMencaoParaPeca(p);
-    if (!cands.length) return "";
-    // Exibe no topo os aprovadores sugeridos, aprovadores (coordenadores/gestão) e o remetente; os demais ficam acessíveis digitando @
-    const principais = cands.filter(c => c.ehSugerido || c.ehAprovador || c.ehRemetente).slice(0, 8);
-    const exibir = principais.length ? principais : cands.slice(0, 6);
-    return `<div class="pc-mencao-chips" data-mencao-bar="${esc(alvoId)}">
-      <span class="lbl">🔔 Marcar para notificar:</span>
-      ${exibir.map(u => `<button type="button" class="pc-chip-mencao${u.ehSugerido ? " sug" : ""}" data-inserir-mencao="${esc(u.login)}" data-mencao-nome="${esc(u.nome)}" data-mencao-alvo-attr="${esc(alvoSelectorAttr)}" data-mencao-alvo-id="${esc(alvoId)}" title="${esc(u.papelTxt)} (${esc(u.login)})">${avatarHtml(u, "xs")}${u.ehSugerido ? "⭐ " : ""}@${esc(u.nome)}</button>`).join("")}
-      <span class="pc-sub" style="font-size:11px;margin-left:2px">(ou digite <b>@</b> no texto)</span>
-    </div>`;
-  }
-
   function inserirMencaoNoTextarea(ta, login, nome) {
     if (!ta) return;
     const mencaoTxt = `@${nome} `;
@@ -862,30 +841,25 @@
     ta.dataset.mencoesLogins = [...conj].join(",");
     ta.focus();
     try { ta.setSelectionRange(posCursor, posCursor); } catch {}
-    sincronizarChipsAtivosTextarea(ta);
+    sincronizarMencoesTextarea(ta);
   }
 
-  function sincronizarChipsAtivosTextarea(ta) {
+  const normMencao = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  function sincronizarMencoesTextarea(ta) {
     if (!ta) return;
-    const wrap = ta.closest(".pc-coment-area, .pc-dec, .pc-card");
-    if (!wrap) return;
-    const valNorm = String(ta.value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    const loginsAtivos = new Set();
-    wrap.querySelectorAll("[data-inserir-mencao]").forEach(btn => {
-      const lg = btn.dataset.inserirMencao;
-      const nmNorm = String(btn.dataset.mencaoNome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      const presente = valNorm.includes("@" + nmNorm) || valNorm.includes("@" + lg.toLowerCase());
-      btn.classList.toggle("ativo", presente);
-      if (presente) loginsAtivos.add(lg);
+    const valNorm = normMencao(ta.value);
+    const atuais = (ta.dataset.mencoesLogins || "").split(",").map(s => s.trim()).filter(Boolean);
+    const mantidos = atuais.filter(lg => {
+      const info = resolverInfoUsuario(lg);
+      const nmNorm = normMencao(info.nome);
+      return (nmNorm && valNorm.includes("@" + nmNorm)) || valNorm.includes("@" + lg.toLowerCase());
     });
-    const atuais = new Set((ta.dataset.mencoesLogins || "").split(",").filter(Boolean));
-    loginsAtivos.forEach(l => atuais.add(l));
-    ta.dataset.mencoesLogins = [...atuais].join(",");
+    ta.dataset.mencoesLogins = [...new Set(mantidos)].join(",");
   }
 
   function coletarMencoesDoTextarea(ta) {
     if (!ta) return [];
-    sincronizarChipsAtivosTextarea(ta);
+    sincronizarMencoesTextarea(ta);
     return (ta.dataset.mencoesLogins || "").split(",").map(s => s.trim()).filter(Boolean);
   }
 
@@ -927,16 +901,6 @@
     };
 
     document.addEventListener("click", ev => {
-      const chip = ev.target.closest("[data-inserir-mencao]");
-      if (chip) {
-        ev.preventDefault();
-        const attr = chip.dataset.mencaoAlvoAttr;
-        const id = chip.dataset.mencaoAlvoId;
-        const card = chip.closest(".pc-card");
-        const ta = card ? card.querySelector(`textarea[${attr}="${CSS.escape(id)}"]`) : null;
-        if (ta) inserirMencaoNoTextarea(ta, chip.dataset.inserirMencao, chip.dataset.mencaoNome);
-        return;
-      }
       if (popEl && !popEl.hidden && !popEl.contains(ev.target)) fecharPop();
     });
 
@@ -944,7 +908,7 @@
       const ta = ev.target;
       if (!ta || ta.tagName !== "TEXTAREA") return;
       if (!ta.matches('[data-inp-coment], [data-c="com"], [data-f="obs"]')) return;
-      sincronizarChipsAtivosTextarea(ta);
+      sincronizarMencoesTextarea(ta);
       const pos = typeof ta.selectionStart === "number" ? ta.selectionStart : ta.value.length;
       const antes = ta.value.slice(0, pos);
       const m = /(^|[\s([{"'])@([^\s@]{0,35})$/.exec(antes);
@@ -955,14 +919,14 @@
       const cands = candidatosMencaoParaPeca(pecaCtx).filter(u => {
         const nm = u.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         return !termo || nm.includes(termo) || u.login.toLowerCase().includes(termo);
-      }).slice(0, 8);
+      });
       if (!cands.length) { fecharPop(); return; }
       taAtual = ta;
       itensAtuais = cands;
       idxAtivo = 0;
       const p = garantirPop();
       const rect = ta.getBoundingClientRect();
-      p.style.left = Math.max(10, Math.min(window.innerWidth - 260, rect.left + 12)) + "px";
+      p.style.left = Math.max(10, Math.min(window.innerWidth - 290, rect.left + 12)) + "px";
       p.style.top = Math.min(window.innerHeight - 250, rect.bottom + 4) + "px";
       p.hidden = false;
       renderPop();
@@ -1080,8 +1044,7 @@
       <details style="font-size:13px" data-coment-wrap="${esc(p.id)}"${mencoesNaoLidas.length ? " open" : ""}>
         <summary style="cursor:pointer;color:var(--blue);font-weight:600;user-select:none;display:inline-flex;align-items:center;gap:5px">💬 Adicionar comentário / marcar aprovador</summary>
         <div style="margin-top:8px">
-          <textarea data-inp-coment="${esc(p.id)}" placeholder="Escreva um comentário… Use @ para marcar um aprovador ou clique em um nome abaixo" style="width:100%;min-height:58px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box"></textarea>
-          ${barraChipsMencaoHtml(p, "data-inp-coment", p.id)}
+          <textarea data-inp-coment="${esc(p.id)}" placeholder="Escreva um comentário… Digite @ para mencionar alguém" style="width:100%;min-height:58px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box"></textarea>
           <div class="pc-bar" style="margin-top:8px;justify-content:flex-end">
             <button class="btn small primary" type="button" data-enviar-coment="${esc(p.id)}">Enviar comentário</button>
           </div>
@@ -1542,7 +1505,6 @@
         if (podeDecidirEsta && p.status === "pendente") {
           acoesHtml = `<div class="pc-dec">
           <textarea data-c="com" data-dec-coment="${esc(p.id)}" placeholder="Comentário / parecer (obrigatório para reprovar ou pedir alteração · use @ para marcar alguém)"></textarea>
-          ${barraChipsMencaoHtml(p, "data-dec-coment", p.id)}
           <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
           <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
           <span class="pc-sub" data-c="msg"></span></div></div>`;
