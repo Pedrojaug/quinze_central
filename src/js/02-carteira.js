@@ -295,8 +295,12 @@
   // Senha
   document.getElementById("frmPwd").addEventListener("submit", async e => {
     e.preventDefault();
-    const ok = (await sha256(document.getElementById("pwdIn").value.trim())) === PASS_HASH;
-    if (!ok) { document.getElementById("pwdErr").textContent = "Senha incorreta. Tente de novo."; document.getElementById("pwdIn").select(); return; }
+    let r = "erro";
+    try { r = await conferirSenhaDesbloqueio(document.getElementById("pwdIn").value.trim()); } catch { r = "falha"; }
+    if (r !== "ok") {
+      document.getElementById("pwdErr").textContent = r === "bloqueado" ? "Muitas tentativas erradas. Aguarde 15 minutos." : r === "falha" ? "Não deu para conferir a senha. Tente de novo." : "Senha incorreta. Tente de novo.";
+      document.getElementById("pwdIn").select(); return;
+    }
     unlocked = true; try { sessionStorage.setItem("carteira-edit","1"); } catch {}
     document.getElementById("dlgPwd").close(); renderLock(); renderAll(); toast("Edição liberada");
     const el = pendingEl; pendingEl = null;
