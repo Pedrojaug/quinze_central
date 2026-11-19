@@ -4,16 +4,20 @@
 //   decidir e ver todas: coordenador, mestre e gestão
 //   dashboard: mestre, gestão, coordenador e atendimento
 // Arquivos: o navegador envia direto ao Vercel Blob com um token do servidor; ficam 7 dias e são apagados pela rotina diária.
-// Os contadores mensais (m/pecas/contadores/<AAAA-MM>) são atualizados a cada envio e decisão e nunca são apagados.
+// Os metadados da peça (com arquivada: true) e os contadores mensais permanecem para preservar o histórico do dashboard.
 import crypto from "node:crypto";
-import { sql } from "./_lib.js";
+import { sql, conferirSenhaMestre } from "./_lib.js";
 import { perfilDe, podeEnviarPecas, ehGestao } from "./_modules.js";
 import { listar, ler, gravar, apagar, novoId, clientesCarteira, clientesCarteiraComMes, txt, usuariosAtivos } from "./_mdados.js";
-import { tokenEnvioDireto, infoArquivo, apagarArquivos, listarArquivos, linkTemporario, enviar, nomeSeguro, extensao } from "./_arquivos.js";
+import { tokenEnvioDireto, infoArquivo, apagarArquivos, linkTemporario, enviar, nomeSeguro, extensao } from "./_arquivos.js";
 import { hojeSP } from "./_adm.js";
+import { DECISOES, diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario } from "./_pecas_resumo.js";
+import { resolverMencoes, mencoesNaoLidasPara, marcarMencoesLidasNaPeca } from "./_pecas_mencoes.js";
+import { RETENCAO_DIAS, DIA, processarRetencaoPeca, limparVencidos } from "./_pecas_retencao.js";
+
+export { diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario, RETENCAO_DIAS, processarRetencaoPeca, limparVencidos };
 
 const M = "pecas";
-export const RETENCAO_DIAS = 7;
 export const MAX_ARQUIVOS = 10, MAX_LINKS = 10;
 export const MAX_BYTES = 100 * 1024 * 1024;   // por arquivo (envio direto ao armazenamento, sem passar pela função)
 const TIPOS = {
@@ -26,47 +30,12 @@ const TIPOS = {
   webm: "video/webm",
 };
 export const STATUS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
-const DECISOES = ["aprovada", "reprovada", "alteracao_solicitada"];
-const DIA = 864e5;
-const MASTER_PASS_HASH = "a8698d96861f332be3627b5461c3d4ac120295ae33c8e26b9c0db82afa657084";
 
 const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
 const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
 const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const mesAtual = () => hojeSP().slice(0, 7);
-export const diaSP = iso => {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    if (isNaN(d)) return "";
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
-  } catch { return ""; }
-};
-export const horaSP = iso => {
-  if (!iso) return null;
-  try {
-    const d = new Date(iso);
-    if (isNaN(d)) return null;
-    const hStr = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false }).format(d);
-    return parseInt(hStr, 10);
-  } catch { return null; }
-};
-const calcPct = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : null);
-function resumirMetaCarteira(clientes = [], totalPecas = 0, totalAprovadas = 0) {
-  const metaConteudos = clientes.reduce((acc, cl) => acc + (cl.metaConteudos || 0), 0);
-  const metaConteudosBase = clientes.reduce((acc, cl) => acc + (cl.conteudos || 0), 0);
-  const metaMotions = clientes.reduce((acc, cl) => acc + (cl.motions || 0), 0);
-  const clientesComMeta = clientes.filter(cl => (cl.metaConteudos || 0) > 0).length;
-  return {
-    metaConteudos,
-    metaConteudosBase,
-    metaMotions,
-    clientesComMeta,
-    pctCarteira: calcPct(totalPecas, metaConteudos),
-    pctCarteiraAprovada: calcPct(totalAprovadas, metaConteudos),
-  };
-}
 
 // ---------- Permissões ----------
 export const podeEnviar = u => podeEnviarPecas(u);
@@ -88,23 +57,6 @@ export const veDash = u => {
 const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login === u.login) || (p.aprovadores || []).some(a => a.login === u.login);
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;
-
-// Confere a senha mestre (aceita a senha mestre global da plataforma OU a senha de qualquer usuário Mestre ativo)
-async function conferirSenhaMestre(senhaRaw) {
-  const s = String(senhaRaw || "").trim();
-  if (!s || s.length > 200) return false;
-  const hash = crypto.createHash("sha256").update(s).digest("hex");
-  if (hash === MASTER_PASS_HASH) return true;
-  try {
-    const r = await sql`SELECT 1 FROM app_users a
-                        JOIN usuarios u ON lower(a.username) = u.login
-                        WHERE u.ativo AND (u.papel = 'master' OR u.funcao = 'mestre')
-                          AND a.pass_hash = crypt(${s}, a.pass_hash)
-                        LIMIT 1`;
-    if (r.length > 0) return true;
-  } catch {}
-  return false;
-}
 
 // ---------- Contadores mensais (atualizados no momento de cada evento, numa só instrução: sem perder contagem) ----------
 async function contar(mes, inc, nomes) {
@@ -160,408 +112,6 @@ export async function sincronizarContadoresNoBanco(mes, dadosDinamicos) {
     console.error("[pecas] erro ao sincronizar contadores no banco:", e?.message || e);
   }
 }
-export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
-  c = c || {};
-  const nomes = c.nomes || {};
-  const porUsuario = {}, porCoord = {}, porCli = {};
-  const cliObj = id => (porCli[id] ||= {
-    pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0,
-    v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {},
-  });
-  for (const [k, v] of Object.entries(c)) {
-    let m;
-    if ((m = /^enviadas:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas = v;
-    else if ((m = /^versoes:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes = v;
-    else if ((m = /^aprovadas_user:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).aprovadas = v;
-    else if ((m = /^dec:(.+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) (porCoord[m[1]] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[m[2]] = v;
-    else if ((m = /^cli_pecas:(.+)$/.exec(k))) cliObj(m[1]).pecas = v;
-    else if ((m = /^cli_versoes:(.+)$/.exec(k))) cliObj(m[1]).versoes = v;
-    else if ((m = /^cli_dec:([^:]+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) cliObj(m[1])[m[2]] = v;
-    else if ((m = /^cli_v1_dec:(.+)$/.exec(k))) cliObj(m[1]).v1_decididas = v;
-    else if ((m = /^cli_v1_apr:(.+)$/.exec(k))) cliObj(m[1]).v1_aprovadas = v;
-    else if ((m = /^cli_env:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas = v;
-    else if ((m = /^cli_ver:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes = v;
-    else if ((m = /^cli_aprov:([^:]+):([^:]+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) (cliObj(m[1]).porCoord[m[2]] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[m[3]] = v;
-  }
-  const enviadas = Object.entries(porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x })).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
-  const decisoes = Object.entries(porCoord).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada })).sort((a, b) => b.total - a.total);
-  const v1d = c.v1_decididas || 0, v1a = c.v1_aprovadas || 0;
-  // Complementa com peças ativas do mês (pendentes na fila e retrocompatibilidade de peças anteriores ao contador por cliente)
-  const vivasPorCli = {};
-  for (const p of pecasAtivasMes) {
-    if (!p.clienteId) continue;
-    const cid = p.clienteId;
-    if (p.clienteNome && !nomes[`cli:${cid}`]) nomes[`cli:${cid}`] = p.clienteNome;
-    const v = (vivasPorCli[cid] ||= { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} });
-    v.pecas++;
-    const qtdV = Array.isArray(p.versoes) ? p.versoes.length : (p.versao || 1);
-    v.versoes += qtdV;
-    if (p.status === "pendente") v.pendente++;
-    const rem = p.remetente?.login;
-    if (rem) {
-      if (p.remetente?.nome && !nomes[rem]) nomes[rem] = p.remetente.nome;
-      const uEntry = (v.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
-      uEntry.pecas++;
-      uEntry.versoes += qtdV;
-    }
-    for (const h of p.historico || []) {
-      if (DECISOES.includes(h.tipo)) {
-        v[h.tipo]++;
-        if (h.versao === 1) { v.v1_decididas++; if (h.tipo === "aprovada") v.v1_aprovadas++; }
-        if (h.tipo === "aprovada" && rem) {
-          const uEntry = (v.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
-          uEntry.aprovadas = (uEntry.aprovadas || 0) + 1;
-        }
-        const ap = h.por?.login;
-        if (ap) {
-          if (h.por?.nome && !nomes[ap]) nomes[ap] = h.por.nome;
-          (v.porCoord[ap] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[h.tipo]++;
-        }
-      }
-    }
-  }
-  for (const [cid, v] of Object.entries(vivasPorCli)) {
-    const o = cliObj(cid);
-    o.pendente = v.pendente;
-    if (o.pecas < v.pecas) o.pecas = v.pecas;
-    if (o.versoes < v.versoes) o.versoes = v.versoes;
-    if (o.aprovada < v.aprovada) o.aprovada = v.aprovada;
-    if (o.reprovada < v.reprovada) o.reprovada = v.reprovada;
-    if (o.alteracao_solicitada < v.alteracao_solicitada) o.alteracao_solicitada = v.alteracao_solicitada;
-    if (o.v1_decididas < v.v1_decididas) o.v1_decididas = v.v1_decididas;
-    if (o.v1_aprovadas < v.v1_aprovadas) o.v1_aprovadas = v.v1_aprovadas;
-    for (const [ul, ux] of Object.entries(v.porUsuario)) {
-      const uo = (o.porUsuario[ul] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
-      if (uo.pecas < ux.pecas) uo.pecas = ux.pecas;
-      if (uo.versoes < ux.versoes) uo.versoes = ux.versoes;
-      if ((uo.aprovadas || 0) < (ux.aprovadas || 0)) uo.aprovadas = ux.aprovadas;
-    }
-    for (const [al, ax] of Object.entries(v.porCoord)) {
-      const ao = (o.porCoord[al] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 });
-      if (ao.aprovada < ax.aprovada) ao.aprovada = ax.aprovada;
-      if (ao.reprovada < ax.reprovada) ao.reprovada = ax.reprovada;
-      if (ao.alteracao_solicitada < ax.alteracao_solicitada) ao.alteracao_solicitada = ax.alteracao_solicitada;
-    }
-  }
-  const mapaCarteira = new Map((carteira || []).map(cl => [cl.id, cl]));
-  const idsClientes = new Set([...mapaCarteira.keys(), ...Object.keys(porCli)]);
-  const clientes = [...idsClientes].map(id => {
-    const meta = mapaCarteira.get(id) || {};
-    const st = porCli[id] || { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
-    const envCli = Object.entries(st.porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x })).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
-    const decCli = Object.entries(st.porCoord).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada })).sort((a, b) => b.total - a.total);
-    const conteudos = Number(meta.conteudos) || 0;
-    const motions = Number(meta.motions) || 0;
-    const metaConteudos = conteudos + motions;
-    return {
-      id,
-      nome: meta.nome || nomes[`cli:${id}`] || id,
-      tipo: meta.tipo || "",
-      nivel: meta.nivel || "",
-      atendimento: meta.atendimento || "",
-      social: meta.social || "",
-      conteudos,
-      motions,
-      metaConteudos,
-      pecas: st.pecas || 0,
-      versoes: st.versoes || 0,
-      aprovada: st.aprovada || 0,
-      reprovada: st.reprovada || 0,
-      alteracao_solicitada: st.alteracao_solicitada || 0,
-      pendente: st.pendente || 0,
-      pctCarteira: calcPct(st.pecas || 0, metaConteudos),
-      pctCarteiraAprovada: calcPct(st.aprovada || 0, metaConteudos),
-      primeiraDecididas: st.v1_decididas || 0,
-      primeiraAprovadas: st.v1_aprovadas || 0,
-      taxaPrimeira: st.v1_decididas ? Math.round(st.v1_aprovadas / st.v1_decididas * 1000) / 10 : null,
-      enviadas: envCli,
-      decisoes: decCli,
-    };
-  }).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes || a.nome.localeCompare(b.nome, "pt-BR"));
-  const tiposCliente = [...new Set(clientes.map(x => x.tipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const atendimentosCliente = [...new Set(clientes.map(x => x.atendimento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const metaResumo = resumirMetaCarteira(clientes, c.pecas || 0, c.aprovada || 0);
-  return { enviadas, decisoes, totais: { pecas: c.pecas || 0, versoes: c.versoes || 0, aprovada: c.aprovada || 0, reprovada: c.reprovada || 0, alteracao_solicitada: c.alteracao_solicitada || 0,
-    ...metaResumo,
-    primeiraDecididas: v1d, primeiraAprovadas: v1a, taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null }, clientes, tiposCliente, atendimentosCliente };
-}
-
-// Resumo analítico dinâmico (calculado com base nas peças vivas do banco)
-export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => true) {
-  const nomes = {};
-  const porUsuario = {}, porCoord = {}, porCli = {};
-  const cliObj = id => (porCli[id] ||= {
-    pecas: 0, pecasOnline: 0, pecasOffline: 0,
-    versoes: 0, aprovada: 0, aprovadasOnline: 0, aprovadasOffline: 0,
-    reprovada: 0, alteracao_solicitada: 0, pendente: 0,
-    v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {},
-  });
-  const initUserStats = () => ({
-    pecas: 0, pecasOnline: 0, pecasOffline: 0,
-    versoes: 0,
-    aprovadas: 0, aprovadasOnline: 0, aprovadasOffline: 0,
-  });
-
-  let totPecas = 0, totPecasOnline = 0, totPecasOffline = 0;
-  let totVersoes = 0, totAprovadas = 0, totAprovadasOnline = 0, totAprovadasOffline = 0;
-  let totReprovadas = 0, totAlt = 0, totV1d = 0, totV1a = 0;
-
-  for (const p of todasPecas) {
-    if (!p.clienteId) continue;
-    const cid = p.clienteId;
-    if (p.clienteNome && !nomes[`cli:${cid}`]) nomes[`cli:${cid}`] = p.clienteNome;
-    const cObj = cliObj(cid);
-    const ehOffline = String(p.tipoMidia || "online").toLowerCase() === "offline";
-
-    const rem = p.remetente?.login;
-    if (rem) {
-      if (p.remetente?.nome && !nomes[rem]) nomes[rem] = p.remetente.nome;
-      porUsuario[rem] ||= initUserStats();
-    }
-
-    // 1. Envio da peça inicial (versão 1)
-    const diaCriacao = diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm));
-    if (diaCriacao && filtroFn(diaCriacao)) {
-      cObj.pecas++;
-      totPecas++;
-      if (ehOffline) { cObj.pecasOffline++; totPecasOffline++; }
-      else { cObj.pecasOnline++; totPecasOnline++; }
-      if (rem) {
-        porUsuario[rem].pecas++;
-        const uCli = (cObj.porUsuario[rem] ||= initUserStats());
-        uCli.pecas++;
-        if (ehOffline) { porUsuario[rem].pecasOffline++; uCli.pecasOffline++; }
-        else { porUsuario[rem].pecasOnline++; uCli.pecasOnline++; }
-      }
-    }
-
-    // 2. Versões enviadas
-    for (const v of p.versoes || []) {
-      const diaV = diaSP(v.enviadaEm);
-      if (diaV && filtroFn(diaV)) {
-        cObj.versoes++;
-        totVersoes++;
-        if (rem) {
-          porUsuario[rem].versoes++;
-          (cObj.porUsuario[rem] ||= initUserStats()).versoes++;
-        }
-      }
-    }
-
-    // 3. Decisões no histórico
-    let teveAprovacaoNoHist = false;
-    for (const h of p.historico || []) {
-      if (DECISOES.includes(h.tipo)) {
-        const diaDec = diaSP(h.em);
-        if (diaDec && filtroFn(diaDec)) {
-          cObj[h.tipo]++;
-          if (h.tipo === "aprovada") {
-            totAprovadas++;
-            if (ehOffline) { cObj.aprovadasOffline++; totAprovadasOffline++; }
-            else { cObj.aprovadasOnline++; totAprovadasOnline++; }
-            teveAprovacaoNoHist = true;
-            if (rem) {
-              const u = (porUsuario[rem] ||= initUserStats());
-              u.aprovadas = (u.aprovadas || 0) + 1;
-              const uCli = (cObj.porUsuario[rem] ||= initUserStats());
-              uCli.aprovadas = (uCli.aprovadas || 0) + 1;
-              if (ehOffline) { u.aprovadasOffline++; uCli.aprovadasOffline++; }
-              else { u.aprovadasOnline++; uCli.aprovadasOnline++; }
-            }
-          } else if (h.tipo === "reprovada") totReprovadas++;
-          else if (h.tipo === "alteracao_solicitada") totAlt++;
-
-          if (h.versao === 1) {
-            cObj.v1_decididas++;
-            totV1d++;
-            if (h.tipo === "aprovada") {
-              cObj.v1_aprovadas++;
-              totV1a++;
-            }
-          }
-
-          const ap = h.por?.login;
-          if (ap) {
-            if (h.por?.nome && !nomes[ap]) nomes[ap] = h.por.nome;
-            const coordGlobal = (porCoord[ap] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 });
-            coordGlobal[h.tipo]++;
-            const coordCli = (cObj.porCoord[ap] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 });
-            coordCli[h.tipo]++;
-          }
-        }
-      }
-    }
-
-    // Caso a peça tenha status aprovada sem histórico correspondente
-    if (p.status === "aprovada" && !teveAprovacaoNoHist) {
-      const diaAprov = diaSP(p.decididoEm || p.atualizadoEm || p.criadoEm);
-      if (diaAprov && filtroFn(diaAprov)) {
-        cObj.aprovada++;
-        totAprovadas++;
-        if (ehOffline) { cObj.aprovadasOffline++; totAprovadasOffline++; }
-        else { cObj.aprovadasOnline++; totAprovadasOnline++; }
-        if (rem) {
-          const u = (porUsuario[rem] ||= initUserStats());
-          u.aprovadas = (u.aprovadas || 0) + 1;
-          const uCli = (cObj.porUsuario[rem] ||= initUserStats());
-          uCli.aprovadas = (uCli.aprovadas || 0) + 1;
-          if (ehOffline) { u.aprovadasOffline++; uCli.aprovadasOffline++; }
-          else { u.aprovadasOnline++; uCli.aprovadasOnline++; }
-        }
-      }
-    }
-
-    // 4. Pendentes
-    if (p.status === "pendente") {
-      const diaAtual = diaSP(p.atualizadoEm || p.criadoEm);
-      if (diaAtual && filtroFn(diaAtual)) {
-        cObj.pendente++;
-      }
-    }
-  }
-
-  const enviadas = Object.entries(porUsuario)
-    .filter(([_, x]) => x.pecas > 0 || x.versoes > 0 || (x.aprovadas || 0) > 0)
-    .map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x }))
-    .sort((a, b) => b.pecas - a.pecas || (b.aprovadas || 0) - (a.aprovadas || 0) || b.versoes - a.versoes);
-
-  const decisoes = Object.entries(porCoord)
-    .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
-    .filter(x => x.total > 0)
-    .sort((a, b) => b.total - a.total);
-
-  const mapaCarteira = new Map((carteira || []).map(cl => [cl.id, cl]));
-  const idsClientes = new Set([...mapaCarteira.keys(), ...Object.keys(porCli)]);
-
-  const clientes = [...idsClientes].map(id => {
-    const meta = mapaCarteira.get(id) || {};
-    const st = porCli[id] || { pecas: 0, pecasOnline: 0, pecasOffline: 0, versoes: 0, aprovada: 0, aprovadasOnline: 0, aprovadasOffline: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
-    const envCli = Object.entries(st.porUsuario)
-      .filter(([_, x]) => x.pecas > 0 || x.versoes > 0 || (x.aprovadas || 0) > 0)
-      .map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x }))
-      .sort((a, b) => b.pecas - a.pecas || (b.aprovadas || 0) - (a.aprovadas || 0) || b.versoes - a.versoes);
-    const decCli = Object.entries(st.porCoord)
-      .map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada }))
-      .filter(x => x.total > 0)
-      .sort((a, b) => b.total - a.total);
-
-    const conteudos = Number(meta.conteudos) || 0;
-    const motions = Number(meta.motions) || 0;
-    const metaConteudos = conteudos + motions;
-    return {
-      id,
-      nome: meta.nome || nomes[`cli:${id}`] || id,
-      tipo: meta.tipo || "",
-      nivel: meta.nivel || "",
-      atendimento: meta.atendimento || "",
-      social: meta.social || "",
-      conteudos,
-      motions,
-      metaConteudos,
-      pecas: st.pecas || 0,
-      pecasOnline: st.pecasOnline || 0,
-      pecasOffline: st.pecasOffline || 0,
-      versoes: st.versoes || 0,
-      aprovada: st.aprovada || 0,
-      aprovadasOnline: st.aprovadasOnline || 0,
-      aprovadasOffline: st.aprovadasOffline || 0,
-      reprovada: st.reprovada || 0,
-      alteracao_solicitada: st.alteracao_solicitada || 0,
-      pendente: st.pendente || 0,
-      pctCarteira: calcPct(st.pecas || 0, metaConteudos),
-      pctCarteiraAprovada: calcPct(st.aprovada || 0, metaConteudos),
-      primeiraDecididas: st.v1_decididas || 0,
-      primeiraAprovadas: st.v1_aprovadas || 0,
-      taxaPrimeira: st.v1_decididas ? Math.round(st.v1_aprovadas / st.v1_decididas * 1000) / 10 : null,
-      enviadas: envCli,
-      decisoes: decCli,
-    };
-  }).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes || a.nome.localeCompare(b.nome, "pt-BR"));
-
-  const tiposCliente = [...new Set(clientes.map(x => x.tipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const atendimentosCliente = [...new Set(clientes.map(x => x.atendimento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const metaResumo = resumirMetaCarteira(clientes, totPecas, totAprovadas);
-
-  return {
-    enviadas,
-    decisoes,
-    totais: {
-      pecas: totPecas,
-      pecasOnline: totPecasOnline,
-      pecasOffline: totPecasOffline,
-      versoes: totVersoes,
-      aprovada: totAprovadas,
-      aprovadasOnline: totAprovadasOnline,
-      aprovadasOffline: totAprovadasOffline,
-      reprovada: totReprovadas,
-      alteracao_solicitada: totAlt,
-      ...metaResumo,
-      primeiraDecididas: totV1d,
-      primeiraAprovadas: totV1a,
-      taxaPrimeira: totV1d ? Math.round(totV1a / totV1d * 1000) / 10 : null,
-    },
-    clientes,
-    tiposCliente,
-    atendimentosCliente,
-  };
-}
-
-// Resumo analítico por intervalo de datas (Hoje, Ontem, Semana ou Personalizado)
-export function resumoPorIntervalo(todasPecas = [], carteira = [], de = null, ate = null) {
-  const filtro = dia => (!de || dia >= de) && (!ate || dia <= ate);
-  return resumoDinamico(todasPecas, carteira, filtro);
-}
-
-export function resumoPorMes(todasPecas = [], carteira = [], mes = mesAtual()) {
-  const filtro = dia => String(dia || "").slice(0, 7) === mes;
-  return resumoDinamico(todasPecas, carteira, filtro);
-}
-
-// Horários de pico de envio de material (00:00 até 23:00, fuso de SP)
-export function calcularPicosHorario(todasPecas = [], filtroFn = () => true) {
-  const horas = Array.from({ length: 24 }, (_, h) => ({
-    hora: h,
-    rotulo: String(h).padStart(2, "0") + ":00",
-    total: 0,
-    pecas: 0,
-    versoes: 0,
-  }));
-  const horasPorCli = {};
-
-  for (const p of todasPecas) {
-    const cid = p.clienteId || "";
-    const cliHoras = cid ? (horasPorCli[cid] ||= Array(24).fill(0)) : null;
-
-    // 1. Envio da peça inicial / versão 1
-    const tV1 = p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm);
-    const diaV1 = diaSP(tV1);
-    if (diaV1 && filtroFn(diaV1)) {
-      const h = horaSP(tV1);
-      if (h !== null && h >= 0 && h < 24) {
-        horas[h].total++;
-        horas[h].pecas++;
-        if (cliHoras) cliHoras[h]++;
-      }
-    }
-
-    // 2. Novas versões subsequentes (v2, v3, ...)
-    const versoesExtras = Array.isArray(p.versoes) ? p.versoes.slice(1) : [];
-    for (const v of versoesExtras) {
-      const tV = v.enviadaEm;
-      const diaV = diaSP(tV);
-      if (diaV && filtroFn(diaV)) {
-        const h = horaSP(tV);
-        if (h !== null && h >= 0 && h < 24) {
-          horas[h].total++;
-          horas[h].versoes++;
-          if (cliHoras) cliHoras[h]++;
-        }
-      }
-    }
-  }
-
-  return { horas, horasPorCli };
-}
 
 // ---------- Peça vista pela página (sem as chaves internas dos arquivos) ----------
 function publica(p, u) {
@@ -571,99 +121,6 @@ function publica(p, u) {
     versoes: p.versoes.map(v => ({ n: v.n, enviadaEm: v.enviadaEm, expiraEm: expira(v), obs: v.obs, links: v.links,
       arquivos: v.arquivos.map((a, i) => ({ i, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho, expirado: !!a.expirado })) })),
     historico: p.historico };
-}
-
-// Extrai usuários mencionados por @Nome ou @login no texto do comentário/observação, somados aos logins explicitamente marcados.
-const normTextoMencao = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-function resolverMencoes(texto, mencoesInput, todosUsuarios, autorLogin) {
-  const selecionados = new Map();
-  const ativos = (todosUsuarios || []).filter(x => x.login && x.login !== "equipe.inteligentte");
-  const porLogin = new Map(ativos.map(x => [x.login.toLowerCase(), x]));
-
-  if (Array.isArray(mencoesInput)) {
-    for (const raw of mencoesInput) {
-      const lg = String(raw && typeof raw === "object" ? raw.login : raw || "").trim().toLowerCase();
-      const u = porLogin.get(lg);
-      if (u && u.login !== autorLogin) selecionados.set(u.login, { login: u.login, nome: u.nome || u.login });
-    }
-  }
-
-  const txtNorm = normTextoMencao(texto);
-  if (txtNorm.includes("@")) {
-    // Ordena por nomes mais longos primeiro para casar "@André Silva" antes de "@André"
-    const ordenados = [...ativos].sort((a, b) => (b.nome || b.login).length - (a.nome || a.login).length);
-    for (const u of ordenados) {
-      if (u.login === autorLogin || selecionados.has(u.login)) continue;
-      const nomeNorm = normTextoMencao(u.nome || "");
-      const primeiroNome = nomeNorm.split(/\s+/)[0] || "";
-      const loginNorm = normTextoMencao(u.login);
-      const candidatos = [nomeNorm, loginNorm, primeiroNome.length >= 3 ? primeiroNome : ""].filter(Boolean);
-      for (const cand of candidatos) {
-        const escRe = cand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(`(^|[\\s([{"'])@${escRe}(?=$|[\\s.,!?;:)\\]}"'])`, "i");
-        if (re.test(txtNorm)) {
-          selecionados.set(u.login, { login: u.login, nome: u.nome || u.login });
-          break;
-        }
-      }
-    }
-  }
-  return [...selecionados.values()];
-}
-
-function eventoNotificaUsuario(p, h, login) {
-  if (!login || !h || h.por?.login === login) return false;
-  const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
-  if (listaM.some(m => (m.login || m) === login)) return true;
-  // O designer/remetente que enviou a peça sempre é notificado quando a peça recebe comentário, pedido de alteração ou reprovação
-  if (p?.remetente?.login === login && ["comentario", "alteracao_solicitada", "reprovada"].includes(h.tipo)) {
-    return true;
-  }
-  return false;
-}
-
-function mencoesNaoLidasPara(p, login) {
-  if (!login || !Array.isArray(p.historico)) return [];
-  const out = [];
-  const souRemetente = p?.remetente?.login === login;
-  p.historico.forEach((h, idx) => {
-    if (!eventoNotificaUsuario(p, h, login)) return;
-    const vistos = Array.isArray(h.vistoPor) ? h.vistoPor : [];
-    if (vistos.includes(login)) return;
-    const listaM = Array.isArray(h.mencoes) ? h.mencoes : [];
-    const foiMencionado = listaM.some(m => (m.login || m) === login);
-    out.push({
-      hid: h.id || `${p.id}_${idx}`,
-      pecaId: p.id,
-      pecaTitulo: p.titulo,
-      clienteNome: p.clienteNome,
-      statusPeca: p.status,
-      versao: h.versao || p.versao || 1,
-      tipo: h.tipo,
-      souRemetente,
-      foiMencionado,
-      em: h.em,
-      por: h.por || { login: "", nome: "Alguém" },
-      comentario: h.comentario || "",
-    });
-  });
-  return out;
-}
-
-function marcarMencoesLidasNaPeca(p, login, hidAlvo = null) {
-  if (!login || !Array.isArray(p.historico)) return false;
-  let alterou = false;
-  p.historico.forEach((h, idx) => {
-    const hid = h.id || `${p.id}_${idx}`;
-    if (hidAlvo && hid !== hidAlvo) return;
-    if (!eventoNotificaUsuario(p, h, login)) return;
-    h.vistoPor = Array.isArray(h.vistoPor) ? h.vistoPor : [];
-    if (!h.vistoPor.includes(login)) {
-      h.vistoPor.push(login);
-      alterou = true;
-    }
-  });
-  return alterou;
 }
 
 // ---------- Validação de arquivos e links enviados ----------
@@ -809,6 +266,8 @@ async function pecaReenviar(u, req, res) {
   marcarMencoesLidasNaPeca(p, u.login);
   p.historico.push({ id: novoId(), tipo: tipoHist, versao: n, em, por: quem(u), comentario: obs || (statusAnterior === "aprovada" ? "Material aprovado foi editado (nova versão)" : "Nova versão enviada"), mencoes: mencoesReenvio, vistoPor: [u.login] });
   Object.assign(p, { versao: n, status: "pendente", atualizadoEm: em });
+  p.arquivada = false;
+  delete p.arquivadaEm;
   await gravar(M, "pecas", p.id, p);
   const incReenvio = { versoes: 1, [`versoes:${u.login}`]: 1 };
   const nomesReenvio = { [u.login]: u.nome || u.login };
@@ -913,7 +372,7 @@ async function pecaComentar(u, req, res) {
 // Notificações leves para o cabeçalho global e o módulo de peças: menções não lidas para o usuário logado + total de pendentes
 async function notificacoes(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return res.json({ mencoes: [], pendentes: 0 });
-  const lista = (await listar(M, "pecas")).filter(p => podeVer(u, p));
+  const lista = (await listar(M, "pecas")).filter(p => !p.arquivada && podeVer(u, p));
   const pendentes = lista.filter(p => p.status === "pendente").length;
   const mencoes = [];
   for (const p of lista) {
@@ -988,6 +447,7 @@ async function filaApagar(u, req, res) {
   const idsFiltro = Array.isArray(b.ids) && b.ids.length ? new Set(b.ids.map(String)) : null;
   const alvos = todas.filter(p => {
     if (idsFiltro) return idsFiltro.has(p.id);
+    if (p.arquivada) return false;
     if (b.status && p.status !== b.status) return false;
     if (b.clienteId && p.clienteId !== b.clienteId) return false;
     return true;
@@ -1012,16 +472,49 @@ async function filaApagar(u, req, res) {
   return res.json({ ok: true, apagadas: alvos.length });
 }
 
+export function versaoListaPecas({ pecasSeq = 0, pecasCnt = 0, avAt = "", usrAt = "", usrCnt = 0 } = {}) {
+  const raw = `${pecasSeq ?? 0}|${pecasCnt ?? 0}|${avAt ?? ""}|${usrAt ?? ""}|${usrCnt ?? 0}`;
+  return crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16);
+}
+
+async function obterVersaoListaPecas() {
+  try {
+    const r = await sql`
+      SELECT
+        coalesce((SELECT max(seq) FROM docs WHERE parent = 'm/pecas/pecas'), 0)::text AS pecas_seq,
+        coalesce((SELECT count(*) FROM docs WHERE parent = 'm/pecas/pecas' AND NOT deleted), 0)::text AS pecas_cnt,
+        coalesce((SELECT max(updated_at)::text FROM docs WHERE path = 'm/pecas/config/avatares' OR parent = 'm/pecas/avatares'), '') AS av_at,
+        coalesce((SELECT max(coalesce(atualizado_em, criado_em))::text FROM usuarios), '') AS usr_at,
+        coalesce((SELECT count(*) FROM usuarios WHERE ativo), 0)::text AS usr_cnt
+    `;
+    const row = r[0];
+    if (!row) return null;
+    return versaoListaPecas({
+      pecasSeq: row.pecas_seq,
+      pecasCnt: row.pecas_cnt,
+      avAt: row.av_at,
+      usrAt: row.usr_at,
+      usrCnt: row.usr_cnt,
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function pecas(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return negado(res);
+  const versao = await obterVersaoListaPecas();
+  if (versao && req.query.v && String(req.query.v) === versao) {
+    return res.json({ semAlteracao: true, versao });
+  }
   const [todasPecas, todosUsers] = await Promise.all([listar(M, "pecas"), usuariosAtivos()]);
-  const lista = todasPecas.filter(p => podeVer(u, p))
+  const lista = todasPecas.filter(p => !p.arquivada && podeVer(u, p))
     .sort((a, b) => (b.atualizadoEm || "").localeCompare(a.atualizadoEm || ""));
   const perfis = {};
   for (const x of todosUsers) {
     if (x.login) perfis[x.login] = { nome: x.nome || x.login, avatar: x.avatar || null, funcao: perfilDe(x) };
   }
-  return res.json({ pecas: lista.map(p => publica(p, u)), perfis });
+  return res.json({ pecas: lista.map(p => publica(p, u)), perfis, versao });
 }
 
 // Visualização de um arquivo: confere a permissão e manda para um link temporário (ou envia o arquivo, no teste local).
@@ -1039,55 +532,8 @@ async function pecaArquivo(u, req, res) {
   return enviar(res, a.chave, a.nome, true);
 }
 
-// Expurgar conteúdos e peças de teste enviados antes de 11/11/2026
-let expurgo11Executado = false;
-export async function expurgarTestesAnterioresA11() {
-  const todas = await listar(M, "pecas");
-  const deAntes = todas.filter(p => {
-    const dia = diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm) || p.atualizadoEm);
-    return !dia || dia < "2026-11-11";
-  });
-
-  const chaves = [];
-  for (const p of deAntes) {
-    for (const v of p.versoes || []) {
-      for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
-    }
-    await apagar(M, "pecas", p.id);
-  }
-  if (chaves.length) {
-    try { await apagarArquivos(chaves); } catch {}
-  }
-
-  // Resincroniza os contadores do mês com as peças válidas a partir de 11/11/2026
-  const restantes = todas.filter(p => !deAntes.some(d => d.id === p.id));
-  const cart = await clientesCarteira();
-  const dadosAtuais = resumoDinamico(restantes, cart, d => String(d || "").slice(0, 7) === mesAtual());
-  await sincronizarContadoresNoBanco(mesAtual(), dadosAtuais);
-
-  return { ok: true, apagadas: deAntes.length, arquivosApagados: chaves.length };
-}
-
-async function expurgarTestesAnterioresA11Auto() {
-  if (expurgo11Executado) return;
-  expurgo11Executado = true;
-  await expurgarTestesAnterioresA11().catch(e => {
-    console.error("[pecas] erro na auto-limpeza de testes anteriores a 11/11:", e?.message || e);
-  });
-}
-
-async function limparTestesEndpoint(u, req, res) {
-  if (!so(req, res, "POST")) return;
-  if (!["mestre", "gestao"].includes(perfilDe(u))) return negado(res);
-  const r = await expurgarTestesAnterioresA11();
-  return res.json(r);
-}
-
 async function dashboard(u, req, res) {
   if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão, coordenação, atendimento e social media.");
-
-  // Auto-limpeza de testes anteriores a 11/11/2026 caso ainda existam
-  await expurgarTestesAnterioresA11Auto();
 
   const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.de || "")) ? req.query.de : null;
   const ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ate || "")) ? req.query.ate : null;
@@ -1106,7 +552,10 @@ async function dashboard(u, req, res) {
   const carteiraMes = cartRes.mes;
 
   const meses = rMeses.map(r => r.id);
-  const listaMeses = [...new Set([mesAtual(), ...meses])].sort().reverse();
+  const mesesDasPecas = todasPecas
+    .map(p => diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm) || p.atualizadoEm).slice(0, 7))
+    .filter(m => /^\d{4}-\d{2}$/.test(m));
+  const listaMeses = [...new Set([mesAtual(), ...meses, ...mesesDasPecas])].sort().reverse();
 
   const filtroData = (de || ate)
     ? dia => (!de || dia >= de) && (!ate || dia <= ate)
@@ -1130,29 +579,6 @@ async function dashboard(u, req, res) {
   return res.json({ mes, de, ate, tipoMidia, carteiraMes, meses: listaMeses, horas, ...dados });
 }
 
-// ---------- Retenção: arquivos com mais de 7 dias são apagados; peças sem envio há mais de 7 dias saem da fila ----------
-export async function limparVencidos(agoraMs = Date.now()) {
-  const limite = agoraMs - RETENCAO_DIAS * DIA, em = new Date(agoraMs).toISOString();
-  const out = { arquivosApagados: 0, pecasExpiradas: 0, pecasRemovidas: 0, orfaosApagados: 0 };
-  const emUso = new Set();
-  for (const p of await listar(M, "pecas")) {
-    const vencidos = [];
-    for (const v of p.versoes) {
-      const venceu = Date.parse(v.enviadaEm) < limite;
-      for (const a of v.arquivos) {
-        if (a.expirado) continue;
-        if (venceu) { vencidos.push(a.chave); a.expirado = true; a.expiradoEm = em; } else emUso.add(a.chave);
-      }
-    }
-    if (vencidos.length) { await apagarArquivos(vencidos); out.arquivosApagados += vencidos.length; out.pecasExpiradas++; }
-    if (Date.parse(p.versoes[p.versoes.length - 1].enviadaEm) < limite) { await apagar(M, "pecas", p.id); out.pecasRemovidas++; }
-    else if (vencidos.length) await gravar(M, "pecas", p.id, p);
-  }
-  // Arquivos enviados mas nunca ligados a uma peça (envio abandonado), também com mais de 7 dias.
-  const orfaos = (await listarArquivos("pecas/")).filter(f => !emUso.has(f.chave) && Date.parse(f.enviadoEm) < limite).map(f => f.chave);
-  if (orfaos.length) { await apagarArquivos(orfaos); out.orfaosApagados = orfaos.length; }
-  return out;
-}
 async function limpezaExecutar(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!["mestre", "gestao"].includes(perfilDe(u))) return negado(res);
@@ -1171,6 +597,6 @@ export const rotas = {
   inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
   "peca.comentar": pecaComentar, "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
   pecas, "peca.arquivo": pecaArquivo, dashboard, "limpeza.executar": limpezaExecutar,
-  "limpar.testes": limparTestesEndpoint, notificacoes, "mencao.ler": mencaoLer,
+  notificacoes, "mencao.ler": mencaoLer,
 };
 export const publicas = { "pecas.cron": pecasCron };

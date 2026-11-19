@@ -7,8 +7,10 @@ const {
   diaSP,
   horaSP,
   resumoDinamico,
-  resumoContadores,
+  processarRetencaoPeca,
+  RETENCAO_DIAS,
   calcularPicosHorario,
+  versaoListaPecas,
   podeEnviar,
   podeDecidir,
   veTodas,
@@ -150,27 +152,65 @@ test("resumoDinamico calcula online+offline, metas, porcentagens e filtros", () 
   assert.equal(rSemMeta.totais.pctCarteiraAprovada, null);
 });
 
-test("resumoContadores calcula metas e porcentagens da carteira consistentemente", () => {
-  const carteira = [
-    { id: "c1", nome: "Cli 1", conteudos: 8, motions: 2 },
-    { id: "c2", nome: "Cli 2", conteudos: 0, motions: 0 },
-  ];
-  const cont = {
-    pecas: 5, versoes: 6, aprovada: 4, reprovada: 0, alteracao_solicitada: 1,
-    "cli_pecas:c1": 5, "cli_dec:c1:aprovada": 4,
+test("processarRetencaoPeca expira arquivos antigos, arquiva peça sem apagá-la e mantém histórico no dashboard", () => {
+  const agoraMs = Date.parse("2026-11-19T12:00:00.000Z");
+  const limiteMs = agoraMs - RETENCAO_DIAS * 864e5;
+  const emIso = new Date(agoraMs).toISOString();
+
+  // 1. Peça inteiramente > 7 dias: expira arquivo e marca arquivada = true
+  const pAntiga = {
+    id: "ant1",
+    clienteId: "c1",
+    clienteNome: "Cli 1",
+    status: "aprovada",
+    criadoEm: "2026-11-05T12:00:00Z",
+    versoes: [{ n: 1, enviadaEm: "2026-11-05T12:00:00Z", arquivos: [{ chave: "pecas/u/old.png" }], links: [] }],
+    historico: [{ tipo: "aprovada", versao: 1, em: "2026-11-05T15:00:00Z", por: { login: "edu", nome: "Edu" } }],
   };
-  const r = resumoContadores(cont, carteira, []);
-  assert.equal(r.totais.metaConteudos, 10);
-  assert.equal(r.totais.metaConteudosBase, 8);
-  assert.equal(r.totais.metaMotions, 2);
-  assert.equal(r.totais.clientesComMeta, 1);
-  assert.equal(r.totais.pctCarteira, 50);
-  assert.equal(r.totais.pctCarteiraAprovada, 40);
-  const c1 = r.clientes.find(c => c.id === "c1");
-  const c2 = r.clientes.find(c => c.id === "c2");
-  assert.equal(c1.pctCarteira, 50);
-  assert.equal(c1.pctCarteiraAprovada, 40);
-  assert.equal(c2.pctCarteira, null);
+  const r1 = processarRetencaoPeca(pAntiga, limiteMs, emIso);
+  assert.deepEqual(r1.vencidos, ["pecas/u/old.png"]);
+  assert.deepEqual(r1.emUso, []);
+  assert.equal(r1.arquivouAgora, true);
+  assert.equal(r1.alterou, true);
+  assert.equal(pAntiga.versoes[0].arquivos[0].expirado, true);
+  assert.equal(pAntiga.versoes[0].arquivos[0].expiradoEm, emIso);
+  assert.equal(pAntiga.arquivada, true);
+  assert.equal(pAntiga.arquivadaEm, emIso);
+
+  // 2. Idempotência ao rodar novamente na mesma peça
+  const r1Again = processarRetencaoPeca(pAntiga, limiteMs, emIso);
+  assert.deepEqual(r1Again.vencidos, []);
+  assert.equal(r1Again.arquivouAgora, false);
+  assert.equal(r1Again.alterou, false);
+
+  // 3. Peça mista (v1 antiga, v2 recente): expira v1, mantém v2 emUso e NÃO arquiva
+  const pMista = {
+    id: "mista1",
+    clienteId: "c1",
+    clienteNome: "Cli 1",
+    status: "pendente",
+    criadoEm: "2026-11-05T12:00:00Z",
+    versoes: [
+      { n: 1, enviadaEm: "2026-11-05T12:00:00Z", arquivos: [{ chave: "pecas/u/v1.png" }], links: [] },
+      { n: 2, enviadaEm: "2026-11-18T12:00:00Z", arquivos: [{ chave: "pecas/u/v2.png" }], links: [] },
+    ],
+    historico: [],
+  };
+  const r2 = processarRetencaoPeca(pMista, limiteMs, emIso);
+  assert.deepEqual(r2.vencidos, ["pecas/u/v1.png"]);
+  assert.deepEqual(r2.emUso, ["pecas/u/v2.png"]);
+  assert.equal(r2.arquivouAgora, false);
+  assert.equal(r2.alterou, true);
+  assert.equal(pMista.versoes[0].arquivos[0].expirado, true);
+  assert.equal(!!pMista.versoes[1].arquivos[0].expirado, false);
+  assert.equal(!!pMista.arquivada, false);
+
+  // 4. Peça arquivada continua sendo contabilizada normalmente no dashboard mensal
+  const dash = resumoDinamico([pAntiga, pMista], [{ id: "c1", nome: "Cli 1", conteudos: 4, motions: 0 }], d => d.startsWith("2026-11"));
+  assert.equal(dash.totais.pecas, 2);
+  assert.equal(dash.totais.aprovada, 1);
+  assert.equal(dash.totais.pctCarteira, 50);
+  assert.equal(dash.totais.pctCarteiraAprovada, 25);
 });
 
 test("calcularPicosHorario contabiliza v1 e versões extras no fuso de Brasília", () => {
@@ -231,4 +271,26 @@ test("permissões de peças (podeEnviar, podeDecidir, veTodas, veDash)", () => {
   assert.equal(veDash(coord), true);
   assert.equal(veDash(social), true);
   assert.equal(veDash(atend), true);
+});
+
+test("versaoListaPecas gera assinatura determinística e sensível a qualquer alteração", () => {
+  const base = {
+    pecasSeq: "105",
+    pecasCnt: "14",
+    avAt: "2026-11-19T15:00:00.000Z",
+    usrAt: "2026-11-19T14:00:00.000Z",
+    usrCnt: "12",
+  };
+  const v1 = versaoListaPecas(base);
+  const v2 = versaoListaPecas({ ...base });
+  assert.equal(v1, v2);
+  assert.match(v1, /^[a-f0-9]{16}$/);
+
+  assert.notEqual(versaoListaPecas({ ...base, pecasSeq: "106" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, pecasCnt: "15" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, avAt: "2026-11-19T15:01:00.000Z" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, usrAt: "2026-11-19T14:01:00.000Z" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, usrCnt: "13" }), v1);
+
+  assert.match(versaoListaPecas(), /^[a-f0-9]{16}$/);
 });

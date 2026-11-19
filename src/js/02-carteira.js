@@ -295,12 +295,35 @@
   // Senha
   document.getElementById("frmPwd").addEventListener("submit", async e => {
     e.preventDefault();
-    const ok = (await sha256(document.getElementById("pwdIn").value.trim())) === PASS_HASH;
-    if (!ok) { document.getElementById("pwdErr").textContent = "Senha incorreta. Tente de novo."; document.getElementById("pwdIn").select(); return; }
-    unlocked = true; try { sessionStorage.setItem("carteira-edit","1"); } catch {}
-    document.getElementById("dlgPwd").close(); renderLock(); renderAll(); toast("Edição liberada");
-    const el = pendingEl; pendingEl = null;
-    if (el && document.contains(el)) setTimeout(()=>el.click(), 0);
+    const inp = document.getElementById("pwdIn");
+    const err = document.getElementById("pwdErr");
+    const btn = e.target.querySelector('button[type="submit"]');
+    const senha = inp.value.trim();
+    if (!senha) return;
+    if (btn) btn.disabled = true;
+    err.textContent = "";
+    try {
+      const res = await fetch("/api/me", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ acao: "desbloquear_edicao", senha }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        err.textContent = j.error || "Senha incorreta. Tente de novo.";
+        inp.select();
+        return;
+      }
+      unlocked = true; try { sessionStorage.setItem("carteira-edit","1"); } catch {}
+      document.getElementById("dlgPwd").close(); renderLock(); renderAll(); toast("Edição liberada");
+      const el = pendingEl; pendingEl = null;
+      if (el && document.contains(el)) setTimeout(()=>el.click(), 0);
+    } catch {
+      err.textContent = "Sem conexão. Tente de novo.";
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
   document.getElementById("pwdCancel").addEventListener("click", ()=>{ pendingEl=null; document.getElementById("dlgPwd").close(); });
   document.getElementById("lockBtn").addEventListener("click", () => {

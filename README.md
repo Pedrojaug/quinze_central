@@ -124,6 +124,7 @@ Crie um arquivo `.env.local` na raiz para execução local ou configure diretame
 | `DATABASE_URL` | **Sim** | URL de conexão PostgreSQL do **Neon** com SSL (`sslmode=require`). |
 | `DB_ENDPOINT_PREVIEW` | Não | Endpoint de branch do Neon para ambientes de Preview. |
 | `CRON_SECRET` | Recomendada | Chave de proteção para as rotas de Cron da Vercel (`/api/cron/...`). |
+| `MASTER_PASS_HASH` | Opcional | Hash SHA-256 hex de senha compartilhada de desbloqueio/exclusão (além das senhas dos usuários Mestre). |
 | `BLOB_READ_WRITE_TOKEN` | Opcional | Token do **Vercel Blob** para upload e armazenamento de arquivos em nuvem. |
 | `OPENAI_API_KEY` | Opcional | Chave de API da **OpenAI** (provedor padrão) para leitura de contratos, POPs e NPS com GPT-4o-mini. |
 | `ANTHROPIC_API_KEY` | Opcional | Chave alternativa da **Anthropic** (fallback) para modelos Claude. |
