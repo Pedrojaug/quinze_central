@@ -8,7 +8,7 @@
 import crypto from "node:crypto";
 import { sql } from "./_lib.js";
 import { perfilDe, podeEnviarPecas, ehGestao } from "./_modules.js";
-import { listar, ler, gravar, apagar, novoId, clientesCarteira, txt, usuariosAtivos } from "./_mdados.js";
+import { listar, ler, gravar, apagar, novoId, clientesCarteira, clientesCarteiraComMes, txt, usuariosAtivos } from "./_mdados.js";
 import { tokenEnvioDireto, infoArquivo, apagarArquivos, listarArquivos, linkTemporario, enviar, nomeSeguro, extensao } from "./_arquivos.js";
 import { hojeSP } from "./_adm.js";
 
@@ -52,6 +52,21 @@ export const horaSP = iso => {
     return parseInt(hStr, 10);
   } catch { return null; }
 };
+const calcPct = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : null);
+function resumirMetaCarteira(clientes = [], totalPecas = 0, totalAprovadas = 0) {
+  const metaConteudos = clientes.reduce((acc, cl) => acc + (cl.metaConteudos || 0), 0);
+  const metaConteudosBase = clientes.reduce((acc, cl) => acc + (cl.conteudos || 0), 0);
+  const metaMotions = clientes.reduce((acc, cl) => acc + (cl.motions || 0), 0);
+  const clientesComMeta = clientes.filter(cl => (cl.metaConteudos || 0) > 0).length;
+  return {
+    metaConteudos,
+    metaConteudosBase,
+    metaMotions,
+    clientesComMeta,
+    pctCarteira: calcPct(totalPecas, metaConteudos),
+    pctCarteiraAprovada: calcPct(totalAprovadas, metaConteudos),
+  };
+}
 
 // ---------- Permissões ----------
 export const podeEnviar = u => podeEnviarPecas(u);
@@ -235,6 +250,9 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
     const st = porCli[id] || { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
     const envCli = Object.entries(st.porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x })).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
     const decCli = Object.entries(st.porCoord).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada })).sort((a, b) => b.total - a.total);
+    const conteudos = Number(meta.conteudos) || 0;
+    const motions = Number(meta.motions) || 0;
+    const metaConteudos = conteudos + motions;
     return {
       id,
       nome: meta.nome || nomes[`cli:${id}`] || id,
@@ -242,13 +260,17 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
       nivel: meta.nivel || "",
       atendimento: meta.atendimento || "",
       social: meta.social || "",
-      metaConteudos: (Number(meta.conteudos) || 0) + (Number(meta.motions) || 0),
+      conteudos,
+      motions,
+      metaConteudos,
       pecas: st.pecas || 0,
       versoes: st.versoes || 0,
       aprovada: st.aprovada || 0,
       reprovada: st.reprovada || 0,
       alteracao_solicitada: st.alteracao_solicitada || 0,
       pendente: st.pendente || 0,
+      pctCarteira: calcPct(st.pecas || 0, metaConteudos),
+      pctCarteiraAprovada: calcPct(st.aprovada || 0, metaConteudos),
       primeiraDecididas: st.v1_decididas || 0,
       primeiraAprovadas: st.v1_aprovadas || 0,
       taxaPrimeira: st.v1_decididas ? Math.round(st.v1_aprovadas / st.v1_decididas * 1000) / 10 : null,
@@ -258,7 +280,9 @@ export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
   }).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes || a.nome.localeCompare(b.nome, "pt-BR"));
   const tiposCliente = [...new Set(clientes.map(x => x.tipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const atendimentosCliente = [...new Set(clientes.map(x => x.atendimento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const metaResumo = resumirMetaCarteira(clientes, c.pecas || 0, c.aprovada || 0);
   return { enviadas, decisoes, totais: { pecas: c.pecas || 0, versoes: c.versoes || 0, aprovada: c.aprovada || 0, reprovada: c.reprovada || 0, alteracao_solicitada: c.alteracao_solicitada || 0,
+    ...metaResumo,
     primeiraDecididas: v1d, primeiraAprovadas: v1a, taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null }, clientes, tiposCliente, atendimentosCliente };
 }
 
@@ -421,6 +445,9 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       .filter(x => x.total > 0)
       .sort((a, b) => b.total - a.total);
 
+    const conteudos = Number(meta.conteudos) || 0;
+    const motions = Number(meta.motions) || 0;
+    const metaConteudos = conteudos + motions;
     return {
       id,
       nome: meta.nome || nomes[`cli:${id}`] || id,
@@ -428,7 +455,9 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       nivel: meta.nivel || "",
       atendimento: meta.atendimento || "",
       social: meta.social || "",
-      metaConteudos: (Number(meta.conteudos) || 0) + (Number(meta.motions) || 0),
+      conteudos,
+      motions,
+      metaConteudos,
       pecas: st.pecas || 0,
       pecasOnline: st.pecasOnline || 0,
       pecasOffline: st.pecasOffline || 0,
@@ -439,6 +468,8 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       reprovada: st.reprovada || 0,
       alteracao_solicitada: st.alteracao_solicitada || 0,
       pendente: st.pendente || 0,
+      pctCarteira: calcPct(st.pecas || 0, metaConteudos),
+      pctCarteiraAprovada: calcPct(st.aprovada || 0, metaConteudos),
       primeiraDecididas: st.v1_decididas || 0,
       primeiraAprovadas: st.v1_aprovadas || 0,
       taxaPrimeira: st.v1_decididas ? Math.round(st.v1_aprovadas / st.v1_decididas * 1000) / 10 : null,
@@ -449,6 +480,7 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
 
   const tiposCliente = [...new Set(clientes.map(x => x.tipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const atendimentosCliente = [...new Set(clientes.map(x => x.atendimento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const metaResumo = resumirMetaCarteira(clientes, totPecas, totAprovadas);
 
   return {
     enviadas,
@@ -463,6 +495,7 @@ export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => 
       aprovadasOffline: totAprovadasOffline,
       reprovada: totReprovadas,
       alteracao_solicitada: totAlt,
+      ...metaResumo,
       primeiraDecididas: totV1d,
       primeiraAprovadas: totV1a,
       taxaPrimeira: totV1d ? Math.round(totV1a / totV1d * 1000) / 10 : null,
@@ -1062,12 +1095,15 @@ async function dashboard(u, req, res) {
   const tipoMidia = ["online", "offline"].includes(String(req.query.tipoMidia || "").toLowerCase())
     ? String(req.query.tipoMidia).toLowerCase()
     : null;
+  const mesCarteiraAlvo = (de || ate) ? (ate || de).slice(0, 7) : mes;
 
-  const [carteira, todasPecas, rMeses] = await Promise.all([
-    clientesCarteira(),
+  const [cartRes, todasPecas, rMeses] = await Promise.all([
+    clientesCarteiraComMes(mesCarteiraAlvo),
     listar(M, "pecas"),
     sql`SELECT id FROM docs WHERE parent = ${`m/${M}/contadores`} AND NOT deleted ORDER BY id DESC`,
   ]);
+  const carteira = cartRes.clientes;
+  const carteiraMes = cartRes.mes;
 
   const meses = rMeses.map(r => r.id);
   const listaMeses = [...new Set([mesAtual(), ...meses])].sort().reverse();
@@ -1091,7 +1127,7 @@ async function dashboard(u, req, res) {
     sincronizarContadoresNoBanco(mes, dados).catch(() => {});
   }
 
-  return res.json({ mes, de, ate, tipoMidia, meses: listaMeses, horas, ...dados });
+  return res.json({ mes, de, ate, tipoMidia, carteiraMes, meses: listaMeses, horas, ...dados });
 }
 
 // ---------- Retenção: arquivos com mais de 7 dias são apagados; peças sem envio há mais de 7 dias saem da fila ----------

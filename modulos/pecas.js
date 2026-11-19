@@ -376,7 +376,33 @@
       .pc-av.md{width:52px;height:52px;font-size:18px}
       .pc-hist li{padding:11px 0}
       .pc-hist-item{display:flex;align-items:flex-start;gap:14px}
-      .pc-hist-body{flex:1;min-width:0;line-height:1.5;padding-top:3px}`;
+      .pc-hist-body{flex:1;min-width:0;line-height:1.5;padding-top:3px}
+      /* Progresso em relação à carteira no Dashboard */
+      .pc-meta-card{background:linear-gradient(180deg,#FFFFFF 0%,#F8FAFF 100%);border:1px solid #D0E0FF;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+      .modo-offline .pc-meta-card{background:linear-gradient(180deg,#FFFFFF 0%,#FAF5FF 100%);border-color:#E9D5FF}
+      .pc-meta-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+      .pc-meta-nums{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
+      .pc-meta-stat{text-align:right}
+      .pc-meta-stat b{display:block;font:700 22px/1.05 var(--display);font-variant-numeric:tabular-nums}
+      .pc-meta-stat span{display:block;font-size:11.5px;color:var(--ink2);margin-top:2px}
+      .pc-meta-stat.prod b{color:var(--blue)}
+      .modo-offline .pc-meta-stat.prod b{color:#7E22CE}
+      .pc-meta-stat.aprov b{color:#15803D}
+      .pc-meta-track{position:relative;height:14px;background:var(--line2);border-radius:999px;overflow:hidden}
+      .pc-meta-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;transition:width .25s ease}
+      .pc-meta-fill.prod{background:rgba(6,96,255,0.28);z-index:1}
+      .modo-offline .pc-meta-fill.prod{background:rgba(126,34,206,0.28)}
+      .pc-meta-fill.aprov{background:linear-gradient(90deg,#16A34A 0%,#22C55E 100%);z-index:2}
+      .modo-offline .pc-meta-fill.aprov{background:linear-gradient(90deg,#7E22CE 0%,#A855F7 100%)}
+      .pc-meta-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:9px;font-size:12px;color:var(--ink2)}
+      .pc-meta-leg span{display:inline-flex;align-items:center;gap:6px}
+      .pc-meta-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+      .pc-pct-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .pc-pct-pill.ok{background:#E6F6EC;color:#15803D}
+      .pc-pct-pill.mid{background:#EAF2FF;color:#0B57D0}
+      .pc-pct-pill.low{background:#FFF4DE;color:#92400E}
+      .pc-pct-pill.zero{background:#F1F5F9;color:var(--ink2)}
+      .pc-tbl tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:0;background:#FAFBFD}`;
     document.head.appendChild(st);
   }
 
@@ -1696,13 +1722,14 @@
           </select></label>
           <label style="flex:1;min-width:210px">Cliente<select data-x="f-cli"><option value="">Todos os clientes</option></select></label>
           <label>Tipo de cliente<select data-x="f-tipo"><option value="">Todos os tipos</option></select></label>
-          <label>Nível<select data-x="f-nivel"><option value="">Todos</option><option value="A">Nível A</option><option value="B">Nível B</option><option value="C">Nível C</option></select></label>
+          <label>Nível<select data-x="f-nivel"><option value="">Todos</option><option value="A">Nível A</option><option value="B">Nível B</option><option value="C">Nível C</option><option value="D">Nível D</option></select></label>
           <label>Atendimento<select data-x="f-at"><option value="">Todos</option></select></label>
           <button class="btn small" type="button" data-x="limpar-filtros" hidden>Limpar filtros</button>
         </div>
         <div data-box="aviso-filtro"></div>
       </div>
       <div class="pc-kpis" data-box="kpis"></div>
+      <div data-box="meta-carteira"></div>
       <div class="pc-card" style="margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
           <div>
@@ -1744,10 +1771,13 @@
       s.innerHTML = s.options[0].outerHTML + pares.map(([k, rot]) => `<option value="${esc(k)}">${esc(rot)}</option>`).join("");
       s.value = pares.some(([k]) => k === atual) ? atual : "";
     };
+    const calcPct = (n, d) => (d > 0 ? Math.round((n / d) * 1000) / 10 : null);
+    const fmtPct = v => (v == null ? "—" : v.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%");
     function agregarFiltrados(clientesFiltrados) {
       let pecas = 0, pecasOnline = 0, pecasOffline = 0, versoes = 0;
       let aprovada = 0, aprovadasOnline = 0, aprovadasOffline = 0;
       let reprovada = 0, alteracao_solicitada = 0, v1d = 0, v1a = 0;
+      let metaConteudos = 0, metaConteudosBase = 0, metaMotions = 0, clientesComMeta = 0;
       const porU = {}, porC = {};
       const horas = Array.from({ length: 24 }, (_, h) => ({
         hora: h,
@@ -1768,6 +1798,11 @@
         alteracao_solicitada += c.alteracao_solicitada || 0;
         v1d += c.primeiraDecididas || 0;
         v1a += c.primeiraAprovadas || 0;
+        const mCli = Number(c.metaConteudos) || 0;
+        metaConteudos += mCli;
+        metaConteudosBase += Number(c.conteudos) || 0;
+        metaMotions += Number(c.motions) || 0;
+        if (mCli > 0) clientesComMeta++;
         if (Array.isArray(c.horas)) {
           c.horas.forEach((qtd, h) => { horas[h].total += (qtd || 0); });
         }
@@ -1799,6 +1834,9 @@
           pecas, pecasOnline, pecasOffline, versoes,
           aprovada, aprovadasOnline, aprovadasOffline,
           reprovada, alteracao_solicitada,
+          metaConteudos, metaConteudosBase, metaMotions, clientesComMeta,
+          pctCarteira: calcPct(pecas, metaConteudos),
+          pctCarteiraAprovada: calcPct(aprovada, metaConteudos),
           primeiraDecididas: v1d, primeiraAprovadas: v1a,
           taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null,
         },
@@ -1847,13 +1885,24 @@
 
       const escopo = temFiltro ? agregarFiltrados(clientesFiltrados) : { totais: dados.totais, enviadas: dados.enviadas, decisoes: dados.decisoes, horas: dados.horas };
       const t = escopo.totais;
+      const metaTotal = t.metaConteudos || 0;
+      const pctProd = t.pctCarteira != null ? t.pctCarteira : calcPct(t.pecas || 0, metaTotal);
+      const pctAprov = t.pctCarteiraAprovada != null ? t.pctCarteiraAprovada : calcPct(t.aprovada || 0, metaTotal);
       const clientesComEnvio = clientesFiltrados.filter(c => c.pecas > 0 || c.versoes > 0);
-      const detPecasTotal = (!fMidia && ((t.pecasOnline || 0) > 0 || (t.pecasOffline || 0) > 0))
-        ? `🌐 ${t.pecasOnline || 0} online + 📦 ${t.pecasOffline || 0} offline · ${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"}`
-        : `${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"} com envios`;
-      const detAprovTotal = (!fMidia && ((t.aprovadasOnline || 0) > 0 || (t.aprovadasOffline || 0) > 0))
-        ? `🌐 ${t.aprovadasOnline || 0} online + 📦 ${t.aprovadasOffline || 0} offline`
-        : undefined;
+      const pctProdTxt = metaTotal > 0 ? `${fmtPct(pctProd)} de ${metaTotal} na carteira` : "";
+      const detPecasTotal = [
+        (!fMidia && ((t.pecasOnline || 0) > 0 || (t.pecasOffline || 0) > 0))
+          ? `🌐 ${t.pecasOnline || 0} online + 📦 ${t.pecasOffline || 0} offline · ${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"}`
+          : `${clientesComEnvio.length} cliente${clientesComEnvio.length === 1 ? "" : "s"} com envios`,
+        pctProdTxt,
+      ].filter(Boolean).join(" · ");
+      const pctAprovTxt = metaTotal > 0 ? `${fmtPct(pctAprov)} de ${metaTotal} na carteira` : "";
+      const detAprovTotal = [
+        (!fMidia && ((t.aprovadasOnline || 0) > 0 || (t.aprovadasOffline || 0) > 0))
+          ? `🌐 ${t.aprovadasOnline || 0} online + 📦 ${t.aprovadasOffline || 0} offline`
+          : "",
+        pctAprovTxt,
+      ].filter(Boolean).join(" · ") || undefined;
       box("kpis").innerHTML = [
         [t.pecas, "Total produzido (On + Off)", detPecasTotal],
         [t.versoes, "Versões enviadas"],
@@ -1862,6 +1911,53 @@
         [t.reprovada, "Reprovadas"],
         [t.taxaPrimeira == null ? "—" : t.taxaPrimeira.toLocaleString("pt-BR") + "%", "Aprovação na 1ª versão", t.primeiraDecididas ? `${t.primeiraAprovadas} de ${t.primeiraDecididas} peças decididas na 1ª versão` : "nenhuma decisão na 1ª versão"],
       ].map(([v, r, e]) => `<div class="pc-kpi"><b>${v}</b><span>${r}</span>${e ? `<em>${e}</em>` : ""}</div>`).join("");
+
+      // Card de Progresso em relação à Carteira
+      const metaBox = box("meta-carteira");
+      if (metaBox) {
+        const carteiraLabel = dados.carteiraMes ? `Carteira de ${mesBr(dados.carteiraMes)}` : "Carteira atual";
+        const temFiltroEscopo = !!(fCli || fTipo || fNivel || fAt);
+        const recorteLabel = temFiltroEscopo ? " (recorte filtrado)" : "";
+        const periodoCurto = !!(dados.de || dados.ate);
+        if (metaTotal > 0) {
+          const wProd = Math.min(100, Math.max(0, pctProd || 0));
+          const wAprov = Math.min(100, Math.max(0, pctAprov || 0));
+          const diffProd = metaTotal - (t.pecas || 0);
+          const diffAprov = metaTotal - (t.aprovada || 0);
+          const txtFaltaProd = diffProd > 0 ? `Faltam produzir <b>${diffProd}</b>` : diffProd === 0 ? `<b>Meta de produção atingida</b>` : `Meta de produção superada em <b>+${Math.abs(diffProd)}</b>`;
+          const txtFaltaAprov = diffAprov > 0 ? `Faltam aprovar <b>${diffAprov}</b>` : diffAprov === 0 ? `<b>Meta de aprovações atingida</b>` : `Meta de aprovações superada em <b>+${Math.abs(diffAprov)}</b>`;
+          const baseDet = (t.metaConteudosBase || t.metaMotions) ? ` (${t.metaConteudosBase || 0} conteúdos + ${t.metaMotions || 0} motions)` : "";
+          const avisosExtras = [];
+          if (periodoCurto) avisosExtras.push("Comparado com a meta mensal da carteira");
+          if (fMidia === "offline") avisosExtras.push("Filtro Offline ativo (a meta da carteira soma conteúdos + motions)");
+          else if (fMidia === "online") avisosExtras.push("Filtro Online ativo");
+          const qtdCliMeta = t.clientesComMeta || 0;
+          metaBox.innerHTML = `<div class="pc-meta-card">
+            <div class="pc-meta-head">
+              <div>
+                <h3 style="margin:0;font-size:15px">🎯 Progresso em relação à carteira${recorteLabel}</h3>
+                <div class="pc-sub" style="margin-top:3px">${esc(carteiraLabel)} · Meta total: <b>${metaTotal}</b> peça${metaTotal === 1 ? "" : "s"}${esc(baseDet)} em ${qtdCliMeta} cliente${qtdCliMeta === 1 ? "" : "s"}${avisosExtras.length ? ` · <i>${esc(avisosExtras.join(" · "))}</i>` : ""}</div>
+              </div>
+              <div class="pc-meta-nums">
+                <div class="pc-meta-stat prod"><b>${fmtPct(pctProd)}</b><span>Produzidas: ${t.pecas || 0} / ${metaTotal}</span></div>
+                <div class="pc-meta-stat aprov"><b>${fmtPct(pctAprov)}</b><span>Aprovadas: ${t.aprovada || 0} / ${metaTotal}</span></div>
+              </div>
+            </div>
+            <div class="pc-meta-track" title="Produzidas: ${fmtPct(pctProd)} (${t.pecas || 0}/${metaTotal}) · Aprovadas: ${fmtPct(pctAprov)} (${t.aprovada || 0}/${metaTotal})">
+              <div class="pc-meta-fill prod" style="width:${wProd}%"></div>
+              <div class="pc-meta-fill aprov" style="width:${wAprov}%"></div>
+            </div>
+            <div class="pc-meta-leg">
+              <span><i class="pc-meta-dot" style="background:${ehModoOffline ? "#9333EA" : "var(--blue)"}"></i>Produzidas vs. carteira: ${txtFaltaProd}</span>
+              <span><i class="pc-meta-dot" style="background:${ehModoOffline ? "#7E22CE" : "#16A34A"}"></i>Aprovadas vs. carteira: ${txtFaltaAprov}</span>
+            </div>
+          </div>`;
+        } else {
+          metaBox.innerHTML = `<div class="pc-meta-card" style="padding:11px 16px">
+            <div class="pc-sub">🎯 <b>Progresso em relação à carteira:</b> Nenhuma meta de conteúdos definida na ${esc(carteiraLabel.toLowerCase())} para o recorte selecionado.</div>
+          </div>`;
+        }
+      }
 
       // Horários de pico de envio de material
       const horasAtuais = (escopo.horas || dados.horas || []);
@@ -1922,25 +2018,66 @@
       const listaCliVisivel = (fCli || mostrarZerados) ? clientesFiltrados : clientesComEnvio;
       const maxCli = Math.max(1, ...clientesComEnvio.map(c => c.pecas));
       box("cli-barras").innerHTML = clientesComEnvio.length
-        ? `<div class="pc-barras">${clientesComEnvio.slice(0, 15).map(c => `<div class="l">
-            <span class="nm" title="${esc(c.nome)}${c.tipo ? " · " + esc(c.tipo) : ""}"><a href="#" data-x="filtrar-cli" data-cid="${esc(c.id)}" style="color:inherit;text-decoration:none;font-weight:500">${esc(c.nome)}</a></span>
+        ? `<div class="pc-barras">${clientesComEnvio.slice(0, 15).map(c => {
+            const pctCli = c.pctCarteira != null ? c.pctCarteira : calcPct(c.pecas || 0, c.metaConteudos || 0);
+            const numTxt = c.metaConteudos ? `${c.pecas} / ${c.metaConteudos} (${fmtPct(pctCli)})` : `${c.pecas}`;
+            return `<div class="l" style="grid-template-columns:160px minmax(0,1fr) auto">
+            <span class="nm" title="${esc(c.nome)}${c.tipo ? " · " + esc(c.tipo) : ""}${c.metaConteudos ? ` · ${c.pecas} de ${c.metaConteudos} (${fmtPct(pctCli)})` : ""}"><a href="#" data-x="filtrar-cli" data-cid="${esc(c.id)}" style="color:inherit;text-decoration:none;font-weight:500">${esc(c.nome)}</a></span>
             <span class="b"><i style="width:${c.pecas / maxCli * 100}%"></i></span>
-            <b class="num">${c.pecas}</b>
-          </div>`).join("")}</div>`
+            <b class="num" style="white-space:nowrap">${numTxt}</b>
+          </div>`;
+          }).join("")}</div>`
         : "";
+
+      const clsPct = v => v == null ? "zero" : v >= 100 ? "ok" : v >= 50 ? "mid" : v > 0 ? "low" : "zero";
+      const linhaTotalTabela = (rotulo, arr) => {
+        let sPecas = 0, sMeta = 0, sVer = 0, sApr = 0, sAlt = 0, sRep = 0, sPend = 0, sV1d = 0, sV1a = 0;
+        for (const c of arr) {
+          sPecas += c.pecas || 0;
+          sMeta += c.metaConteudos || 0;
+          sVer += c.versoes || 0;
+          sApr += c.aprovada || 0;
+          sAlt += c.alteracao_solicitada || 0;
+          sRep += c.reprovada || 0;
+          sPend += c.pendente || 0;
+          sV1d += c.primeiraDecididas || 0;
+          sV1a += c.primeiraAprovadas || 0;
+        }
+        const pctArr = calcPct(sPecas, sMeta);
+        const pctArrApr = calcPct(sApr, sMeta);
+        const taxaArr = sV1d ? Math.round(sV1a / sV1d * 1000) / 10 : null;
+        return `<tr>
+          <td colspan="3">${esc(rotulo)}</td>
+          <td class="num">${sPecas}${sMeta ? `<span class="pc-sub"> / ${sMeta}</span>` : ""}</td>
+          <td class="num">${sMeta ? `<span class="pc-pct-pill ${clsPct(pctArr)}" title="Produzidas: ${sPecas}/${sMeta} (${fmtPct(pctArr)}) · Aprovadas: ${sApr}/${sMeta} (${fmtPct(pctArrApr)})">${fmtPct(pctArr)}</span>` : `<span class="pc-sub">—</span>`}</td>
+          <td class="num">${sVer}</td>
+          <td class="num">${sApr}</td>
+          <td class="num">${sAlt}</td>
+          <td class="num">${sRep}</td>
+          <td class="num">${sPend}</td>
+          <td class="num">${taxaArr == null ? "—" : taxaArr.toLocaleString("pt-BR") + "%"}</td>
+          <td></td>
+        </tr>`;
+      };
 
       box("cli-tabela").innerHTML = listaCliVisivel.length
         ? `<table class="pc-tbl"><thead><tr>
             <th>Cliente</th><th>Tipo / Nível</th><th>Atendimento</th>
-            <th class="num">Peças</th><th class="num">Versões</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Pendentes</th><th class="num">1ª versão</th><th style="text-align:right">Filtro</th>
+            <th class="num">Peças</th><th class="num">% Carteira</th><th class="num">Versões</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Pendentes</th><th class="num">1ª versão</th><th style="text-align:right">Filtro</th>
           </tr></thead><tbody>
           ${listaCliVisivel.map(c => {
             const ativo = fCli === c.id;
+            const pctCli = c.pctCarteira != null ? c.pctCarteira : calcPct(c.pecas || 0, c.metaConteudos || 0);
+            const pctCliApr = c.pctCarteiraAprovada != null ? c.pctCarteiraAprovada : calcPct(c.aprovada || 0, c.metaConteudos || 0);
+            const pctCell = c.metaConteudos > 0
+              ? `<span class="pc-pct-pill ${clsPct(pctCli)}" title="Produzidas: ${c.pecas}/${c.metaConteudos} (${fmtPct(pctCli)}) · Aprovadas: ${c.aprovada}/${c.metaConteudos} (${fmtPct(pctCliApr)})">${fmtPct(pctCli)}</span>`
+              : `<span class="pc-sub">—</span>`;
             return `<tr style="${ativo ? "background:var(--blue-soft)" : ""}">
               <td><b>${esc(c.nome)}</b></td>
               <td>${c.tipo ? `<span class="pc-cli" style="margin-right:4px">${esc(c.tipo)}</span>` : ""}${c.nivel ? `<span class="pc-badge-opc">Nível ${esc(c.nivel)}</span>` : (!c.tipo ? `<span class="pc-sub">—</span>` : "")}</td>
               <td>${esc(c.atendimento || "—")}</td>
               <td class="num"><b>${c.pecas}</b>${c.metaConteudos ? `<span class="pc-sub" title="Meta contratada na Carteira"> / ${c.metaConteudos}</span>` : ""}</td>
+              <td class="num">${pctCell}</td>
               <td class="num">${c.versoes}</td>
               <td class="num">${c.aprovada}</td>
               <td class="num">${c.alteracao_solicitada}</td>
@@ -1950,7 +2087,12 @@
               <td style="text-align:right;white-space:nowrap"><button class="btn small${ativo ? " primary" : ""}" type="button" data-x="filtrar-cli" data-cid="${esc(c.id)}">${ativo ? "Limpar" : "Filtrar"}</button></td>
             </tr>`;
           }).join("")}
-          </tbody></table>`
+          </tbody><tfoot>${
+            listaCliVisivel.length === clientesFiltrados.length
+              ? linhaTotalTabela(`Total (${listaCliVisivel.length} cliente${listaCliVisivel.length === 1 ? "" : "s"})`, listaCliVisivel)
+              : linhaTotalTabela(`Subtotal exibido (${listaCliVisivel.length} com envio)`, listaCliVisivel) +
+                linhaTotalTabela(`Total da carteira (${clientesFiltrados.length} cliente${clientesFiltrados.length === 1 ? "" : "s"})`, clientesFiltrados)
+          }</tfoot></table>`
         : `<div class="pc-vazio">${temFiltro ? "Nenhum cliente encontrado com esses filtros." : "Nenhum cliente teve peças enviadas neste mês ainda (marque a opção acima para ver todos os clientes da carteira)."}</div>`;
 
       // Seções de Usuários e Aprovadores (mantidas e sensíveis ao filtro)

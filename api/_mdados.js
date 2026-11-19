@@ -38,8 +38,8 @@ export async function auditar(u, modulo, acao, alvo, detalhe) {
   await sql`INSERT INTO auditoria (login, modulo, acao, alvo, detalhe)
             VALUES (${u.login}, ${modulo}, ${acao}, ${alvo || null}, ${detalhe ? JSON.stringify(detalhe) : null}::jsonb)`;
 }
-// Clientes da Carteira (mês mais recente que tiver clientes), para as listas suspensas.
-export async function clientesCarteira() {
+// Clientes da Carteira (do mês alvo ou do mês mais recente com clientes), excluindo inativos e retirados.
+export async function clientesCarteiraComMes(mesAlvo = null) {
   const r = await sql`SELECT parent, id, data FROM docs WHERE parent LIKE 'meses/%/clientes' AND NOT deleted`;
   const porMes = {};
   r.forEach(x => (porMes[x.parent.split("/")[1]] ||= []).push({
@@ -53,8 +53,27 @@ export async function clientesCarteira() {
     conteudos: Number(x.data.conteudos) || 0,
     motions: Number(x.data.motions) || 0,
   }));
-  const mes = Object.keys(porMes).sort().pop();
-  return (mes ? porMes[mes] : []).filter(c => c.status !== "inativo").sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const mesesDisponiveis = Object.keys(porMes).sort();
+  let mes = null;
+  if (mesAlvo && porMes[mesAlvo]) {
+    mes = mesAlvo;
+  } else if (mesAlvo) {
+    const anteriores = mesesDisponiveis.filter(m => m <= mesAlvo);
+    mes = anteriores.length ? anteriores[anteriores.length - 1] : (mesesDisponiveis[mesesDisponiveis.length - 1] || null);
+  } else {
+    mes = mesesDisponiveis[mesesDisponiveis.length - 1] || null;
+  }
+  const clientes = (mes ? porMes[mes] : [])
+    .filter(c => {
+      const st = String(c.status || "").trim().toLowerCase();
+      return st !== "inativo" && st !== "retirado";
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  return { mes, clientes };
+}
+export async function clientesCarteira(mesAlvo = null) {
+  const { clientes } = await clientesCarteiraComMes(mesAlvo);
+  return clientes;
 }
 export async function usuariosAtivos() {
   const [r, mapaAv] = await Promise.all([
