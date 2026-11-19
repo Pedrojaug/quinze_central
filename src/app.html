@@ -179,14 +179,14 @@
 
   <section id="tab-users" hidden>
     <div class="toolbar">
-      <div style="flex:1;min-width:200px"><h2 style="margin:0">Usuários</h2><div class="muted" style="font-size:13px">Quem tem e-mail da Quinze pode entrar com a senha da Locaweb ou com senha própria definida aqui. Quem usa usuário ou outro e-mail entra com senha própria: você define uma senha temporária e a pessoa troca no primeiro acesso.</div></div>
+      <div style="flex:1;min-width:200px"><h2 style="margin:0">Usuários</h2><div class="muted" style="font-size:13px">Quem tem e-mail da Quinze pode entrar com a senha da Locaweb ou com senha própria. Quem usa usuário ou outro e-mail entra com senha própria: a Central gera uma senha temporária (mostrada uma única vez) e a pessoa troca no primeiro acesso.</div></div>
     </div>
     <div class="panel" style="margin-bottom:18px">
       <h2 style="font-size:16px">Adicionar usuário</h2>
       <div class="fgrid">
         <div><label class="f" for="usr_nome">Nome</label><input id="usr_nome" placeholder="Ex.: Laís Marinho"></div>
         <div><label class="f" for="usr_email">E-mail ou usuário</label><input id="usr_email" placeholder="nome@quinzecomunicacao.com.br ou joao.silva" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
-        <div id="usr_senhaBox"><label class="f" for="usr_senha" id="usr_senhaLbl">Senha temporária</label><input id="usr_senha" type="password" autocomplete="new-password" placeholder="Pelo menos 8 caracteres"><div class="hint" id="usr_senhaHint">Passe à pessoa; ela cria a própria senha no primeiro acesso.</div></div>
+        <div id="usr_senhaBox"><label class="f" id="usr_senhaLbl">Senha temporária</label><label id="usr_gerarBox" style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer" hidden><input type="checkbox" id="usr_gerarSenha" style="min-height:0;width:16px;height:16px"> Criar senha própria em vez da Locaweb</label><div class="hint" id="usr_senhaHint">A Central gera uma senha temporária e mostra uma única vez. A pessoa cria a própria senha no primeiro acesso.</div></div>
         <div><label class="f" for="usr_funcao">Perfil</label><select id="usr_funcao"></select></div>
         <div class="full"><label style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer"><input type="checkbox" id="usr_pecas" style="min-height:0;width:16px;height:16px"> Pode enviar peças (módulo Aprovação de peças)</label></div>
         <div class="full"><label class="f">Módulos e abas que pode acessar</label><div id="usr_abas"></div><div class="hint" id="usr_funcHint" style="margin-top:6px"></div></div>
@@ -290,12 +290,24 @@
   </form>
 </dialog>
 
+<dialog id="dlgSenhaTemp">
+  <form method="dialog">
+    <div class="m-head"><h2 style="margin:0">Senha temporária</h2><div class="hint" id="senhaTempQuem"></div></div>
+    <div class="m-body"><div class="full">
+      <label class="f" for="senhaTempTxt">Senha</label>
+      <input id="senhaTempTxt" readonly autocomplete="off" spellcheck="false" style="font-family:ui-monospace,monospace;font-size:18px;letter-spacing:1px">
+      <div class="hint">Copie e passe à pessoa por um canal privado. Ela será mostrada só agora; no primeiro acesso a pessoa cria a própria senha.</div>
+    </div></div>
+    <div class="m-foot"><button type="button" class="btn" id="senhaTempCopy">Copiar</button><button type="submit" class="btn primary">Já copiei</button></div>
+  </form>
+</dialog>
+
 <dialog id="dlgPwd">
   <form method="dialog" id="frmPwd">
     <div class="m-head"><h2 style="margin:0">Desbloquear edição</h2><div class="hint">Digite a senha para adicionar, editar ou retirar clientes.</div></div>
     <div class="m-body"><div class="full">
       <label class="f" for="pwdIn">Senha</label>
-      <input id="pwdIn" class="pwd" type="password" inputmode="numeric" autocomplete="off" required>
+      <input id="pwdIn" class="pwd" type="password" autocomplete="off" required>
       <div class="hint" id="pwdErr" style="color:var(--danger)"></div>
     </div></div>
     <div class="m-foot"><button type="button" class="btn" id="pwdCancel">Cancelar</button><button type="submit" class="btn primary">Desbloquear</button></div>
