@@ -498,8 +498,11 @@
     $("#usrRows").innerHTML = usrList.map(u => {
       const m = u.funcao === "mestre", proprio = u.auth === "senha", travado = m && !souMestre;
       const tipo = `<div class="hint" style="margin-top:3px">${proprio ? (u.senhaTemporaria ? "Senha temporária" : "Senha própria") : "E-mail Locaweb"}</div>`;
+      // Mestre digita a própria senha; para os demais a Central gera uma senha temporária (mostrada uma única vez).
       const pwd = !travado ? (usrPwdArm === u.login
-        ? `<input data-unewpwd type="password" autocomplete="new-password" placeholder="Nova senha" style="width:140px;min-height:30px;padding:4px 8px;font-size:13px"><button class="btn small primary" type="button" data-upwdsave>Gravar</button>`
+        ? (m
+          ? `<input data-unewpwd type="password" autocomplete="new-password" placeholder="Nova senha" style="width:140px;min-height:30px;padding:4px 8px;font-size:13px"><button class="btn small primary" type="button" data-upwdsave>Gravar</button>`
+          : `<button class="btn small primary" type="button" data-upwdsave>Gerar senha temporária</button>`)
         : `<button class="btn small" type="button" data-upwd>${proprio ? "Redefinir senha" : "Definir senha"}</button>`) : "";
 
       const selTabs = u.abasEfetivas || u.abas || [];
@@ -588,30 +591,47 @@
     const senhaBox = () => {
       const v = $("#usr_email").value.trim().toLowerCase();
       const qz = ehEmailQuinze(v);
-      const lbl = $("#usr_senhaLbl"), hint = $("#usr_senhaHint"), inp = $("#usr_senha");
-      if (lbl) lbl.textContent = qz ? "Senha temporária (opcional para e-mail Quinze)" : "Senha temporária";
-      if (inp) inp.placeholder = qz ? "Em branco = usa senha da Locaweb" : `Pelo menos ${SENHA_MIN} caracteres`;
-      if (hint) hint.textContent = qz
-        ? "Deixe em branco para validar na Locaweb, ou defina uma senha própria para entrar direto na Central."
-        : "Passe à pessoa; ela cria a própria senha no primeiro acesso.";
+      const lbl = $("#usr_senhaLbl"), hint = $("#usr_senhaHint"), opt = $("#usr_gerarBox"), chk = $("#usr_gerarSenha");
+      if (lbl) lbl.textContent = qz ? "Senha (opcional para e-mail Quinze)" : "Senha temporária";
+      if (opt) opt.hidden = !qz;
+      if (hint) hint.textContent = qz && !(chk && chk.checked)
+        ? "Sem marcar, a pessoa entra com a senha do e-mail na Locaweb. Marcando, a Central gera uma senha temporária para entrar direto."
+        : "A Central gera uma senha temporária e mostra uma única vez. A pessoa cria a própria senha no primeiro acesso.";
     };
+    // Mostra a senha temporária gerada pelo servidor uma única vez; ao fechar, o campo é limpo.
+    const mostrarSenhaTemp = (login, senha) => {
+      const dlg = document.getElementById("dlgSenhaTemp"), inp = document.getElementById("senhaTempTxt");
+      if (!dlg || !inp) { window.prompt(`Senha temporária de ${login} (mostrada só agora):`, senha); return; }
+      document.getElementById("senhaTempQuem").textContent = `Acesso: ${login}`;
+      inp.value = senha;
+      dlg.addEventListener("close", () => { inp.value = ""; }, { once: true });
+      dlg.showModal(); inp.focus(); inp.select();
+    };
+    document.getElementById("senhaTempCopy")?.addEventListener("click", async () => {
+      const inp = document.getElementById("senhaTempTxt"); if (!inp || !inp.value) return;
+      inp.select();
+      try { await navigator.clipboard.writeText(inp.value); } catch { try { document.execCommand("copy"); } catch {} }
+      toast("Senha copiada");
+    });
     senhaBox();
     $("#usr_email").addEventListener("input", () => { $("#usrMsg").textContent = ""; senhaBox(); });
+    $("#usr_gerarSenha")?.addEventListener("change", senhaBox);
     $("#usrAdd").addEventListener("click", async () => {
       const login = normLogin($("#usr_email").value), nome = $("#usr_nome").value.trim();
       if (!login.includes("@") && login !== $("#usr_email").value.trim().toLowerCase()) $("#usr_email").value = login;
-      const funcao = $("#usr_funcao").value, comEmail = login.includes("@"), qzEmail = ehEmailQuinze(login), senha = $("#usr_senha").value.trim();
+      const funcao = $("#usr_funcao").value, comEmail = login.includes("@"), qzEmail = ehEmailQuinze(login);
+      const gerarSenha = !qzEmail || !!($("#usr_gerarSenha") && $("#usr_gerarSenha").checked);
       const abas = [...document.querySelectorAll("#usr_abas [data-newtab]:checked")].map(x => x.dataset.newtab);
       if (!login) { $("#usrMsg").textContent = "Informe o e-mail ou um nome de usuário."; return; }
       if (comEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login)) { $("#usrMsg").textContent = "Esse e-mail não parece válido."; return; }
       if (!comEmail && !/^[a-z0-9][a-z0-9._-]{2,39}$/.test(login)) { $("#usrMsg").textContent = "Usuário: use pelo menos 3 letras ou números (ex.: joao.silva)."; return; }
-      if ((!qzEmail || senha.length > 0) && senha.length < SENHA_MIN) { $("#usrMsg").textContent = `Defina uma senha temporária com pelo menos ${SENHA_MIN} caracteres.`; return; }
       if (funcao === "personalizado" && !abas.length) { $("#usrMsg").textContent = "Marque pelo menos um módulo ou aba."; return; }
       $("#usrAdd").disabled = true;
       try {
-        const j = await usrApi("POST", {login, nome, funcao, abas, ativo:true, podeEnviarPecas: $("#usr_pecas").checked, senha: senha || undefined});
-        ["#usr_email","#usr_nome","#usr_senha"].forEach(s => $(s).value = ""); $("#usr_pecas").checked = false; senhaBox(); $("#usrMsg").textContent = "";
+        const j = await usrApi("POST", {login, nome, funcao, abas, ativo:true, podeEnviarPecas: $("#usr_pecas").checked, gerarSenha});
+        ["#usr_email","#usr_nome"].forEach(s => $(s).value = ""); $("#usr_pecas").checked = false; if ($("#usr_gerarSenha")) $("#usr_gerarSenha").checked = false; senhaBox(); $("#usrMsg").textContent = "";
         toast(`${nome || login} ${j.criado === false ? "atualizado" : "adicionado"} como ${(PERFIS[funcao] || funcao).toLowerCase()}${j.compartilhadoDesativado ? ". O login compartilhado foi desativado" : ""}`);
+        if (j.senhaGerada) mostrarSenhaTemp(login, j.senhaGerada);
         loadUsers();
       } catch(e) { $("#usrMsg").textContent = e.message; }
       finally { $("#usrAdd").disabled = false; }
@@ -696,8 +716,14 @@
       if (e.target.closest("[data-upwd]")) { usrPwdArm = login; renderUsers(); tr.ownerDocument.querySelector(`tr[data-usr="${CSS.escape(login)}"] [data-unewpwd]`)?.focus(); return; }
       if (e.target.closest("[data-upwdsave]")) {
         const inp = tr.querySelector("[data-unewpwd]"), senha = inp ? inp.value : "";
-        if (senha.length < SENHA_MIN) { toast(`A senha precisa ter pelo menos ${SENHA_MIN} caracteres.`); return; }
-        try { await usrApi("POST", {acao:"senha", login, senha}); usrPwdArm = null; toast(m ? "Senha alterada" : "Senha redefinida. A pessoa troca no próximo acesso"); loadUsers(); }
+        if (m && senha.length < SENHA_MIN) { toast(`A senha precisa ter pelo menos ${SENHA_MIN} caracteres.`); return; }
+        try {
+          const j = await usrApi("POST", m ? {acao:"senha", login, senha} : {acao:"senha", login});
+          usrPwdArm = null;
+          if (j.senhaGerada) mostrarSenhaTemp(login, j.senhaGerada);
+          toast(m ? "Senha alterada" : "Senha redefinida. A pessoa troca no próximo acesso");
+          loadUsers();
+        }
         catch(err) { toast(err.message); }
         return;
       }

@@ -18,7 +18,6 @@
   let prodYear = String(new Date().getFullYear()), prodYears = [], prod = {};
   const CK_DEFAULT = "https://app.clickup.com/9013068617/v/db/8ckh0u9-23193";
   let editingId = null, outId = null;
-  const PASS_HASH = "a8698d96861f332be3627b5461c3d4ac120295ae33c8e26b9c0db82afa657084";
   let unlocked = false;
   try { unlocked = sessionStorage.getItem("carteira-edit") === "1"; } catch {}
   const LOCK_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>';
@@ -28,7 +27,12 @@
     b.className = "lockbtn" + (unlocked ? " open" : "");
     b.innerHTML = unlocked ? OPEN_SVG + "Edição liberada, bloquear" : LOCK_SVG + "Somente leitura, desbloquear";
   }
-  async function sha256(t){ const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
+  // A senha de desbloqueio é conferida no servidor (/api/m?r=aut/mestre.conferir); nenhum hash fica no navegador.
+  async function conferirSenhaDesbloqueio(senha){
+    const r = await fetch("/api/m?r=aut/mestre.conferir", {method:"POST", credentials:"same-origin", headers:{"content-type":"application/json"}, body: JSON.stringify({senha})});
+    if (r.status === 429) return "bloqueado";
+    return r.ok ? "ok" : "erro";
+  }
   let pendingEl = null;
   function askPassword(el){
     if (ehGestaoMe()) {

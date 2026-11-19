@@ -1,4 +1,4 @@
-import { sql, requireSession, forgetUser, ehGestao, gravarSenha, senhaValida, SENHA_MIN, carregarMapaAvatares } from "./_lib.js";
+import { sql, requireSession, forgetUser, ehGestao, gravarSenha, senhaValida, gerarSenhaTemporaria, SENHA_MIN, carregarMapaAvatares } from "./_lib.js";
 import { MODULOS, AREAS, FUNCOES, PERFIS, ESCOLHAS, abasDe, areasDe, perfilDe, publico, ALL_TABS } from "./_modules.js";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -48,19 +48,24 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
+    res.setHeader("Cache-Control", "no-store"); // a resposta pode trazer a senha temporária gerada
     const b = req.body || {};
     const login = String(b.login || "").trim().toLowerCase();
     const cur = (await sql`SELECT login, papel, funcao, auth FROM usuarios WHERE login = ${login}`)[0];
     const alvoMestre = cur && (cur.papel === "master" || cur.funcao === "mestre");
     if (alvoMestre && !souMestre) return res.status(403).json({ error: "Só o Mestre altera o próprio cadastro." });
+    const senhaInvalida = `A senha precisa ter pelo menos ${SENHA_MIN} caracteres e não pode ser uma senha padrão.`;
 
-    // Redefinir/definir senha (qualquer usuário). A nova senha é temporária: a pessoa troca no próximo acesso.
+    // Redefinir/definir senha.
+    //  - Mestre: define a própria senha (definitiva), digitada por ele.
+    //  - Demais: o servidor gera uma senha temporária aleatória, devolvida só nesta resposta; a pessoa troca no próximo acesso.
     if (b.acao === "senha") {
       if (!cur) return res.status(404).json({ error: "Usuário não encontrado." });
-      if (!senhaValida(b.senha)) return res.status(400).json({ error: `A senha precisa ter pelo menos ${SENHA_MIN} caracteres.` });
+      if (alvoMestre && !senhaValida(b.senha)) return res.status(400).json({ error: senhaInvalida });
+      const senhaGerada = alvoMestre ? undefined : gerarSenhaTemporaria();
       if (cur.auth !== "senha") await sql`UPDATE usuarios SET auth = 'senha', atualizado_em = now() WHERE login = ${login}`;
-      await gravarSenha(login, b.senha, !alvoMestre);
-      return res.status(200).json({ ok: true });
+      await gravarSenha(login, alvoMestre ? b.senha : senhaGerada, !alvoMestre);
+      return res.status(200).json({ ok: true, senhaGerada });
     }
 
     const nome = String(b.nome || "").trim().slice(0, 120);
@@ -70,38 +75,43 @@ export default async function handler(req, res) {
     if (funcao === "mestre" && !alvoMestre && !souMestre) return res.status(400).json({ error: "Só o Mestre pode definir outro Mestre." });
     const abas = funcao === "personalizado" && Array.isArray(b.abas) ? [...new Set(b.abas.filter(t => ESCOLHAS.includes(t)))] : [];
     if (funcao === "personalizado" && !abas.length) return res.status(400).json({ error: "Marque pelo menos um módulo ou aba." });
+    // Senha: só o Mestre digita a própria (b.senha). Para os demais, b.gerarSenha (ou uma senha enviada por cliente antigo)
+    // apenas pede uma senha temporária, que é sempre gerada aqui no servidor e devolvida uma única vez em senhaGerada.
     const temSenha = typeof b.senha === "string" && b.senha.trim().length > 0;
     const senhaLimpa = temSenha ? b.senha.trim() : "";
+    const querSenha = b.gerarSenha === true || temSenha;
 
     if (cur) {
-      if (temSenha && !senhaValida(senhaLimpa)) return res.status(400).json({ error: `A senha precisa ter pelo menos ${SENHA_MIN} caracteres.` });
+      let senhaGerada;
       if (alvoMestre) {
+        if (temSenha && !senhaValida(senhaLimpa)) return res.status(400).json({ error: senhaInvalida });
         await sql`UPDATE usuarios SET nome = ${nome || login}, pode_enviar_pecas = ${pecas}, auth = ${temSenha ? "senha" : cur.auth}, atualizado_em = now() WHERE login = ${login}`;
+        if (temSenha) await gravarSenha(login, senhaLimpa, false);
       } else {
         await sql`UPDATE usuarios SET nome = ${nome || login}, funcao = ${funcao}, abas = ${JSON.stringify(abas)}::jsonb, ativo = ${ativo},
-                  auth = ${temSenha ? "senha" : cur.auth}, pode_enviar_pecas = ${pecas}, atualizado_em = now() WHERE login = ${login}`;
+                  auth = ${querSenha ? "senha" : cur.auth}, pode_enviar_pecas = ${pecas}, atualizado_em = now() WHERE login = ${login}`;
         if (funcao !== cur.funcao) await addToTeam(nome, funcao);
+        if (querSenha) { senhaGerada = gerarSenhaTemporaria(); await gravarSenha(login, senhaGerada, true); }
       }
-      if (temSenha) await gravarSenha(login, senhaLimpa, !alvoMestre);
       forgetUser(login);
-      return res.status(200).json({ ok: true, criado: false });
+      return res.status(200).json({ ok: true, criado: false, senhaGerada });
     }
 
-    // Novo usuário: com e-mail da Quinze (Locaweb ou senha própria) ou com usuário/outro e-mail e senha temporária.
+    // Novo usuário: com e-mail da Quinze (Locaweb ou senha própria) ou com usuário/outro e-mail e senha temporária gerada.
     const comEmail = login.includes("@");
     const qzEmail = /@quinzecomunicacao\.com(\.br)?$/i.test(login);
-    const usaSenha = !qzEmail || temSenha;
+    const usaSenha = !qzEmail || querSenha;
     if (comEmail && !EMAIL.test(login)) return res.status(400).json({ error: "Informe um e-mail válido." });
     if (!comEmail && !USUARIO.test(login)) return res.status(400).json({ error: "O usuário deve ter de 3 a 40 letras minúsculas, números, ponto, hífen ou sublinhado." });
-    if (usaSenha && !senhaValida(senhaLimpa)) return res.status(400).json({ error: `Defina uma senha temporária com pelo menos ${SENHA_MIN} caracteres.` });
     await sql`INSERT INTO usuarios (login, nome, papel, funcao, abas, ativo, auth, pode_enviar_pecas, criado_por)
               VALUES (${login}, ${nome || login}, 'usuario', ${funcao}, ${JSON.stringify(abas)}::jsonb, ${ativo}, ${usaSenha ? "senha" : "locaweb"}, ${pecas}, ${me.login})`;
-    if (usaSenha) await gravarSenha(login, senhaLimpa, true);
+    const senhaGerada = usaSenha ? gerarSenhaTemporaria() : undefined;
+    if (usaSenha) await gravarSenha(login, senhaGerada, true);
     await addToTeam(nome, funcao);
     // Primeiro usuário individual criado: o login compartilhado antigo deixa de funcionar.
     const off = await sql`UPDATE usuarios SET ativo = false, atualizado_em = now() WHERE login = ${LEGADO} AND ativo RETURNING login`;
     off.forEach(r => forgetUser(r.login));
-    return res.status(200).json({ ok: true, criado: true, compartilhadoDesativado: off.length > 0 });
+    return res.status(200).json({ ok: true, criado: true, compartilhadoDesativado: off.length > 0, senhaGerada });
   }
 
   if (req.method === "DELETE") {
