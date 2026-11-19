@@ -79,6 +79,7 @@
     return j;
   }
   let base = null;
+  let ultVersaoPecas = "";
   const carregarBase = async () => (base ||= await api("inicio"));
   const arqUrl = (p, v, a) => `/api/m?r=pec/peca.arquivo&id=${encodeURIComponent(p.id)}&v=${v.n}&i=${a.i}`;
   const ST = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };

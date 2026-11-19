@@ -472,8 +472,41 @@ async function filaApagar(u, req, res) {
   return res.json({ ok: true, apagadas: alvos.length });
 }
 
+export function versaoListaPecas({ pecasSeq = 0, pecasCnt = 0, avAt = "", usrAt = "", usrCnt = 0 } = {}) {
+  const raw = `${pecasSeq ?? 0}|${pecasCnt ?? 0}|${avAt ?? ""}|${usrAt ?? ""}|${usrCnt ?? 0}`;
+  return crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16);
+}
+
+async function obterVersaoListaPecas() {
+  try {
+    const r = await sql`
+      SELECT
+        coalesce((SELECT max(seq) FROM docs WHERE parent = 'm/pecas/pecas'), 0)::text AS pecas_seq,
+        coalesce((SELECT count(*) FROM docs WHERE parent = 'm/pecas/pecas' AND NOT deleted), 0)::text AS pecas_cnt,
+        coalesce((SELECT max(updated_at)::text FROM docs WHERE path = 'm/pecas/config/avatares' OR parent = 'm/pecas/avatares'), '') AS av_at,
+        coalesce((SELECT max(coalesce(atualizado_em, criado_em))::text FROM usuarios), '') AS usr_at,
+        coalesce((SELECT count(*) FROM usuarios WHERE ativo), 0)::text AS usr_cnt
+    `;
+    const row = r[0];
+    if (!row) return null;
+    return versaoListaPecas({
+      pecasSeq: row.pecas_seq,
+      pecasCnt: row.pecas_cnt,
+      avAt: row.av_at,
+      usrAt: row.usr_at,
+      usrCnt: row.usr_cnt,
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function pecas(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return negado(res);
+  const versao = await obterVersaoListaPecas();
+  if (versao && req.query.v && String(req.query.v) === versao) {
+    return res.json({ semAlteracao: true, versao });
+  }
   const [todasPecas, todosUsers] = await Promise.all([listar(M, "pecas"), usuariosAtivos()]);
   const lista = todasPecas.filter(p => !p.arquivada && podeVer(u, p))
     .sort((a, b) => (b.atualizadoEm || "").localeCompare(a.atualizadoEm || ""));
@@ -481,7 +514,7 @@ async function pecas(u, req, res) {
   for (const x of todosUsers) {
     if (x.login) perfis[x.login] = { nome: x.nome || x.login, avatar: x.avatar || null, funcao: perfilDe(x) };
   }
-  return res.json({ pecas: lista.map(p => publica(p, u)), perfis });
+  return res.json({ pecas: lista.map(p => publica(p, u)), perfis, versao });
 }
 
 // Visualização de um arquivo: confere a permissão e manda para um link temporário (ou envia o arquivo, no teste local).

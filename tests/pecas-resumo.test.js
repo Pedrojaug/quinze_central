@@ -10,6 +10,7 @@ const {
   processarRetencaoPeca,
   RETENCAO_DIAS,
   calcularPicosHorario,
+  versaoListaPecas,
   podeEnviar,
   podeDecidir,
   veTodas,
@@ -270,4 +271,26 @@ test("permissões de peças (podeEnviar, podeDecidir, veTodas, veDash)", () => {
   assert.equal(veDash(coord), true);
   assert.equal(veDash(social), true);
   assert.equal(veDash(atend), true);
+});
+
+test("versaoListaPecas gera assinatura determinística e sensível a qualquer alteração", () => {
+  const base = {
+    pecasSeq: "105",
+    pecasCnt: "14",
+    avAt: "2026-11-19T15:00:00.000Z",
+    usrAt: "2026-11-19T14:00:00.000Z",
+    usrCnt: "12",
+  };
+  const v1 = versaoListaPecas(base);
+  const v2 = versaoListaPecas({ ...base });
+  assert.equal(v1, v2);
+  assert.match(v1, /^[a-f0-9]{16}$/);
+
+  assert.notEqual(versaoListaPecas({ ...base, pecasSeq: "106" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, pecasCnt: "15" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, avAt: "2026-11-19T15:01:00.000Z" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, usrAt: "2026-11-19T14:01:00.000Z" }), v1);
+  assert.notEqual(versaoListaPecas({ ...base, usrCnt: "13" }), v1);
+
+  assert.match(versaoListaPecas(), /^[a-f0-9]{16}$/);
 });

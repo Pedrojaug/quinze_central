@@ -37,6 +37,7 @@
       }
       let r;
       try { await carregarBase(); r = await api("pecas"); } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      if (r.versao) ultVersaoPecas = r.versao;
       if (r.perfis) atualizarMapaPerfis(r.perfis);
       aplicarDados(r.pecas, { silencioso });
     }

@@ -11,7 +11,9 @@
     if (!temAbaMontada) return;
     syncEmAndamento = true;
     try {
-      const r = await api("pecas");
+      const r = await api(ultVersaoPecas ? "pecas&v=" + encodeURIComponent(ultVersaoPecas) : "pecas");
+      if (r.versao) ultVersaoPecas = r.versao;
+      if (r.semAlteracao) return;
       const todas = r.pecas || [];
       if (r.perfis) atualizarMapaPerfis(r.perfis);
       atualizarBadgeFila(todas);
@@ -36,6 +38,7 @@
         }
       }
     }
+    ultVersaoPecas = "";
     sincronizarPecasTempoReal();
   };
 

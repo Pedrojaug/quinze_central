@@ -2,6 +2,8 @@
 
 Este guia foi feito para que a equipe de desenvolvimento (estagiários e mantenedores) consiga trabalhar de forma coordenada, sem sobrescrever o código do colega e sem quebrar o site em produção.
 
+> 📖 Veja também o [AGENTS.md](../AGENTS.md) na raiz para o resumo completo das regras técnicas e anti-espaguete do repositório.
+
 ---
 
 ## 1. A Regra de Ouro: Nunca commite direto na `main`
@@ -24,11 +26,12 @@ Como a Vercel atualiza o site oficial **automaticamente** a cada commit na branc
    ```
 
 3. **Faça suas alterações e teste:**
-   Sempre execute o comando de build antes de enviar:
+   Sempre execute a validação estática, o build e os testes unitários antes de enviar:
    ```bash
-   node build.js
+   npm run check
+   npm test
    ```
-   *Se o build acusar erro de sintaxe ou tag inválida, corrija antes de commitar!*
+   *Os comandos validam todos os `.js`, rodam `node build.js`, verificam o bundle final de `public/app.html` e rodam a suíte de testes em `tests/`. Se qualquer etapa falhar, corrija antes de commitar!*
 
 4. **Envie sua branch para o GitHub:**
    ```bash
@@ -40,7 +43,7 @@ Como a Vercel atualiza o site oficial **automaticamente** a cada commit na branc
 5. **Abra um Pull Request (PR) no GitHub:**
    * Vá no GitHub do projeto ([https://github.com/Pedrojaug/quinze_central](https://github.com/Pedrojaug/quinze_central)).
    * Clique em **"Compare & pull request"**.
-   * Peça para um dos outros 2 estagiários dar uma olhada e clicar em **Merge**!
+   * Aguarde o check automático **CI (`check-and-test`)** do GitHub Actions ficar verde, peça para um colega revisar e clique em **Merge**!
 
 ---
 
@@ -60,7 +63,10 @@ Para manter o histórico legível como o de uma empresa séria de tecnologia, us
 
 1. **Não adicione tags `</script>` dentro de arquivos em `src/js/`:**
    O script [`build.js`](file:///c:/Users/equip/Downloads/quinze-central/build.js) junta todos os arquivos em um único script HTML. Se houver `</script>` dentro do seu código JS, o navegador fechará a tag antes da hora e o build lançará um erro de propósito.
-2. **Cuidado ao editar o `store.js`:**
+2. **Módulos em pasta (`modulos/<nome>/*.js`) e arquivos auxiliares em `api/`:**
+   * Quando um módulo em `modulos/` crescer acima de ~400–500 linhas, divida-o em uma pasta `modulos/<nome>/01-*.js` (como `modulos/pecas/`), **sem** usar `return` no *top-level* dos arquivos (o `build.js` já encapsula tudo numa IIFE).
+   * Todo arquivo auxiliar em `api/` que não seja uma rota direta da Vercel **deve** começar com `_` (ex.: `api/_pecas_resumo.js`).
+3. **Cuidado ao editar o `store.js`:**
    Esse arquivo controla todo o tráfego do banco. Teste muito bem qualquer alteração nele antes de subir.
-3. **Nunca commite senhas ou o arquivo `.env`:**
-   O `.gitignore` já bloqueia arquivos `.env`. Chaves e senhas reais devem ser adicionadas apenas no painel da Vercel.
+4. **Nunca commite senhas, hashes hardcoded ou o arquivo `.env`:**
+   O `.gitignore` já bloqueia arquivos `.env`. Chaves e segredos reais (como `MASTER_PASS_HASH` ou `CRON_SECRET`) devem ser adicionados apenas no painel da Vercel e validados sempre no servidor.
