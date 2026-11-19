@@ -1,4 +1,4 @@
-import { sql, requireSession, forgetUser, ehGestao, gravarSenha, senhaValida, SENHA_MIN, carregarMapaAvatares } from "./_lib.js";
+import { sql, requireSession, forgetUser, ehGestao, gravarSenha, senhaValida, SENHA_MIN, carregarMapaAvatares, AVATARES_LEGADO_PATH, AVATARES_PARENT } from "./_lib.js";
 import { MODULOS, AREAS, FUNCOES, PERFIS, ESCOLHAS, abasDe, areasDe, perfilDe, publico, ALL_TABS } from "./_modules.js";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,6 +111,8 @@ export default async function handler(req, res) {
     if (cur.papel === "master" || cur.funcao === "mestre") return res.status(400).json({ error: "O usuário mestre não pode ser removido." });
     await sql`DELETE FROM usuarios WHERE login = ${login}`;
     await sql`DELETE FROM app_users WHERE lower(username) = ${login}`;
+    await sql`UPDATE docs SET deleted = true, data = '{}'::jsonb, updated_at = now() WHERE path = ${`${AVATARES_PARENT}/${login}`} AND NOT deleted`;
+    await sql`UPDATE docs SET data = data - ${login}, updated_at = now() WHERE path = ${AVATARES_LEGADO_PATH} AND NOT deleted AND data ? ${login}`;
     forgetUser(login);
     return res.status(200).json({ ok: true });
   }

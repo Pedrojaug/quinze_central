@@ -2225,7 +2225,7 @@
       preencherSelect(qx("f-tipo"), (d.tiposCliente || []).map(tp => [tp, tp]));
       preencherSelect(qx("f-at"), (d.atendimentosCliente || []).map(at => [at, at]));
       renderDash();
-      box("limpeza").innerHTML = (base && (base.ehGestao || base.funcao === "mestre")) ? `<p class="pc-sub">Arquivos com mais de ${base.retencaoDias} dias são apagados automaticamente todo dia. <button class="btn" type="button" data-x="limpar" style="padding:2px 10px;min-height:0">Rodar a limpeza agora</button> <button class="btn" type="button" data-x="limpar-testes" style="padding:2px 10px;min-height:0;margin-left:6px" title="Apaga peças e contadores de testes anteriores a 11/11/2026">Limpar testes anteriores a 11/11</button> <span data-box="lmsg"></span></p>` : "";
+      box("limpeza").innerHTML = (base && (base.ehGestao || base.funcao === "mestre")) ? `<p class="pc-sub">Arquivos com mais de ${base.retencaoDias} dias são apagados automaticamente todo dia. <button class="btn" type="button" data-x="limpar" style="padding:2px 10px;min-height:0">Rodar a limpeza agora</button> <span data-box="lmsg"></span></p>` : "";
     }
     el.addEventListener("change", ev => {
       const x = ev.target.dataset.x;
@@ -2267,22 +2267,9 @@
         renderDash();
         return;
       }
-      if (x === "limpar-testes") {
-        btn.disabled = true;
-        try {
-          const r = await api("limpar.testes", {});
-          box("lmsg").textContent = `${r.apagadas || 0} peça(s) de teste apagadas. Dashboard atualizado.`;
-          ctx.toast("Testes anteriores a 11/11/2026 apagados e dashboard recalculado.");
-          carregar();
-        } catch (e) {
-          box("lmsg").textContent = e.message;
-        }
-        btn.disabled = false;
-        return;
-      }
       if (x !== "limpar") return;
       btn.disabled = true;
-      try { const r = await api("limpeza.executar", {}); box("lmsg").textContent = `${r.arquivosApagados + r.orfaosApagados} arquivo(s) apagado(s), ${r.pecasRemovidas} peça(s) saíram da fila.`; }
+      try { const r = await api("limpeza.executar", {}); box("lmsg").textContent = `${r.arquivosApagados + r.orfaosApagados} arquivo(s) apagado(s), ${r.pecasArquivadas ?? r.pecasRemovidas} peça(s) arquivada(s) da fila (histórico do dashboard preservado).`; }
       catch (e) { box("lmsg").textContent = e.message; }
       btn.disabled = false;
     });

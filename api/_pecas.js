@@ -4,9 +4,9 @@
 //   decidir e ver todas: coordenador, mestre e gestão
 //   dashboard: mestre, gestão, coordenador e atendimento
 // Arquivos: o navegador envia direto ao Vercel Blob com um token do servidor; ficam 7 dias e são apagados pela rotina diária.
-// Os contadores mensais (m/pecas/contadores/<AAAA-MM>) são atualizados a cada envio e decisão e nunca são apagados.
+// Os metadados da peça (com arquivada: true) e os contadores mensais permanecem para preservar o histórico do dashboard.
 import crypto from "node:crypto";
-import { sql } from "./_lib.js";
+import { sql, conferirSenhaMestre } from "./_lib.js";
 import { perfilDe, podeEnviarPecas, ehGestao } from "./_modules.js";
 import { listar, ler, gravar, apagar, novoId, clientesCarteira, clientesCarteiraComMes, txt, usuariosAtivos } from "./_mdados.js";
 import { tokenEnvioDireto, infoArquivo, apagarArquivos, listarArquivos, linkTemporario, enviar, nomeSeguro, extensao } from "./_arquivos.js";
@@ -28,7 +28,6 @@ const TIPOS = {
 export const STATUS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
 const DECISOES = ["aprovada", "reprovada", "alteracao_solicitada"];
 const DIA = 864e5;
-const MASTER_PASS_HASH = "a8698d96861f332be3627b5461c3d4ac120295ae33c8e26b9c0db82afa657084";
 
 const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
 const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
@@ -89,23 +88,6 @@ const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login ===
 const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;
 
-// Confere a senha mestre (aceita a senha mestre global da plataforma OU a senha de qualquer usuário Mestre ativo)
-async function conferirSenhaMestre(senhaRaw) {
-  const s = String(senhaRaw || "").trim();
-  if (!s || s.length > 200) return false;
-  const hash = crypto.createHash("sha256").update(s).digest("hex");
-  if (hash === MASTER_PASS_HASH) return true;
-  try {
-    const r = await sql`SELECT 1 FROM app_users a
-                        JOIN usuarios u ON lower(a.username) = u.login
-                        WHERE u.ativo AND (u.papel = 'master' OR u.funcao = 'mestre')
-                          AND a.pass_hash = crypt(${s}, a.pass_hash)
-                        LIMIT 1`;
-    if (r.length > 0) return true;
-  } catch {}
-  return false;
-}
-
 // ---------- Contadores mensais (atualizados no momento de cada evento, numa só instrução: sem perder contagem) ----------
 async function contar(mes, inc, nomes) {
   const path = `m/${M}/contadores/${mes}`;
@@ -160,133 +142,8 @@ export async function sincronizarContadoresNoBanco(mes, dadosDinamicos) {
     console.error("[pecas] erro ao sincronizar contadores no banco:", e?.message || e);
   }
 }
-export function resumoContadores(c, carteira = [], pecasAtivasMes = []) {
-  c = c || {};
-  const nomes = c.nomes || {};
-  const porUsuario = {}, porCoord = {}, porCli = {};
-  const cliObj = id => (porCli[id] ||= {
-    pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0,
-    v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {},
-  });
-  for (const [k, v] of Object.entries(c)) {
-    let m;
-    if ((m = /^enviadas:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas = v;
-    else if ((m = /^versoes:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes = v;
-    else if ((m = /^aprovadas_user:(.+)$/.exec(k))) (porUsuario[m[1]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).aprovadas = v;
-    else if ((m = /^dec:(.+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) (porCoord[m[1]] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[m[2]] = v;
-    else if ((m = /^cli_pecas:(.+)$/.exec(k))) cliObj(m[1]).pecas = v;
-    else if ((m = /^cli_versoes:(.+)$/.exec(k))) cliObj(m[1]).versoes = v;
-    else if ((m = /^cli_dec:([^:]+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) cliObj(m[1])[m[2]] = v;
-    else if ((m = /^cli_v1_dec:(.+)$/.exec(k))) cliObj(m[1]).v1_decididas = v;
-    else if ((m = /^cli_v1_apr:(.+)$/.exec(k))) cliObj(m[1]).v1_aprovadas = v;
-    else if ((m = /^cli_env:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).pecas = v;
-    else if ((m = /^cli_ver:([^:]+):(.+)$/.exec(k))) (cliObj(m[1]).porUsuario[m[2]] ||= { pecas: 0, versoes: 0, aprovadas: 0 }).versoes = v;
-    else if ((m = /^cli_aprov:([^:]+):([^:]+):(aprovada|reprovada|alteracao_solicitada)$/.exec(k))) (cliObj(m[1]).porCoord[m[2]] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[m[3]] = v;
-  }
-  const enviadas = Object.entries(porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x })).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
-  const decisoes = Object.entries(porCoord).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada })).sort((a, b) => b.total - a.total);
-  const v1d = c.v1_decididas || 0, v1a = c.v1_aprovadas || 0;
-  // Complementa com peças ativas do mês (pendentes na fila e retrocompatibilidade de peças anteriores ao contador por cliente)
-  const vivasPorCli = {};
-  for (const p of pecasAtivasMes) {
-    if (!p.clienteId) continue;
-    const cid = p.clienteId;
-    if (p.clienteNome && !nomes[`cli:${cid}`]) nomes[`cli:${cid}`] = p.clienteNome;
-    const v = (vivasPorCli[cid] ||= { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} });
-    v.pecas++;
-    const qtdV = Array.isArray(p.versoes) ? p.versoes.length : (p.versao || 1);
-    v.versoes += qtdV;
-    if (p.status === "pendente") v.pendente++;
-    const rem = p.remetente?.login;
-    if (rem) {
-      if (p.remetente?.nome && !nomes[rem]) nomes[rem] = p.remetente.nome;
-      const uEntry = (v.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
-      uEntry.pecas++;
-      uEntry.versoes += qtdV;
-    }
-    for (const h of p.historico || []) {
-      if (DECISOES.includes(h.tipo)) {
-        v[h.tipo]++;
-        if (h.versao === 1) { v.v1_decididas++; if (h.tipo === "aprovada") v.v1_aprovadas++; }
-        if (h.tipo === "aprovada" && rem) {
-          const uEntry = (v.porUsuario[rem] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
-          uEntry.aprovadas = (uEntry.aprovadas || 0) + 1;
-        }
-        const ap = h.por?.login;
-        if (ap) {
-          if (h.por?.nome && !nomes[ap]) nomes[ap] = h.por.nome;
-          (v.porCoord[ap] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 })[h.tipo]++;
-        }
-      }
-    }
-  }
-  for (const [cid, v] of Object.entries(vivasPorCli)) {
-    const o = cliObj(cid);
-    o.pendente = v.pendente;
-    if (o.pecas < v.pecas) o.pecas = v.pecas;
-    if (o.versoes < v.versoes) o.versoes = v.versoes;
-    if (o.aprovada < v.aprovada) o.aprovada = v.aprovada;
-    if (o.reprovada < v.reprovada) o.reprovada = v.reprovada;
-    if (o.alteracao_solicitada < v.alteracao_solicitada) o.alteracao_solicitada = v.alteracao_solicitada;
-    if (o.v1_decididas < v.v1_decididas) o.v1_decididas = v.v1_decididas;
-    if (o.v1_aprovadas < v.v1_aprovadas) o.v1_aprovadas = v.v1_aprovadas;
-    for (const [ul, ux] of Object.entries(v.porUsuario)) {
-      const uo = (o.porUsuario[ul] ||= { pecas: 0, versoes: 0, aprovadas: 0 });
-      if (uo.pecas < ux.pecas) uo.pecas = ux.pecas;
-      if (uo.versoes < ux.versoes) uo.versoes = ux.versoes;
-      if ((uo.aprovadas || 0) < (ux.aprovadas || 0)) uo.aprovadas = ux.aprovadas;
-    }
-    for (const [al, ax] of Object.entries(v.porCoord)) {
-      const ao = (o.porCoord[al] ||= { aprovada: 0, reprovada: 0, alteracao_solicitada: 0 });
-      if (ao.aprovada < ax.aprovada) ao.aprovada = ax.aprovada;
-      if (ao.reprovada < ax.reprovada) ao.reprovada = ax.reprovada;
-      if (ao.alteracao_solicitada < ax.alteracao_solicitada) ao.alteracao_solicitada = ax.alteracao_solicitada;
-    }
-  }
-  const mapaCarteira = new Map((carteira || []).map(cl => [cl.id, cl]));
-  const idsClientes = new Set([...mapaCarteira.keys(), ...Object.keys(porCli)]);
-  const clientes = [...idsClientes].map(id => {
-    const meta = mapaCarteira.get(id) || {};
-    const st = porCli[id] || { pecas: 0, versoes: 0, aprovada: 0, reprovada: 0, alteracao_solicitada: 0, pendente: 0, v1_decididas: 0, v1_aprovadas: 0, porUsuario: {}, porCoord: {} };
-    const envCli = Object.entries(st.porUsuario).map(([login, x]) => ({ login, nome: nomes[login] || login, aprovadas: x.aprovadas || 0, ...x })).sort((a, b) => (b.aprovadas || 0) - (a.aprovadas || 0) || b.pecas - a.pecas || b.versoes - a.versoes);
-    const decCli = Object.entries(st.porCoord).map(([login, x]) => ({ login, nome: nomes[login] || login, ...x, total: x.aprovada + x.reprovada + x.alteracao_solicitada })).sort((a, b) => b.total - a.total);
-    const conteudos = Number(meta.conteudos) || 0;
-    const motions = Number(meta.motions) || 0;
-    const metaConteudos = conteudos + motions;
-    return {
-      id,
-      nome: meta.nome || nomes[`cli:${id}`] || id,
-      tipo: meta.tipo || "",
-      nivel: meta.nivel || "",
-      atendimento: meta.atendimento || "",
-      social: meta.social || "",
-      conteudos,
-      motions,
-      metaConteudos,
-      pecas: st.pecas || 0,
-      versoes: st.versoes || 0,
-      aprovada: st.aprovada || 0,
-      reprovada: st.reprovada || 0,
-      alteracao_solicitada: st.alteracao_solicitada || 0,
-      pendente: st.pendente || 0,
-      pctCarteira: calcPct(st.pecas || 0, metaConteudos),
-      pctCarteiraAprovada: calcPct(st.aprovada || 0, metaConteudos),
-      primeiraDecididas: st.v1_decididas || 0,
-      primeiraAprovadas: st.v1_aprovadas || 0,
-      taxaPrimeira: st.v1_decididas ? Math.round(st.v1_aprovadas / st.v1_decididas * 1000) / 10 : null,
-      enviadas: envCli,
-      decisoes: decCli,
-    };
-  }).sort((a, b) => b.pecas - a.pecas || b.versoes - a.versoes || a.nome.localeCompare(b.nome, "pt-BR"));
-  const tiposCliente = [...new Set(clientes.map(x => x.tipo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const atendimentosCliente = [...new Set(clientes.map(x => x.atendimento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const metaResumo = resumirMetaCarteira(clientes, c.pecas || 0, c.aprovada || 0);
-  return { enviadas, decisoes, totais: { pecas: c.pecas || 0, versoes: c.versoes || 0, aprovada: c.aprovada || 0, reprovada: c.reprovada || 0, alteracao_solicitada: c.alteracao_solicitada || 0,
-    ...metaResumo,
-    primeiraDecididas: v1d, primeiraAprovadas: v1a, taxaPrimeira: v1d ? Math.round(v1a / v1d * 1000) / 10 : null }, clientes, tiposCliente, atendimentosCliente };
-}
 
-// Resumo analítico dinâmico (calculado com base nas peças vivas do banco)
+// Resumo analítico dinâmico (calculado com base nas peças vivas e arquivadas do banco)
 export function resumoDinamico(todasPecas = [], carteira = [], filtroFn = () => true) {
   const nomes = {};
   const porUsuario = {}, porCoord = {}, porCli = {};
@@ -809,6 +666,8 @@ async function pecaReenviar(u, req, res) {
   marcarMencoesLidasNaPeca(p, u.login);
   p.historico.push({ id: novoId(), tipo: tipoHist, versao: n, em, por: quem(u), comentario: obs || (statusAnterior === "aprovada" ? "Material aprovado foi editado (nova versão)" : "Nova versão enviada"), mencoes: mencoesReenvio, vistoPor: [u.login] });
   Object.assign(p, { versao: n, status: "pendente", atualizadoEm: em });
+  p.arquivada = false;
+  delete p.arquivadaEm;
   await gravar(M, "pecas", p.id, p);
   const incReenvio = { versoes: 1, [`versoes:${u.login}`]: 1 };
   const nomesReenvio = { [u.login]: u.nome || u.login };
@@ -913,7 +772,7 @@ async function pecaComentar(u, req, res) {
 // Notificações leves para o cabeçalho global e o módulo de peças: menções não lidas para o usuário logado + total de pendentes
 async function notificacoes(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return res.json({ mencoes: [], pendentes: 0 });
-  const lista = (await listar(M, "pecas")).filter(p => podeVer(u, p));
+  const lista = (await listar(M, "pecas")).filter(p => !p.arquivada && podeVer(u, p));
   const pendentes = lista.filter(p => p.status === "pendente").length;
   const mencoes = [];
   for (const p of lista) {
@@ -988,6 +847,7 @@ async function filaApagar(u, req, res) {
   const idsFiltro = Array.isArray(b.ids) && b.ids.length ? new Set(b.ids.map(String)) : null;
   const alvos = todas.filter(p => {
     if (idsFiltro) return idsFiltro.has(p.id);
+    if (p.arquivada) return false;
     if (b.status && p.status !== b.status) return false;
     if (b.clienteId && p.clienteId !== b.clienteId) return false;
     return true;
@@ -1015,7 +875,7 @@ async function filaApagar(u, req, res) {
 async function pecas(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return negado(res);
   const [todasPecas, todosUsers] = await Promise.all([listar(M, "pecas"), usuariosAtivos()]);
-  const lista = todasPecas.filter(p => podeVer(u, p))
+  const lista = todasPecas.filter(p => !p.arquivada && podeVer(u, p))
     .sort((a, b) => (b.atualizadoEm || "").localeCompare(a.atualizadoEm || ""));
   const perfis = {};
   for (const x of todosUsers) {
@@ -1039,55 +899,8 @@ async function pecaArquivo(u, req, res) {
   return enviar(res, a.chave, a.nome, true);
 }
 
-// Expurgar conteúdos e peças de teste enviados antes de 11/11/2026
-let expurgo11Executado = false;
-export async function expurgarTestesAnterioresA11() {
-  const todas = await listar(M, "pecas");
-  const deAntes = todas.filter(p => {
-    const dia = diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm) || p.atualizadoEm);
-    return !dia || dia < "2026-11-11";
-  });
-
-  const chaves = [];
-  for (const p of deAntes) {
-    for (const v of p.versoes || []) {
-      for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
-    }
-    await apagar(M, "pecas", p.id);
-  }
-  if (chaves.length) {
-    try { await apagarArquivos(chaves); } catch {}
-  }
-
-  // Resincroniza os contadores do mês com as peças válidas a partir de 11/11/2026
-  const restantes = todas.filter(p => !deAntes.some(d => d.id === p.id));
-  const cart = await clientesCarteira();
-  const dadosAtuais = resumoDinamico(restantes, cart, d => String(d || "").slice(0, 7) === mesAtual());
-  await sincronizarContadoresNoBanco(mesAtual(), dadosAtuais);
-
-  return { ok: true, apagadas: deAntes.length, arquivosApagados: chaves.length };
-}
-
-async function expurgarTestesAnterioresA11Auto() {
-  if (expurgo11Executado) return;
-  expurgo11Executado = true;
-  await expurgarTestesAnterioresA11().catch(e => {
-    console.error("[pecas] erro na auto-limpeza de testes anteriores a 11/11:", e?.message || e);
-  });
-}
-
-async function limparTestesEndpoint(u, req, res) {
-  if (!so(req, res, "POST")) return;
-  if (!["mestre", "gestao"].includes(perfilDe(u))) return negado(res);
-  const r = await expurgarTestesAnterioresA11();
-  return res.json(r);
-}
-
 async function dashboard(u, req, res) {
   if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão, coordenação, atendimento e social media.");
-
-  // Auto-limpeza de testes anteriores a 11/11/2026 caso ainda existam
-  await expurgarTestesAnterioresA11Auto();
 
   const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.de || "")) ? req.query.de : null;
   const ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ate || "")) ? req.query.ate : null;
@@ -1106,7 +919,10 @@ async function dashboard(u, req, res) {
   const carteiraMes = cartRes.mes;
 
   const meses = rMeses.map(r => r.id);
-  const listaMeses = [...new Set([mesAtual(), ...meses])].sort().reverse();
+  const mesesDasPecas = todasPecas
+    .map(p => diaSP(p.criadoEm || (p.versoes && p.versoes[0]?.enviadaEm) || p.atualizadoEm).slice(0, 7))
+    .filter(m => /^\d{4}-\d{2}$/.test(m));
+  const listaMeses = [...new Set([mesAtual(), ...meses, ...mesesDasPecas])].sort().reverse();
 
   const filtroData = (de || ate)
     ? dia => (!de || dia >= de) && (!ate || dia <= ate)
@@ -1130,23 +946,53 @@ async function dashboard(u, req, res) {
   return res.json({ mes, de, ate, tipoMidia, carteiraMes, meses: listaMeses, horas, ...dados });
 }
 
-// ---------- Retenção: arquivos com mais de 7 dias são apagados; peças sem envio há mais de 7 dias saem da fila ----------
-export async function limparVencidos(agoraMs = Date.now()) {
-  const limite = agoraMs - RETENCAO_DIAS * DIA, em = new Date(agoraMs).toISOString();
-  const out = { arquivosApagados: 0, pecasExpiradas: 0, pecasRemovidas: 0, orfaosApagados: 0 };
-  const emUso = new Set();
-  for (const p of await listar(M, "pecas")) {
-    const vencidos = [];
-    for (const v of p.versoes) {
-      const venceu = Date.parse(v.enviadaEm) < limite;
-      for (const a of v.arquivos) {
-        if (a.expirado) continue;
-        if (venceu) { vencidos.push(a.chave); a.expirado = true; a.expiradoEm = em; } else emUso.add(a.chave);
+// ---------- Retenção: arquivos com mais de 7 dias são apagados; peças antigas são arquivadas (preservando o dashboard) ----------
+export function processarRetencaoPeca(p, limiteMs, emIso) {
+  const vencidos = [], emUso = [];
+  let alterou = false;
+  for (const v of p.versoes || []) {
+    const venceu = Date.parse(v.enviadaEm) < limiteMs;
+    for (const a of v.arquivos || []) {
+      if (a.expirado) continue;
+      if (venceu) {
+        vencidos.push(a.chave);
+        a.expirado = true;
+        a.expiradoEm = emIso;
+        alterou = true;
+      } else if (a.chave) {
+        emUso.push(a.chave);
       }
     }
-    if (vencidos.length) { await apagarArquivos(vencidos); out.arquivosApagados += vencidos.length; out.pecasExpiradas++; }
-    if (Date.parse(p.versoes[p.versoes.length - 1].enviadaEm) < limite) { await apagar(M, "pecas", p.id); out.pecasRemovidas++; }
-    else if (vencidos.length) await gravar(M, "pecas", p.id, p);
+  }
+  const ultEnvio = (p.versoes && p.versoes.length ? p.versoes[p.versoes.length - 1]?.enviadaEm : null) || p.atualizadoEm || p.criadoEm;
+  const ultMs = Date.parse(ultEnvio);
+  let arquivouAgora = false;
+  if (!Number.isNaN(ultMs) && ultMs < limiteMs && !p.arquivada) {
+    p.arquivada = true;
+    p.arquivadaEm = emIso;
+    arquivouAgora = true;
+    alterou = true;
+  }
+  return { vencidos, emUso, arquivouAgora, alterou };
+}
+
+export async function limparVencidos(agoraMs = Date.now()) {
+  const limite = agoraMs - RETENCAO_DIAS * DIA, em = new Date(agoraMs).toISOString();
+  const out = { arquivosApagados: 0, pecasExpiradas: 0, pecasArquivadas: 0, pecasRemovidas: 0, orfaosApagados: 0 };
+  const emUso = new Set();
+  for (const p of await listar(M, "pecas")) {
+    const r = processarRetencaoPeca(p, limite, em);
+    for (const k of r.emUso) emUso.add(k);
+    if (r.vencidos.length) {
+      await apagarArquivos(r.vencidos);
+      out.arquivosApagados += r.vencidos.length;
+      out.pecasExpiradas++;
+    }
+    if (r.arquivouAgora) {
+      out.pecasArquivadas++;
+      out.pecasRemovidas++;
+    }
+    if (r.alterou) await gravar(M, "pecas", p.id, p);
   }
   // Arquivos enviados mas nunca ligados a uma peça (envio abandonado), também com mais de 7 dias.
   const orfaos = (await listarArquivos("pecas/")).filter(f => !emUso.has(f.chave) && Date.parse(f.enviadoEm) < limite).map(f => f.chave);
@@ -1171,6 +1017,6 @@ export const rotas = {
   inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
   "peca.comentar": pecaComentar, "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
   pecas, "peca.arquivo": pecaArquivo, dashboard, "limpeza.executar": limpezaExecutar,
-  "limpar.testes": limparTestesEndpoint, notificacoes, "mencao.ler": mencaoLer,
+  notificacoes, "mencao.ler": mencaoLer,
 };
 export const publicas = { "pecas.cron": pecasCron };

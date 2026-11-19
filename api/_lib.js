@@ -127,15 +127,38 @@ export function garantirContasPadrao() {
 
 // ---------- Usuário da sessão ----------
 // Sempre conferido no cadastro: quem for bloqueado perde o acesso em até 15 s.
-// Avatares ficam armazenados na tabela docs (m/pecas/config/avatares) para não exigir DDL na tabela usuarios.
+// Avatares ficam armazenados individualmente em docs (m/pecas/avatares/<login>),
+// mantendo leitura retrocompatível com o mapa legado (m/pecas/config/avatares).
+export const AVATARES_LEGADO_PATH = "m/pecas/config/avatares";
+export const AVATARES_PARENT = "m/pecas/avatares";
 const cache = new Map();
 let avataresCache = { map: {}, at: 0 };
+
+export function mesclarAvataresDocs(rows = []) {
+  const map = {};
+  const legado = rows.find(r => r && r.path === AVATARES_LEGADO_PATH);
+  if (legado && legado.data && typeof legado.data === "object") {
+    for (const [lg, av] of Object.entries(legado.data)) {
+      if (typeof av === "string" && av) map[lg] = av;
+    }
+  }
+  for (const r of rows) {
+    if (!r || r.path === AVATARES_LEGADO_PATH) continue;
+    const isInd = r.parent === AVATARES_PARENT || String(r.path || "").startsWith(`${AVATARES_PARENT}/`);
+    if (!isInd) continue;
+    const lg = r.id || String(r.path || "").slice(AVATARES_PARENT.length + 1);
+    if (!lg || !r.data || typeof r.data !== "object") continue;
+    if (r.data.removido) delete map[lg];
+    else if (typeof r.data.avatar === "string" && r.data.avatar) map[lg] = r.data.avatar;
+  }
+  return map;
+}
 
 export async function carregarMapaAvatares(forcar = false) {
   if (!forcar && Date.now() - avataresCache.at < 15000) return avataresCache.map;
   try {
-    const r = await sql`SELECT data FROM docs WHERE path = 'm/pecas/config/avatares' AND NOT deleted`;
-    const map = (r[0] && r[0].data && typeof r[0].data === "object") ? r[0].data : {};
+    const rows = await sql`SELECT path, id, data FROM docs WHERE (path = ${AVATARES_LEGADO_PATH} OR parent = ${AVATARES_PARENT}) AND NOT deleted`;
+    const map = mesclarAvataresDocs(rows);
     avataresCache = { map, at: Date.now() };
     return map;
   } catch {
@@ -143,32 +166,80 @@ export async function carregarMapaAvatares(forcar = false) {
   }
 }
 
+export async function carregarAvatarUsuario(login) {
+  if (!login) return null;
+  if (avataresCache.at && Date.now() - avataresCache.at < 15000 && Object.prototype.hasOwnProperty.call(avataresCache.map, login)) {
+    return avataresCache.map[login] || null;
+  }
+  try {
+    const [indRows, legRows] = await Promise.all([
+      sql`SELECT data FROM docs WHERE path = ${`${AVATARES_PARENT}/${login}`} AND NOT deleted`,
+      sql`SELECT data->>${login} AS avatar FROM docs WHERE path = ${AVATARES_LEGADO_PATH} AND NOT deleted`,
+    ]);
+    const ind = indRows[0]?.data;
+    if (ind && typeof ind === "object") {
+      if (ind.removido) return null;
+      if (typeof ind.avatar === "string" && ind.avatar) return ind.avatar;
+    }
+    return legRows[0]?.avatar || null;
+  } catch {
+    return avataresCache.map[login] || null;
+  }
+}
+
 export async function salvarAvatarUsuario(login, avatarDataUrl) {
-  const mapaAtual = { ...(await carregarMapaAvatares(true)) };
-  if (avatarDataUrl) mapaAtual[login] = avatarDataUrl;
-  else delete mapaAtual[login];
+  const pathInd = `${AVATARES_PARENT}/${login}`;
+  const payload = avatarDataUrl ? { avatar: avatarDataUrl } : { avatar: null, removido: true };
   await sql`INSERT INTO docs (path, parent, id, data)
-            VALUES ('m/pecas/config/avatares', 'm/pecas/config', 'avatares', ${JSON.stringify(mapaAtual)}::jsonb)
+            VALUES (${pathInd}, ${AVATARES_PARENT}, ${login}, ${JSON.stringify(payload)}::jsonb)
             ON CONFLICT (path) DO UPDATE SET data = EXCLUDED.data, deleted = false, updated_at = now()`;
-  avataresCache = { map: mapaAtual, at: Date.now() };
+  await sql`UPDATE docs SET data = data - ${login}, updated_at = now()
+            WHERE path = ${AVATARES_LEGADO_PATH} AND NOT deleted AND data ? ${login}`;
+  if (avataresCache.at > 0) {
+    if (avatarDataUrl) avataresCache.map[login] = avatarDataUrl;
+    else delete avataresCache.map[login];
+  }
   forgetUser(login);
+}
+
+export function hashConfereTimingSafe(senhaRaw, hashEsperadoHex) {
+  const s = String(senhaRaw || "").trim();
+  const esperado = String(hashEsperadoHex || "").trim().toLowerCase();
+  if (!s || s.length > 200 || !/^[a-f0-9]{64}$/.test(esperado)) return false;
+  const calculado = crypto.createHash("sha256").update(s).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(calculado, "hex"), Buffer.from(esperado, "hex"));
+}
+
+export async function conferirSenhaMestre(senhaRaw) {
+  const s = String(senhaRaw || "").trim();
+  if (!s || s.length > 200) return false;
+  if (process.env.MASTER_PASS_HASH && hashConfereTimingSafe(s, process.env.MASTER_PASS_HASH)) return true;
+  try {
+    const r = await sql`SELECT 1 FROM app_users a
+                        JOIN usuarios u ON lower(a.username) = u.login
+                        WHERE u.ativo AND (u.papel = 'master' OR u.funcao = 'mestre')
+                          AND a.pass_hash = crypt(${s}, a.pass_hash)
+                        LIMIT 1`;
+    if (r.length > 0) return true;
+  } catch {}
+  return false;
 }
 
 export async function loadUser(login) {
   await garantirContasPadrao();
   const c = cache.get(login);
   if (c && Date.now() - c.at < 15000 && !(c.u && c.u.trocarSenha)) return c.u; // senha temporária: sempre confere de novo
-  const [rows, mapaAv] = await Promise.all([
+  const [rows, avatar] = await Promise.all([
     sql`SELECT u.login, u.nome, u.papel, u.funcao, u.abas, u.ativo, u.auth, u.pode_enviar_pecas,
                coalesce(a.trocar, false) AS trocar
         FROM usuarios u LEFT JOIN app_users a ON u.auth = 'senha' AND lower(a.username) = u.login
         WHERE u.login = ${login}`,
-    carregarMapaAvatares(),
+    carregarAvatarUsuario(login),
   ]);
   const r = rows[0];
   const u = r && r.ativo ? {
     login: r.login, nome: r.nome, papel: r.papel, funcao: perfilDe(r), auth: r.auth,
-    avatar: mapaAv[r.login] || null,
+    avatar: avatar || null,
     abas: abasDe(r), areas: areasDe(r), podeEnviarPecas: !!r.pode_enviar_pecas,
     trocarSenha: r.auth === "senha" && !!r.trocar,
   } : null;
