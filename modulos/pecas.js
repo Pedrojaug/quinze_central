@@ -380,23 +380,33 @@
       /* Progresso em relação à carteira no Dashboard */
       .pc-meta-card{background:linear-gradient(180deg,#FFFFFF 0%,#F8FAFF 100%);border:1px solid #D0E0FF;border-radius:12px;padding:14px 16px;margin-bottom:14px}
       .modo-offline .pc-meta-card{background:linear-gradient(180deg,#FFFFFF 0%,#FAF5FF 100%);border-color:#E9D5FF}
-      .pc-meta-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:10px}
-      .pc-meta-nums{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
-      .pc-meta-stat{text-align:right}
-      .pc-meta-stat b{display:block;font:700 22px/1.05 var(--display);font-variant-numeric:tabular-nums}
-      .pc-meta-stat span{display:block;font-size:11.5px;color:var(--ink2);margin-top:2px}
-      .pc-meta-stat.prod b{color:var(--blue)}
-      .modo-offline .pc-meta-stat.prod b{color:#7E22CE}
-      .pc-meta-stat.aprov b{color:#15803D}
-      .pc-meta-track{position:relative;height:14px;background:var(--line2);border-radius:999px;overflow:hidden}
-      .pc-meta-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;transition:width .25s ease}
-      .pc-meta-fill.prod{background:rgba(6,96,255,0.28);z-index:1}
-      .modo-offline .pc-meta-fill.prod{background:rgba(126,34,206,0.28)}
-      .pc-meta-fill.aprov{background:linear-gradient(90deg,#16A34A 0%,#22C55E 100%);z-index:2}
-      .modo-offline .pc-meta-fill.aprov{background:linear-gradient(90deg,#7E22CE 0%,#A855F7 100%)}
-      .pc-meta-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:9px;font-size:12px;color:var(--ink2)}
-      .pc-meta-leg span{display:inline-flex;align-items:center;gap:6px}
-      .pc-meta-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+      .pc-meta-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+      .pc-meta-hero{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+      .pc-meta-hero-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+      .pc-meta-hero b{font:700 28px/1 var(--display);font-variant-numeric:tabular-nums;color:var(--blue)}
+      .modo-offline .pc-meta-hero b{color:#7E22CE}
+      .pc-meta-hero.ok b{color:#15803D}
+      .pc-meta-hero-frac{font-size:13px;font-weight:600;color:var(--ink2);font-variant-numeric:tabular-nums}
+      .pc-meta-status{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px}
+      .pc-meta-status.ok{background:#E6F6EC;color:#15803D}
+      .pc-meta-status.pend{background:#FFF4DE;color:#92400E}
+      .pc-meta-track{display:flex;height:14px;background:var(--line2);border-radius:999px;overflow:hidden;margin-bottom:12px}
+      .pc-meta-seg{height:100%;transition:width .25s ease;min-width:0}
+      .pc-meta-seg.online{background:linear-gradient(90deg,#0660FF 0%,#3B82F6 100%)}
+      .pc-meta-seg.offline{background:linear-gradient(90deg,#7E22CE 0%,#A855F7 100%)}
+      .pc-meta-seg.online+.pc-meta-seg.offline{box-shadow:inset 2px 0 0 rgba(255,255,255,0.7)}
+      .pc-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:8px}
+      .pc-meta-item{background:#FFFFFF;border:1px solid var(--line2);border-left:3px solid var(--line);border-radius:8px;padding:8px 11px}
+      .pc-meta-item.online{border-left-color:#0660FF}
+      .pc-meta-item.offline{border-left-color:#7E22CE}
+      .pc-meta-item.aprov{border-left-color:#16A34A}
+      .pc-meta-item.rest{border-left-color:#94A3B8}
+      .pc-meta-item.rest.ok{border-left-color:#16A34A;background:#F7FDF9}
+      .pc-meta-item-lbl{font-size:11.5px;font-weight:600;color:var(--ink2);display:flex;align-items:center;gap:5px}
+      .pc-meta-item-val{display:flex;align-items:baseline;gap:6px;margin-top:3px;flex-wrap:wrap}
+      .pc-meta-item-val strong{font:700 17px/1.1 var(--display);color:var(--ink);font-variant-numeric:tabular-nums}
+      .pc-meta-item-val small{font-size:11.5px;color:var(--ink2);font-weight:500}
+      .pc-meta-item-sub{font-size:11.5px;color:var(--ink2);margin-top:2px;line-height:1.35}
       .pc-pct-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
       .pc-pct-pill.ok{background:#E6F6EC;color:#15803D}
       .pc-pct-pill.mid{background:#EAF2FF;color:#0B57D0}
@@ -1920,37 +1930,103 @@
         const recorteLabel = temFiltroEscopo ? " (recorte filtrado)" : "";
         const periodoCurto = !!(dados.de || dados.ate);
         if (metaTotal > 0) {
-          const wProd = Math.min(100, Math.max(0, pctProd || 0));
-          const wAprov = Math.min(100, Math.max(0, pctAprov || 0));
-          const diffProd = metaTotal - (t.pecas || 0);
-          const diffAprov = metaTotal - (t.aprovada || 0);
-          const txtFaltaProd = diffProd > 0 ? `Faltam produzir <b>${diffProd}</b>` : diffProd === 0 ? `<b>Meta de produção atingida</b>` : `Meta de produção superada em <b>+${Math.abs(diffProd)}</b>`;
-          const txtFaltaAprov = diffAprov > 0 ? `Faltam aprovar <b>${diffAprov}</b>` : diffAprov === 0 ? `<b>Meta de aprovações atingida</b>` : `Meta de aprovações superada em <b>+${Math.abs(diffAprov)}</b>`;
+          const pecasTot = t.pecas || 0, pecasOn = t.pecasOnline || 0, pecasOff = t.pecasOffline || 0;
+          const aprovTot = t.aprovada || 0, aprovOn = t.aprovadasOnline || 0, aprovOff = t.aprovadasOffline || 0;
+          const pctOnline = calcPct(pecasOn, metaTotal);
+          const pctOffline = calcPct(pecasOff, metaTotal);
+          const pctShareOn = calcPct(pecasOn, pecasTot);
+          const pctShareOff = calcPct(pecasOff, pecasTot);
+          const pctAprovSobreProd = calcPct(aprovTot, pecasTot);
+          const diffProd = metaTotal - pecasTot;
+          const pctRestante = diffProd > 0 ? calcPct(diffProd, metaTotal) : 0;
           const baseDet = (t.metaConteudosBase || t.metaMotions) ? ` (${t.metaConteudosBase || 0} conteúdos + ${t.metaMotions || 0} motions)` : "";
           const avisosExtras = [];
           if (periodoCurto) avisosExtras.push("Comparado com a meta mensal da carteira");
           if (fMidia === "offline") avisosExtras.push("Filtro Offline ativo (a meta da carteira soma conteúdos + motions)");
           else if (fMidia === "online") avisosExtras.push("Filtro Online ativo");
           const qtdCliMeta = t.clientesComMeta || 0;
+
+          const badgeStatus = pecasTot === 0
+            ? `<span class="pc-meta-status" style="background:#F1F5F9;color:var(--ink2)">Nenhum envio no período</span>`
+            : aprovTot === pecasTot
+              ? `<span class="pc-meta-status ok">✓ 100% do produzido aprovado</span>`
+              : aprovTot < pecasTot
+                ? `<span class="pc-meta-status pend">${aprovTot} aprovadas (${fmtPct(pctAprov)} da carteira) · ${pecasTot - aprovTot} em fluxo</span>`
+                : `<span class="pc-meta-status ok">✓ ${aprovTot} aprovadas no período (${fmtPct(pctAprov)} da carteira)</span>`;
+
+          const wTotal = Math.min(100, Math.max(0, (pecasTot / metaTotal) * 100));
+          let segsHtml = "";
+          if (!fMidia) {
+            const wOn = pecasTot > 0 ? +(wTotal * (pecasOn / pecasTot)).toFixed(2) : 0;
+            const wOff = pecasTot > 0 ? Math.max(0, +(wTotal - wOn).toFixed(2)) : 0;
+            if (wOn > 0) segsHtml += `<div class="pc-meta-seg online" style="width:${wOn}%" title="🌐 Online: ${pecasOn} peça${pecasOn === 1 ? "" : "s"} (${fmtPct(pctOnline)} da carteira)"></div>`;
+            if (wOff > 0) segsHtml += `<div class="pc-meta-seg offline" style="width:${wOff}%" title="📦 Offline: ${pecasOff} peça${pecasOff === 1 ? "" : "s"} (${fmtPct(pctOffline)} da carteira)"></div>`;
+          } else if (fMidia === "online") {
+            if (wTotal > 0) segsHtml = `<div class="pc-meta-seg online" style="width:${wTotal.toFixed(2)}%" title="🌐 Online: ${pecasTot} peça${pecasTot === 1 ? "" : "s"} (${fmtPct(pctProd)} da carteira)"></div>`;
+          } else if (wTotal > 0) {
+            segsHtml = `<div class="pc-meta-seg offline" style="width:${wTotal.toFixed(2)}%" title="📦 Offline: ${pecasTot} peça${pecasTot === 1 ? "" : "s"} (${fmtPct(pctProd)} da carteira)"></div>`;
+          }
+
+          const blocoRestante = diffProd > 0
+            ? `<div class="pc-meta-item rest">
+                <div class="pc-meta-item-lbl">⏳ Restante da meta</div>
+                <div class="pc-meta-item-val"><strong>${fmtPct(pctRestante)}</strong><small>para 100%</small></div>
+                <div class="pc-meta-item-sub">Faltam <b>${diffProd}</b> peça${diffProd === 1 ? "" : "s"} para ${metaTotal}</div>
+              </div>`
+            : diffProd === 0
+              ? `<div class="pc-meta-item rest ok">
+                  <div class="pc-meta-item-lbl">🎉 Meta atingida</div>
+                  <div class="pc-meta-item-val"><strong>100%</strong><small>concluído</small></div>
+                  <div class="pc-meta-item-sub">Todas as <b>${metaTotal}</b> peças da carteira produzidas</div>
+                </div>`
+              : `<div class="pc-meta-item rest ok">
+                  <div class="pc-meta-item-lbl">🎉 Meta superada</div>
+                  <div class="pc-meta-item-val"><strong>+${Math.abs(diffProd)}</strong><small>peça${Math.abs(diffProd) === 1 ? "" : "s"} extra${Math.abs(diffProd) === 1 ? "" : "s"}</small></div>
+                  <div class="pc-meta-item-sub">Meta de ${metaTotal} superada (${fmtPct(pctProd)})</div>
+                </div>`;
+
+          const blocosHtml = !fMidia
+            ? `<div class="pc-meta-item online">
+                <div class="pc-meta-item-lbl">🌐 Peças Online</div>
+                <div class="pc-meta-item-val"><strong>${fmtPct(pctOnline)}</strong><small>da carteira</small></div>
+                <div class="pc-meta-item-sub"><b>${pecasOn}</b> peça${pecasOn === 1 ? "" : "s"}${pecasTot > 0 ? ` (${fmtPct(pctShareOn)} do produzido)` : ""} · ${aprovOn} aprov.</div>
+              </div>
+              <div class="pc-meta-item offline">
+                <div class="pc-meta-item-lbl">📦 Peças Offline</div>
+                <div class="pc-meta-item-val"><strong>${fmtPct(pctOffline)}</strong><small>da carteira</small></div>
+                <div class="pc-meta-item-sub"><b>${pecasOff}</b> peça${pecasOff === 1 ? "" : "s"}${pecasTot > 0 ? ` (${fmtPct(pctShareOff)} do produzido)` : ""} · ${aprovOff} aprov.</div>
+              </div>
+              <div class="pc-meta-item aprov">
+                <div class="pc-meta-item-lbl">✅ Aprovadas</div>
+                <div class="pc-meta-item-val"><strong>${aprovTot}</strong><small>${pecasTot > 0 ? `de ${pecasTot} (${fmtPct(pctAprovSobreProd)})` : "no período"}</small></div>
+                <div class="pc-meta-item-sub">${aprovOn} online · ${aprovOff} offline${aprovTot !== pecasTot ? ` · ${fmtPct(pctAprov)} da carteira` : ""}</div>
+              </div>
+              ${blocoRestante}`
+            : `<div class="pc-meta-item ${fMidia === "offline" ? "offline" : "online"}">
+                <div class="pc-meta-item-lbl">${fMidia === "offline" ? "📦 Peças Offline" : "🌐 Peças Online"}</div>
+                <div class="pc-meta-item-val"><strong>${fmtPct(pctProd)}</strong><small>da carteira</small></div>
+                <div class="pc-meta-item-sub"><b>${pecasTot}</b> de ${metaTotal} peças contratadas</div>
+              </div>
+              <div class="pc-meta-item aprov">
+                <div class="pc-meta-item-lbl">✅ Aprovadas</div>
+                <div class="pc-meta-item-val"><strong>${aprovTot}</strong><small>${pecasTot > 0 ? `de ${pecasTot} (${fmtPct(pctAprovSobreProd)})` : "no período"}</small></div>
+                <div class="pc-meta-item-sub">${fmtPct(pctAprov)} da carteira</div>
+              </div>
+              ${blocoRestante}`;
+
           metaBox.innerHTML = `<div class="pc-meta-card">
             <div class="pc-meta-head">
               <div>
                 <h3 style="margin:0;font-size:15px">🎯 Progresso em relação à carteira${recorteLabel}</h3>
                 <div class="pc-sub" style="margin-top:3px">${esc(carteiraLabel)} · Meta total: <b>${metaTotal}</b> peça${metaTotal === 1 ? "" : "s"}${esc(baseDet)} em ${qtdCliMeta} cliente${qtdCliMeta === 1 ? "" : "s"}${avisosExtras.length ? ` · <i>${esc(avisosExtras.join(" · "))}</i>` : ""}</div>
               </div>
-              <div class="pc-meta-nums">
-                <div class="pc-meta-stat prod"><b>${fmtPct(pctProd)}</b><span>Produzidas: ${t.pecas || 0} / ${metaTotal}</span></div>
-                <div class="pc-meta-stat aprov"><b>${fmtPct(pctAprov)}</b><span>Aprovadas: ${t.aprovada || 0} / ${metaTotal}</span></div>
+              <div class="pc-meta-hero${(pctProd || 0) >= 100 ? " ok" : ""}">
+                <div class="pc-meta-hero-row"><b>${fmtPct(pctProd)}</b><span class="pc-meta-hero-frac">${pecasTot} de ${metaTotal} peças</span></div>
+                ${badgeStatus}
               </div>
             </div>
-            <div class="pc-meta-track" title="Produzidas: ${fmtPct(pctProd)} (${t.pecas || 0}/${metaTotal}) · Aprovadas: ${fmtPct(pctAprov)} (${t.aprovada || 0}/${metaTotal})">
-              <div class="pc-meta-fill prod" style="width:${wProd}%"></div>
-              <div class="pc-meta-fill aprov" style="width:${wAprov}%"></div>
-            </div>
-            <div class="pc-meta-leg">
-              <span><i class="pc-meta-dot" style="background:${ehModoOffline ? "#9333EA" : "var(--blue)"}"></i>Produzidas vs. carteira: ${txtFaltaProd}</span>
-              <span><i class="pc-meta-dot" style="background:${ehModoOffline ? "#7E22CE" : "#16A34A"}"></i>Aprovadas vs. carteira: ${txtFaltaAprov}</span>
-            </div>
+            <div class="pc-meta-track" title="Total produzido: ${fmtPct(pctProd)} (${pecasTot}/${metaTotal})">${segsHtml}</div>
+            <div class="pc-meta-grid">${blocosHtml}</div>
           </div>`;
         } else {
           metaBox.innerHTML = `<div class="pc-meta-card" style="padding:11px 16px">
@@ -2021,8 +2097,11 @@
         ? `<div class="pc-barras">${clientesComEnvio.slice(0, 15).map(c => {
             const pctCli = c.pctCarteira != null ? c.pctCarteira : calcPct(c.pecas || 0, c.metaConteudos || 0);
             const numTxt = c.metaConteudos ? `${c.pecas} / ${c.metaConteudos} (${fmtPct(pctCli)})` : `${c.pecas}`;
+            const midiaBarraTxt = (!fMidia && ((c.pecasOnline || 0) > 0 || (c.pecasOffline || 0) > 0))
+              ? ` · 🌐 ${c.pecasOnline || 0} on + 📦 ${c.pecasOffline || 0} off`
+              : "";
             return `<div class="l" style="grid-template-columns:160px minmax(0,1fr) auto">
-            <span class="nm" title="${esc(c.nome)}${c.tipo ? " · " + esc(c.tipo) : ""}${c.metaConteudos ? ` · ${c.pecas} de ${c.metaConteudos} (${fmtPct(pctCli)})` : ""}"><a href="#" data-x="filtrar-cli" data-cid="${esc(c.id)}" style="color:inherit;text-decoration:none;font-weight:500">${esc(c.nome)}</a></span>
+            <span class="nm" title="${esc(c.nome)}${c.tipo ? " · " + esc(c.tipo) : ""}${c.metaConteudos ? ` · ${c.pecas} de ${c.metaConteudos} (${fmtPct(pctCli)})` : ""}${midiaBarraTxt}"><a href="#" data-x="filtrar-cli" data-cid="${esc(c.id)}" style="color:inherit;text-decoration:none;font-weight:500">${esc(c.nome)}</a></span>
             <span class="b"><i style="width:${c.pecas / maxCli * 100}%"></i></span>
             <b class="num" style="white-space:nowrap">${numTxt}</b>
           </div>`;
@@ -2031,9 +2110,11 @@
 
       const clsPct = v => v == null ? "zero" : v >= 100 ? "ok" : v >= 50 ? "mid" : v > 0 ? "low" : "zero";
       const linhaTotalTabela = (rotulo, arr) => {
-        let sPecas = 0, sMeta = 0, sVer = 0, sApr = 0, sAlt = 0, sRep = 0, sPend = 0, sV1d = 0, sV1a = 0;
+        let sPecas = 0, sOn = 0, sOff = 0, sMeta = 0, sVer = 0, sApr = 0, sAlt = 0, sRep = 0, sPend = 0, sV1d = 0, sV1a = 0;
         for (const c of arr) {
           sPecas += c.pecas || 0;
+          sOn += c.pecasOnline || 0;
+          sOff += c.pecasOffline || 0;
           sMeta += c.metaConteudos || 0;
           sVer += c.versoes || 0;
           sApr += c.aprovada || 0;
@@ -2046,10 +2127,11 @@
         const pctArr = calcPct(sPecas, sMeta);
         const pctArrApr = calcPct(sApr, sMeta);
         const taxaArr = sV1d ? Math.round(sV1a / sV1d * 1000) / 10 : null;
+        const midiaTotTxt = (!fMidia && (sOn > 0 || sOff > 0)) ? ` · 🌐 ${sOn} on + 📦 ${sOff} off` : "";
         return `<tr>
           <td colspan="3">${esc(rotulo)}</td>
           <td class="num">${sPecas}${sMeta ? `<span class="pc-sub"> / ${sMeta}</span>` : ""}</td>
-          <td class="num">${sMeta ? `<span class="pc-pct-pill ${clsPct(pctArr)}" title="Produzidas: ${sPecas}/${sMeta} (${fmtPct(pctArr)}) · Aprovadas: ${sApr}/${sMeta} (${fmtPct(pctArrApr)})">${fmtPct(pctArr)}</span>` : `<span class="pc-sub">—</span>`}</td>
+          <td class="num">${sMeta ? `<span class="pc-pct-pill ${clsPct(pctArr)}" title="Produzidas: ${sPecas}/${sMeta} (${fmtPct(pctArr)})${midiaTotTxt} · Aprovadas: ${sApr}/${sMeta} (${fmtPct(pctArrApr)})">${fmtPct(pctArr)}</span>` : `<span class="pc-sub">—</span>`}</td>
           <td class="num">${sVer}</td>
           <td class="num">${sApr}</td>
           <td class="num">${sAlt}</td>
@@ -2069,8 +2151,11 @@
             const ativo = fCli === c.id;
             const pctCli = c.pctCarteira != null ? c.pctCarteira : calcPct(c.pecas || 0, c.metaConteudos || 0);
             const pctCliApr = c.pctCarteiraAprovada != null ? c.pctCarteiraAprovada : calcPct(c.aprovada || 0, c.metaConteudos || 0);
+            const midiaCliTxt = (!fMidia && ((c.pecasOnline || 0) > 0 || (c.pecasOffline || 0) > 0))
+              ? ` · 🌐 ${c.pecasOnline || 0} on + 📦 ${c.pecasOffline || 0} off`
+              : "";
             const pctCell = c.metaConteudos > 0
-              ? `<span class="pc-pct-pill ${clsPct(pctCli)}" title="Produzidas: ${c.pecas}/${c.metaConteudos} (${fmtPct(pctCli)}) · Aprovadas: ${c.aprovada}/${c.metaConteudos} (${fmtPct(pctCliApr)})">${fmtPct(pctCli)}</span>`
+              ? `<span class="pc-pct-pill ${clsPct(pctCli)}" title="Produzidas: ${c.pecas}/${c.metaConteudos} (${fmtPct(pctCli)})${midiaCliTxt} · Aprovadas: ${c.aprovada}/${c.metaConteudos} (${fmtPct(pctCliApr)})">${fmtPct(pctCli)}</span>`
               : `<span class="pc-sub">—</span>`;
             return `<tr style="${ativo ? "background:var(--blue-soft)" : ""}">
               <td><b>${esc(c.nome)}</b></td>
