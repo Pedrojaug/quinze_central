@@ -14,6 +14,7 @@ import { hojeSP } from "./_adm.js";
 import { DECISOES, diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario } from "./_pecas_resumo.js";
 import { resolverMencoes, mencoesNaoLidasPara, marcarMencoesLidasNaPeca } from "./_pecas_mencoes.js";
 import { RETENCAO_DIAS, DIA, processarRetencaoPeca, limparVencidos } from "./_pecas_retencao.js";
+import { extrairDriveFileId, inspecionarLinksDrive, baixarImagemDrive } from "./_pecas_drive.js";
 
 export { diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario, RETENCAO_DIAS, processarRetencaoPeca, limparVencidos };
 
@@ -118,7 +119,7 @@ function publica(p, u) {
   const expira = v => new Date(Date.parse(v.enviadaEm) + RETENCAO_DIAS * DIA).toISOString();
   return { id: p.id, titulo: p.titulo, clienteId: p.clienteId, clienteNome: p.clienteNome, remetente: p.remetente, aprovadores: p.aprovadores || [], status: p.status, versao: p.versao, tipoMidia: p.tipoMidia || "online",
     criadoEm: p.criadoEm, atualizadoEm: p.atualizadoEm, minha: p.remetente?.login === u.login,
-    versoes: p.versoes.map(v => ({ n: v.n, enviadaEm: v.enviadaEm, expiraEm: expira(v), obs: v.obs, links: v.links,
+    versoes: p.versoes.map(v => ({ n: v.n, enviadaEm: v.enviadaEm, expiraEm: expira(v), obs: v.obs, links: v.links, linksMeta: v.linksMeta || {},
       arquivos: v.arquivos.map((a, i) => ({ i, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho, expirado: !!a.expirado })) })),
     historico: p.historico };
 }
@@ -224,8 +225,12 @@ async function pecaEnviar(u, req, res) {
   const numPeca = await proximoNumeroPeca(cli.id);
   const titulo = tituloInformado || `Peça #${numPeca} | ${cli.nome}`;
   const mencoesEnvio = resolverMencoes(obs, b.mencoes, todos, u.login);
+  let linksMeta = {};
+  if (l.links.length) {
+    try { linksMeta = await inspecionarLinksDrive(l.links); } catch {}
+  }
   const p = { titulo, clienteId: cli.id, clienteNome: cli.nome, tipoMidia, remetente: quem(u), aprovadores, status: "pendente", versao: 1,
-    versoes: [{ n: 1, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links }],
+    versoes: [{ n: 1, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links, linksMeta }],
     historico: [{ id: novoId(), tipo: "envio", versao: 1, em, por: quem(u), comentario: obs, mencoes: mencoesEnvio, vistoPor: [u.login] }], criadoEm: em, atualizadoEm: em };
   await gravar(M, "pecas", id, p);
   await contar(mesAtual(), {
@@ -259,7 +264,11 @@ async function pecaReenviar(u, req, res) {
   } else if (!p.tipoMidia) {
     p.tipoMidia = "online";
   }
-  p.versoes.push({ n, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links });
+  let linksMeta = {};
+  if (l.links.length) {
+    try { linksMeta = await inspecionarLinksDrive(l.links); } catch {}
+  }
+  p.versoes.push({ n, enviadaEm: em, obs, arquivos: a.arquivos, links: l.links, linksMeta });
   const tipoHist = statusAnterior === "aprovada" ? "edicao_aprovada" : "reenvio";
   const todos = await usuariosAtivos();
   const mencoesReenvio = resolverMencoes(obs, b.mencoes, todos, u.login);
@@ -532,6 +541,39 @@ async function pecaArquivo(u, req, res) {
   return enviar(res, a.chave, a.nome, true);
 }
 
+// Inspeciona tipo de arquivos do Google Drive em lote (útil para peças enviadas antes de linksMeta).
+async function driveMeta(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  if (!veTodas(u) && !podeEnviar(u)) return negado(res);
+  const b = corpo(req);
+  const ids = [...new Set((Array.isArray(b.ids) ? b.ids : [])
+    .map(x => String(x || "").trim())
+    .filter(id => /^[A-Za-z0-9_-]{10,200}$/.test(id)))].slice(0, 30);
+  if (!ids.length) return res.json({ meta: {} });
+  const meta = await inspecionarLinksDrive(ids);
+  return res.json({ meta });
+}
+
+// Proxy autenticado de fallback para imagens do Google Drive vinculadas a uma peça visível ao usuário.
+async function driveArquivo(u, req, res) {
+  const pecaId = String(req.query.pecaId || "").trim();
+  const fid = String(req.query.id || "").trim();
+  if (!pecaId || !/^[A-Za-z0-9_-]{10,200}$/.test(fid)) {
+    return res.status(400).json({ code: "parametros", msg: "Parâmetros inválidos." });
+  }
+  const p = await ler(M, "pecas", pecaId);
+  if (!p || !podeVer(u, p)) return res.status(p ? 403 : 404).json({ code: p ? "sem_acesso" : "nao_encontrado" });
+  const pertence = (p.versoes || []).some(v => (v.links || []).some(l => extrairDriveFileId(l) === fid));
+  if (!pertence) return res.status(404).json({ code: "nao_encontrado" });
+  const img = await baixarImagemDrive(fid, 4 * 1024 * 1024);
+  if (!img) return res.status(404).json({ code: "nao_encontrado" });
+  res.statusCode = 200;
+  res.setHeader("content-type", img.tipo);
+  res.setHeader("cache-control", "private, max-age=3600");
+  res.setHeader("x-content-type-options", "nosniff");
+  return res.end(img.buf);
+}
+
 async function dashboard(u, req, res) {
   if (!veDash(u)) return negado(res, "O dashboard é do Mestre, da gestão, coordenação, atendimento e social media.");
 
@@ -596,7 +638,7 @@ async function pecasCron(req, res) {
 export const rotas = {
   inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
   "peca.comentar": pecaComentar, "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
-  pecas, "peca.arquivo": pecaArquivo, dashboard, "limpeza.executar": limpezaExecutar,
+  pecas, "peca.arquivo": pecaArquivo, "drive.meta": driveMeta, "drive.arquivo": driveArquivo, dashboard, "limpeza.executar": limpezaExecutar,
   notificacoes, "mencao.ler": mencaoLer,
 };
 export const publicas = { "pecas.cron": pecasCron };

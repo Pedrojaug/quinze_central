@@ -67,8 +67,8 @@
         <input type="file" data-f="file" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm,image/jpeg,image/png,application/pdf,video/mp4,video/quicktime,video/webm" hidden>
         <div class="pc-fs" data-f="lista"></div>
         <div class="pc-reels-box">
-          <b>🎬 Carregar Reels / Vídeo por link do Google Drive</b>
-          <div class="pc-sub" style="margin-bottom:6px">Cole o link compartilhado do Google Drive (<code>https://drive.google.com/file/d/...</code>). O vídeo será carregado como player de Reels direto na fila de aprovação!</div>
+          <b>🎬 Link de material no Google Drive (Imagem, Reels ou Vídeo)</b>
+          <div class="pc-sub" style="margin-bottom:6px">Cole o link compartilhado do Google Drive (<code>https://drive.google.com/file/d/...</code>) com permissão <b>"Qualquer pessoa com o link"</b>. Imagens abrem com visualização ampliada (pop-up) e vídeos carregam como player!</div>
           <textarea data-f="links" rows="2" placeholder="https://drive.google.com/file/d/.../view?usp=sharing (um link por linha)" style="width:100%"></textarea>
           <div data-f="reels-preview" class="pc-sub" style="margin-top:4px;color:var(--ok);font-weight:600"></div>
         </div>
@@ -146,7 +146,7 @@
     $("links").oninput = () => {
       const ls = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
       const comId = ls.filter(l => extrairDriveFileId(l));
-      $("reels-preview").textContent = comId.length ? `✓ ${comId.length} vídeo(s)/Reels do Google Drive pronto(s) para incorporar como player.` : "";
+      $("reels-preview").textContent = comId.length ? `✓ ${comId.length} link(s) do Google Drive pronto(s) para carregar.` : "";
     };
     if (nova) {
       $("cliente").onchange = () => {

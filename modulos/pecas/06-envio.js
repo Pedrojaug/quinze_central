@@ -50,6 +50,7 @@
         ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("") + rodapePaginacao(l.length, visiveis.length)
         : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
       el.querySelectorAll(".pc-card[data-id]").forEach(c => { c._pecaRef = lista.find(q => q.id === c.dataset.id) || null; });
+      resolverMetadadosDrivePendentes(visiveis, el);
     }
     el.addEventListener("click", async ev => {
       if (ev.target.closest('[data-x="mostrar-mais"]')) { limite += LIMITE_PAGINA_PECAS; render(); return; }

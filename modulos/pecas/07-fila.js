@@ -112,6 +112,7 @@
               : "Nenhuma peça na fila."
           }</div>`;
       el.querySelectorAll(".pc-card[data-id]").forEach(c => { c._pecaRef = lista.find(q => q.id === c.dataset.id) || null; });
+      resolverMetadadosDrivePendentes(visiveis, el);
     }
     el.addEventListener("click", async ev => {
       const btnIrPeca = ev.target.closest("[data-ir-peca]");
