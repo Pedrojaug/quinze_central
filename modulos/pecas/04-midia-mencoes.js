@@ -1,26 +1,88 @@
   // ---------- Cartão de uma peça (usado no Envio e na Fila) ----------
+  function renderCardDriveIframe({ previewUrl, extUrl, titulo, nome, tipo, fid }) {
+    const icone = tipo === "video" ? "🎬" : tipo === "pdf" ? "📄" : "📁";
+    const rotuloBase = tipo === "video"
+      ? "Reels / Vídeo (Drive)"
+      : tipo === "pdf"
+        ? "Documento PDF (Drive)"
+        : "Arquivo (Google Drive)";
+    const textoFoot = nome ? esc(nome) : rotuloBase;
+    const attrPendente = tipo === "desconhecido" && fid ? ` data-drive-pendente="${esc(fid)}"` : "";
+    return `<div class="pc-reel-card"${attrPendente}>
+      <div class="pc-reel-frame">
+        <iframe src="${esc(previewUrl)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy" title="${esc(rotuloBase)}"></iframe>
+        <button type="button" class="pc-expand-fab" data-midia-expandir="1" data-midia-tipo="drive" data-midia-url="${esc(previewUrl)}" data-midia-titulo="${esc(titulo)}" data-midia-ext="${esc(extUrl)}" data-midia-ext-label="Abrir no Drive ↗" title="Abrir visualização ampliada">⛶ Ampliar</button>
+      </div>
+      <div class="pc-reel-foot">
+        <span title="${esc(nome || rotuloBase)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${icone} <b>${textoFoot}</b></span>
+        <div class="pc-reel-actions">
+          <button type="button" class="pc-btn-expand" data-midia-expandir="1" data-midia-tipo="drive" data-midia-url="${esc(previewUrl)}" data-midia-titulo="${esc(titulo)}" data-midia-ext="${esc(extUrl)}" data-midia-ext-label="Abrir no Drive ↗">⛶ Expandir</button>
+          <a href="${esc(extUrl)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Abrir no Drive ↗</a>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function versaoPartes(p, v, compacto) {
     const arqsImgPdf = (v.arquivos || []).filter(a => !String(a.tipo || "").startsWith("video/"));
     const arqsVideo = (v.arquivos || []).filter(a => String(a.tipo || "").startsWith("video/"));
 
     const drivePlayers = [];
     const outrosLinks = [];
+    const itensVisualizaveis = [];
+
+    for (const a of arqsImgPdf) {
+      if (a.expirado) {
+        itensVisualizaveis.push({ expirado: true, a });
+        continue;
+      }
+      const u = arqUrl(p, v, a);
+      if (a.tipo === "application/pdf") {
+        itensVisualizaveis.push({ pdf: true, a, url: u });
+      } else {
+        itensVisualizaveis.push({
+          img: true,
+          nome: a.nome,
+          thumbUrl: u,
+          fullUrl: u,
+          extUrl: u,
+          extLabel: "Abrir original ↗",
+          linkFootLabel: "Abrir ↗",
+        });
+      }
+    }
+
     for (const l of v.links || []) {
       const fid = extrairDriveFileId(l);
-      if (fid) {
-        const previewUrl = `https://drive.google.com/file/d/${encodeURIComponent(fid)}/preview`;
-        drivePlayers.push(`<div class="pc-reel-card">
-          <iframe src="${previewUrl}" allow="autoplay; fullscreen" allowfullscreen loading="lazy" title="Reels / Vídeo do Google Drive"></iframe>
-          <div class="pc-reel-foot">
-            <span>🎬 <b>Reels / Vídeo (Drive)</b></span>
-            <div class="pc-reel-actions">
-              <button type="button" class="pc-btn-link" data-midia-expandir="1" data-midia-tipo="drive" data-midia-url="${previewUrl}" data-midia-titulo="${esc(p.titulo)} · Drive" data-midia-ext="${esc(l)}" data-midia-ext-label="Abrir no Drive ↗">⛶ Expandir</button>
-              <a href="${esc(l)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Abrir no Drive ↗</a>
-            </div>
-          </div>
-        </div>`);
-      } else {
+      if (!fid) {
         outrosLinks.push(l);
+        continue;
+      }
+      const meta = obterMetaDrive(v, fid);
+      const tipoDrive = meta?.tipo || "desconhecido";
+      const nomeDrive = meta?.nome || "";
+      const previewUrl = urlPreviewDrive(fid);
+      if (tipoDrive === "imagem") {
+        itensVisualizaveis.push({
+          img: true,
+          nome: nomeDrive || "Imagem (Google Drive)",
+          thumbUrl: urlImagemDrive(fid, 1200),
+          fullUrl: urlImagemDrive(fid, 2400),
+          fallbackImgUrl: urlProxyDrive(p.id, fid),
+          drivePreview: previewUrl,
+          extUrl: l,
+          extLabel: "Abrir no Drive ↗",
+          linkFootLabel: "Abrir no Drive ↗",
+        });
+      } else {
+        drivePlayers.push(renderCardDriveIframe({
+          previewUrl,
+          extUrl: l,
+          titulo: nomeDrive ? `${p.titulo} · ${nomeDrive}` : `${p.titulo} · Drive`,
+          nome: nomeDrive,
+          tipo: tipoDrive,
+          fid,
+        }));
       }
     }
 
@@ -32,7 +94,7 @@
         <div class="pc-reel-foot">
           <span title="${esc(a.nome)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎬 <b>${esc(a.nome)}</b></span>
           <div class="pc-reel-actions">
-            <button type="button" class="pc-btn-link" data-midia-expandir="1" data-midia-tipo="video" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Baixar ↗">⛶ Expandir</button>
+            <button type="button" class="pc-btn-expand" data-midia-expandir="1" data-midia-tipo="video" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Baixar ↗">⛶ Expandir</button>
             <a href="${u}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Baixar ↗</a>
           </div>
         </div>
@@ -40,46 +102,52 @@
     });
 
     let thumbsHtml = "";
-    if (arqsImgPdf.length) {
+    if (itensVisualizaveis.length) {
       if (compacto) {
-        thumbsHtml = `<div class="pc-thumbs">${arqsImgPdf.map(a => a.expirado
-          ? `<div class="pc-th exp" title="${esc(a.nome)}">arquivo expirado</div>`
-          : a.tipo === "application/pdf"
-            ? `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}">PDF<br>${esc(a.nome.slice(0, 28))}</a>`
-            : `<a class="pc-th" href="${arqUrl(p, v, a)}" target="_blank" rel="noopener" title="${esc(a.nome)}"><img loading="lazy" src="${arqUrl(p, v, a)}" alt="${esc(a.nome)}"></a>`).join("")}</div>`;
-      } else if (arqsImgPdf.length === 1 && !arqsImgPdf[0].expirado && arqsImgPdf[0].tipo !== "application/pdf" && !drivePlayers.length && !videoPlayers.length) {
-        const a = arqsImgPdf[0];
-        const u = arqUrl(p, v, a);
+        thumbsHtml = `<div class="pc-thumbs">${itensVisualizaveis.map(it => {
+          if (it.expirado) return `<div class="pc-th exp" title="${esc(it.a.nome)}">arquivo expirado</div>`;
+          if (it.pdf) return `<a class="pc-th" href="${esc(it.url)}" target="_blank" rel="noopener" title="${esc(it.a.nome)}">PDF<br>${esc(it.a.nome.slice(0, 28))}</a>`;
+          const fbImg = it.fallbackImgUrl ? ` data-drive-img-fallback="${esc(it.fallbackImgUrl)}"` : "";
+          const fbPrev = it.drivePreview ? ` data-drive-preview-fallback="${esc(it.drivePreview)}"` : "";
+          return `<button type="button" class="pc-th" style="padding:0;cursor:zoom-in" title="${esc(it.nome)} (clique para ampliar)" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${esc(it.fullUrl)}" data-midia-titulo="${esc(it.nome)}" data-midia-ext="${esc(it.extUrl)}" data-midia-ext-label="${esc(it.extLabel)}"${fbImg}${fbPrev}>
+            <img loading="lazy" referrerpolicy="no-referrer" src="${esc(it.thumbUrl)}" alt="${esc(it.nome)}"${fbImg}${fbPrev} data-midia-titulo="${esc(it.nome)}" data-midia-ext="${esc(it.extUrl)}">
+          </button>`;
+        }).join("")}</div>`;
+      } else if (itensVisualizaveis.length === 1 && itensVisualizaveis[0].img && !drivePlayers.length && !videoPlayers.length) {
+        const it = itensVisualizaveis[0];
+        const fbImg = it.fallbackImgUrl ? ` data-drive-img-fallback="${esc(it.fallbackImgUrl)}"` : "";
+        const fbPrev = it.drivePreview ? ` data-drive-preview-fallback="${esc(it.drivePreview)}"` : "";
         thumbsHtml = `<div class="pc-preview-single">
-          <img loading="lazy" src="${u}" alt="${esc(a.nome)}" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Abrir original ↗">
+          <img loading="lazy" referrerpolicy="no-referrer" src="${esc(it.thumbUrl)}" alt="${esc(it.nome)}" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${esc(it.fullUrl)}" data-midia-titulo="${esc(it.nome)}" data-midia-ext="${esc(it.extUrl)}" data-midia-ext-label="${esc(it.extLabel)}"${fbImg}${fbPrev}>
           <div class="pc-preview-foot">
-            <span class="nm" title="${esc(a.nome)}">${esc(a.nome)}</span>
+            <span class="nm" title="${esc(it.nome)}">${esc(it.nome)}</span>
             <div class="pc-reel-actions">
-              <button type="button" class="pc-btn-link" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Abrir original ↗">🔍 Ampliar</button>
-              <a href="${u}" target="_blank" rel="noopener" class="pc-btn-link">Abrir ↗</a>
+              <button type="button" class="pc-btn-expand" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${esc(it.fullUrl)}" data-midia-titulo="${esc(it.nome)}" data-midia-ext="${esc(it.extUrl)}" data-midia-ext-label="${esc(it.extLabel)}"${fbImg}${fbPrev}>🔍 Ampliar</button>
+              <a href="${esc(it.extUrl)}" target="_blank" rel="noopener" class="pc-btn-link">${esc(it.linkFootLabel)}</a>
             </div>
           </div>
         </div>`;
       } else {
-        thumbsHtml = `<div class="pc-thumbs-grid">${arqsImgPdf.map(a => {
-          if (a.expirado) return `<div class="pc-th exp" title="${esc(a.nome)}">arquivo expirado</div>`;
-          const u = arqUrl(p, v, a);
-          if (a.tipo === "application/pdf") {
+        thumbsHtml = `<div class="pc-thumbs-grid">${itensVisualizaveis.map(it => {
+          if (it.expirado) return `<div class="pc-th exp" title="${esc(it.a.nome)}">arquivo expirado</div>`;
+          if (it.pdf) {
             return `<div class="pc-th-card">
-              <a class="pv" href="${u}" target="_blank" rel="noopener" style="cursor:pointer;flex-direction:column;gap:4px">
+              <a class="pv" href="${esc(it.url)}" target="_blank" rel="noopener" style="cursor:pointer;flex-direction:column;gap:4px">
                 <span style="font-size:24px">📄</span>
                 <b>PDF</b>
               </a>
-              <div class="ft"><span title="${esc(a.nome)}">${esc(a.nome)}</span><a href="${u}" target="_blank" rel="noopener" class="pc-btn-link">Abrir ↗</a></div>
+              <div class="ft"><span title="${esc(it.a.nome)}">${esc(it.a.nome)}</span><a href="${esc(it.url)}" target="_blank" rel="noopener" class="pc-btn-link">Abrir ↗</a></div>
             </div>`;
           }
+          const fbImg = it.fallbackImgUrl ? ` data-drive-img-fallback="${esc(it.fallbackImgUrl)}"` : "";
+          const fbPrev = it.drivePreview ? ` data-drive-preview-fallback="${esc(it.drivePreview)}"` : "";
           return `<div class="pc-th-card">
-            <div class="pv" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${u}" data-midia-titulo="${esc(a.nome)}" data-midia-ext="${u}" data-midia-ext-label="Abrir original ↗">
-              <img loading="lazy" src="${u}" alt="${esc(a.nome)}">
+            <div class="pv" data-midia-expandir="1" data-midia-tipo="img" data-midia-url="${esc(it.fullUrl)}" data-midia-titulo="${esc(it.nome)}" data-midia-ext="${esc(it.extUrl)}" data-midia-ext-label="${esc(it.extLabel)}"${fbImg}${fbPrev}>
+              <img loading="lazy" referrerpolicy="no-referrer" src="${esc(it.thumbUrl)}" alt="${esc(it.nome)}"${fbImg}${fbPrev} data-midia-titulo="${esc(it.nome)}" data-midia-ext="${esc(it.extUrl)}">
             </div>
             <div class="ft">
-              <span title="${esc(a.nome)}">${esc(a.nome)}</span>
-              <a href="${u}" target="_blank" rel="noopener" class="pc-btn-link" title="Abrir em nova aba">↗</a>
+              <span title="${esc(it.nome)}">${esc(it.nome)}</span>
+              <a href="${esc(it.extUrl)}" target="_blank" rel="noopener" class="pc-btn-link" title="Abrir em nova aba">↗</a>
             </div>
           </div>`;
         }).join("")}</div>`;
@@ -99,6 +167,56 @@
   function versaoHtml(p, v) {
     const { mediaHtml, metaHtml } = versaoPartes(p, v, true);
     return `${metaHtml}${mediaHtml ? `<div style="margin-top:8px">${mediaHtml}</div>` : ""}`;
+  }
+
+  async function resolverMetadadosDrivePendentes(pecasVisiveis, rootEl) {
+    if (!Array.isArray(pecasVisiveis) || !pecasVisiveis.length || !rootEl) return;
+    const idsPendentes = [];
+    const vistos = new Set();
+    for (const p of pecasVisiveis) {
+      for (const v of p?.versoes || []) {
+        for (const l of v?.links || []) {
+          const fid = extrairDriveFileId(l);
+          if (!fid || vistos.has(fid)) continue;
+          const meta = obterMetaDrive(v, fid);
+          if ((!meta || !meta.tipo) && !driveMetaConsultados.has(fid)) {
+            vistos.add(fid);
+            idsPendentes.push(fid);
+            if (idsPendentes.length >= 30) break;
+          }
+        }
+        if (idsPendentes.length >= 30) break;
+      }
+      if (idsPendentes.length >= 30) break;
+    }
+    if (!idsPendentes.length) return;
+    idsPendentes.forEach(fid => driveMetaConsultados.add(fid));
+    let r;
+    try {
+      r = await api("drive.meta", { ids: idsPendentes });
+    } catch {
+      idsPendentes.forEach(fid => driveMetaConsultados.delete(fid));
+      return;
+    }
+    const metaMapa = r && r.meta && typeof r.meta === "object" ? r.meta : {};
+    for (const [fid, m] of Object.entries(metaMapa)) {
+      if (m && typeof m === "object") cacheMetaDrive[fid] = m;
+    }
+    for (const p of pecasVisiveis) {
+      const atual = p?.versoes?.[p.versoes.length - 1];
+      if (!atual || !Array.isArray(atual.links) || !atual.links.length) continue;
+      const teveClassificacao = atual.links.some(l => {
+        const fid = extrairDriveFileId(l);
+        const m = fid && metaMapa[fid];
+        return m && (["imagem", "video", "pdf"].includes(m.tipo) || m.nome);
+      });
+      if (!teveClassificacao) continue;
+      const card = rootEl.querySelector(`#peca-card-${CSS.escape(p.id)}`);
+      const mediaPane = card ? card.querySelector(".pc-media-pane") : null;
+      if (mediaPane) {
+        mediaPane.innerHTML = versaoPartes(p, atual, false).mediaHtml;
+      }
+    }
   }
 
   // ---------- Avatares de usuários (foto ou iniciais com cor determinística) ----------

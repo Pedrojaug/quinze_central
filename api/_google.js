@@ -124,6 +124,14 @@ export async function lerRespostas(formId) {
 // Só funciona para arquivos compartilhados com a conta de serviço. Devolve { nome, tipo, texto?, buf? } ou null.
 const EXPORTA = { "application/vnd.google-apps.document": "text/plain", "application/vnd.google-apps.spreadsheet": "text/csv",
   "application/vnd.google-apps.presentation": "text/plain" };
+export async function metadadosArquivoDrive(id) {
+  if (!googleConfigurado() || !/^[A-Za-z0-9_-]{10,200}$/.test(String(id))) return null;
+  let meta;
+  try { meta = await google(`${DRIVE}/files/${encodeURIComponent(id)}?fields=id,name,mimeType&supportsAllDrives=true`, {}, 1); }
+  catch (e) { if (e.status === 404 || e.status === 403) return null; throw e; }
+  return { id: meta.id || id, nome: meta.name || "", mimeType: meta.mimeType || "" };
+}
+
 export async function lerArquivoDrive(id, maxBytes = 4 * 1024 * 1024) {
   if (!googleConfigurado() || !/^[A-Za-z0-9_-]{10,200}$/.test(String(id))) return null;
   let meta;

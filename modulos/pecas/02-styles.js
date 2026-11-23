@@ -53,7 +53,9 @@
       .pc-th img{width:100%;height:100%;object-fit:contain}
       .pc-th.exp{border-style:dashed;padding:6px;width:auto;min-width:120px;height:auto;min-height:48px}
       .pc-reel-wrap{display:flex;flex-direction:column;gap:10px}
+      .pc-thumbs-grid .pc-reel-card{grid-column:1/-1}
       .pc-reel-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0F172A;width:100%;min-width:0}
+      .pc-reel-frame{position:relative;width:100%;background:#000}
       .pc-reel-card iframe,.pc-reel-card video{width:100%;height:420px;border:0;display:block;background:#000}
       .pc-ver .pc-reel-card{max-width:460px}
       .pc-ver .pc-reel-card iframe,.pc-ver .pc-reel-card video{height:360px}
@@ -61,6 +63,14 @@
       .pc-reel-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
       .pc-btn-link{background:none;border:0;padding:0;color:var(--blue);font-weight:600;font-size:12px;cursor:pointer;text-decoration:none}
       .pc-btn-link:hover{text-decoration:underline}
+      .pc-btn-expand{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid rgba(6,96,255,0.28);background:var(--blue-soft);color:var(--blue-dk);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
+      .pc-btn-expand:hover{background:#DCE8FF;border-color:var(--blue)}
+      .pc-expand-fab{position:absolute;top:10px;left:10px;z-index:2;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:8px;border:1px solid rgba(255,255,255,0.28);background:rgba(15,23,42,0.82);color:#fff;font-size:12px;font-weight:600;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 4px 12px rgba(0,0,0,0.3);transition:background .15s}
+      .pc-expand-fab:hover{background:rgba(6,96,255,0.92);border-color:rgba(255,255,255,0.5)}
+      .pc-lightbox-stage{background:#0F172A;display:flex;align-items:center;justify-content:center;padding:12px;max-height:83vh;min-height:240px;overflow:auto;position:relative}
+      .pc-lightbox-stage img{max-width:100%;max-height:80vh;object-fit:contain;border-radius:6px;display:block;cursor:zoom-in;user-select:none}
+      .pc-lightbox-stage.zoomed{display:block;text-align:center}
+      .pc-lightbox-stage.zoomed img{max-width:none;max-height:none;margin:0 auto;cursor:zoom-out}
       .pc-links{margin:6px 0 0;padding-left:18px;font-size:13px}
       .pc-ver{border-top:1px solid var(--line2);margin-top:10px;padding-top:10px}
       .pc-ver summary{cursor:pointer;font-size:13px;color:var(--ink2)}
