@@ -16,6 +16,7 @@ import { resolverMencoes, mencoesNaoLidasPara, marcarMencoesLidasNaPeca } from "
 import { RETENCAO_DIAS, DIA, processarRetencaoPeca, limparVencidos } from "./_pecas_retencao.js";
 import { extrairDriveFileId, inspecionarLinksDrive, baixarImagemDrive } from "./_pecas_drive.js";
 import { TIPOS_PECAS, MAX_BYTES_DIRETO, MAX_BYTES_SERVIDOR, extensaoPeca, montarChavePeca, validarUploadBase64 } from "./_pecas_upload.js";
+import { ehChaveBanco, guardarBlobNoBanco, infoBlobNoBanco, enviarBlobDoBanco, apagarBlobsDoBanco } from "./_pecas_blobs_db.js";
 
 export { diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario, RETENCAO_DIAS, processarRetencaoPeca, limparVencidos };
 
@@ -125,7 +126,7 @@ async function conferirArquivos(u, lista) {
     const chave = String(a?.chave || "");
     const ext = extensaoPeca(chave);
     if (!chave.startsWith(pre) || chave.includes("..") || !/^[A-Za-z0-9._\/-]{1,300}$/.test(chave) || !TIPOS_PECAS[ext]) return { erro: "Arquivo inválido. Envie de novo." };
-    const info = await infoArquivo(chave);
+    const info = ehChaveBanco(chave) ? await infoBlobNoBanco(chave) : await infoArquivo(chave);
     if (!info) return { erro: `O arquivo "${txt(a?.nome, 80)}" não chegou ao armazenamento. Envie de novo.` };
     out.push({ chave, nome: txt(a?.nome, 160) || chave.split("/").pop(), tipo: TIPOS_PECAS[ext], tamanho: info.tamanho });
   }
@@ -200,7 +201,7 @@ async function uploadToken(u, req, res) {
   }
 }
 
-// Fallback pelo servidor (same-origin) para quando o PUT direto ao Vercel Blob for bloqueado na rede do usuário.
+// Fallback pelo servidor (same-origin): tenta Vercel Blob (auto-ajustando access) e, se indisponível/suspenso, grava na tabela docs.
 async function uploadArquivo(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!podeEnviar(u)) return negado(res, "Seu usuário não envia peças.");
@@ -212,12 +213,26 @@ async function uploadArquivo(u, req, res) {
   if (montado.erro) return res.status(400).json({ code: montado.erro, msg: montado.msg });
   try {
     const g = await guardar(montado.chave, v.buf, montado.nomeLimpo, v.tipo);
-    return res.json({ chave: g.chave, nome: montado.nomeLimpo, tipo: g.tipo, tamanho: g.tamanho });
-  } catch (e) {
-    if (e?.code === "blob_nao_configurado") {
-      return res.status(503).json({ code: e.code, msg: e.message });
+    return res.json({ chave: g.chave, nome: montado.nomeLimpo, tipo: g.tipo, tamanho: g.tamanho, armazenamento: "blob" });
+  } catch (errBlob) {
+    console.error("[pecas] upload.arquivo Blob falhou, salvando fallback no banco:", String(errBlob?.message || errBlob).slice(0, 160));
+    const montadoDb = montarChavePeca({
+      login: u.login,
+      nome: v.nomeLimpo,
+      dia,
+      randHex: crypto.randomBytes(6).toString("hex"),
+      prefixoPasta: "db-",
+    });
+    try {
+      const gDb = await guardarBlobNoBanco({ chave: montadoDb.chave, buf: v.buf, nome: montadoDb.nomeLimpo, tipo: v.tipo });
+      return res.json({ chave: gDb.chave, nome: montadoDb.nomeLimpo, tipo: gDb.tipo, tamanho: gDb.tamanho, armazenamento: "banco" });
+    } catch (errDb) {
+      console.error("[pecas] upload.arquivo fallback no banco falhou:", String(errDb?.message || errDb).slice(0, 160));
+      return res.status(503).json({
+        code: "armazenamento_indisponivel",
+        msg: "Não foi possível salvar o arquivo no armazenamento. Tente novamente ou envie via link do Google Drive.",
+      });
     }
-    throw e;
   }
 }
 
@@ -439,6 +454,15 @@ async function mencaoLer(u, req, res) {
   return res.json({ ok: true, marcadas });
 }
 
+async function removerChavesArmazenamento(chaves) {
+  const lista = (chaves || []).filter(Boolean);
+  if (!lista.length) return;
+  const banco = lista.filter(ehChaveBanco);
+  const blob = lista.filter(c => !ehChaveBanco(c));
+  if (banco.length) { try { await apagarBlobsDoBanco(banco); } catch {} }
+  if (blob.length) { try { await apagarArquivos(blob); } catch {} }
+}
+
 // Excluir uma peça individual mediante senha mestre
 async function pecaExcluir(u, req, res) {
   if (!so(req, res, "POST")) return;
@@ -452,7 +476,7 @@ async function pecaExcluir(u, req, res) {
   for (const v of p.versoes || []) {
     for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
   }
-  if (chaves.length) { try { await apagarArquivos(chaves); } catch {} }
+  await removerChavesArmazenamento(chaves);
   await apagar(M, "pecas", p.id);
 
   // Mantém os contadores do mês sincronizados dinamicamente com as peças restantes
@@ -489,7 +513,7 @@ async function filaApagar(u, req, res) {
     }
     await apagar(M, "pecas", p.id);
   }
-  if (chaves.length) { try { await apagarArquivos(chaves); } catch {} }
+  await removerChavesArmazenamento(chaves);
 
   // Mantém os contadores do mês sincronizados dinamicamente com as peças restantes
   try {
@@ -556,6 +580,7 @@ async function pecaArquivo(u, req, res) {
   const a = v && v.arquivos[Number(q.i)];
   if (!a) return res.status(404).json({ code: "nao_encontrado" });
   if (a.expirado) return res.status(410).json({ code: "expirado", msg: "Arquivo expirado." });
+  if (ehChaveBanco(a.chave)) return enviarBlobDoBanco(res, a.chave, a.nome, true);
   let url = null;
   try { url = await linkTemporario(a.chave); } catch (e) { console.error("[pecas] link temporário:", String(e?.message || e).slice(0, 120)); }
   if (url) { res.statusCode = 302; res.setHeader("location", url); res.setHeader("cache-control", "private, no-store"); return res.end(); }

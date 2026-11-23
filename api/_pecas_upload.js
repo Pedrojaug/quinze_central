@@ -30,7 +30,7 @@ function normalizarNomeExibicao(nomeBruto, ext) {
   return `${semExt.slice(0, maxStem)}.${ext}`;
 }
 
-export function montarChavePeca({ login, nome, dia, randHex }) {
+export function montarChavePeca({ login, nome, dia, randHex, prefixoPasta = "" }) {
   const ext = extensaoPeca(nome);
   const tipo = TIPOS_PECAS[ext];
   if (!tipo) {
@@ -43,9 +43,10 @@ export function montarChavePeca({ login, nome, dia, randHex }) {
   const semExt = String(nome || "").replace(/[\u0000-\u001F\u007F]/g, " ").trim().replace(/\.[^.]+$/, "");
   const stem = nomeSeguro(semExt || "arquivo");
   const loginSeg = nomeSeguro(login || "usuario").toLowerCase();
+  const pastaSeg = String(prefixoPasta || "").replace(/[^A-Za-z0-9_-]/g, "");
   const diaSeg = String(dia || "").replace(/[^0-9]/g, "") || "00000000";
   const randSeg = String(randHex || "").replace(/[^a-f0-9]/gi, "") || "000000";
-  const chave = `pecas/${loginSeg}/${diaSeg}-${randSeg}/${stem}.${ext}`;
+  const chave = `pecas/${loginSeg}/${pastaSeg}${diaSeg}-${randSeg}/${stem}.${ext}`;
   return { chave, ext, tipo, nomeLimpo };
 }
 

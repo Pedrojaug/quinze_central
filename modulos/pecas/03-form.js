@@ -112,13 +112,59 @@
     });
   }
 
+  let fallbackServidorAte = 0;
+
   async function enviarArquivo(file, onProg, onStatus) {
+    const maxServConfig = (Number(base?.maxMBServidor) || 3) * 1048576;
+    const maxServSeguro = Math.min(maxServConfig, Math.floor(2.8 * 1048576));
+    const ehImagem = /\.(jpe?g|jfif|png|webp|gif)$/i.test(file.name) || String(file.type || "").startsWith("image/");
+
+    const enviarViaFallback = async () => {
+      const tentarEnvio = async (blob, nomeEnvio) => {
+        const b64 = await lerComoBase64(blob);
+        const r = await api("upload.arquivo", { nome: nomeEnvio, b64 });
+        if (r?.armazenamento === "banco") fallbackServidorAte = Date.now() + 5 * 60 * 1000;
+        return { chave: r.chave, nome: r.nome || nomeEnvio };
+      };
+
+      if (file.size <= maxServSeguro) {
+        onStatus && onStatus("enviando (alternativo)…");
+        onProg(0.6);
+        try {
+          return await tentarEnvio(file, file.name);
+        } catch (err) {
+          if (err?.status === 413 && ehImagem) {
+            onStatus && onStatus("otimizando imagem…");
+            onProg(0.4);
+            const ot = await otimizarImagemParaFallback(file, maxServSeguro);
+            onStatus && onStatus("enviando (alternativo)…");
+            onProg(0.7);
+            return await tentarEnvio(ot.blob, ot.nome);
+          }
+          throw err;
+        }
+      }
+      if (ehImagem) {
+        onStatus && onStatus("otimizando imagem…");
+        onProg(0.4);
+        const ot = await otimizarImagemParaFallback(file, maxServSeguro);
+        onStatus && onStatus("enviando (alternativo)…");
+        onProg(0.7);
+        return await tentarEnvio(ot.blob, ot.nome);
+      }
+      return null;
+    };
+
+    if (Date.now() < fallbackServidorAte && (file.size <= maxServSeguro || ehImagem)) {
+      return await enviarViaFallback();
+    }
+
     let t = null;
     let erroDireto = null;
     try {
       t = await api("upload.token", { nome: file.name, tipo: file.type, tamanho: file.size });
     } catch (e) {
-      if (e?.status === 400 || e?.status === 403 || e?.code === "blob_nao_configurado") throw e;
+      if (e?.status === 400 || e?.status === 403) throw e;
       erroDireto = e;
     }
 
@@ -139,26 +185,18 @@
     }
 
     // Fallback automático pelo servidor (same-origin) caso o PUT direto ao armazenamento falhe na rede/navegador
-    const maxServidorBytes = (Number(base?.maxMBServidor) || 3) * 1048576;
-    const ehImagem = /\.(jpe?g|jfif|png|webp|gif)$/i.test(file.name) || String(file.type || "").startsWith("image/");
-    if (file.size <= maxServidorBytes) {
-      onStatus && onStatus("enviando (alternativo)…");
-      onProg(0.6);
-      const b64 = await lerComoBase64(file);
-      const r = await api("upload.arquivo", { nome: file.name, b64 });
-      return { chave: r.chave, nome: r.nome || file.name };
+    if (file.size <= maxServSeguro || ehImagem) {
+      try {
+        const resFb = await enviarViaFallback();
+        if (resFb) return resFb;
+      } catch (eFb) {
+        if (eFb?.message === "Não deu para concluir. Tente de novo." && erroDireto?.message) {
+          throw new Error(erroDireto.message);
+        }
+        throw eFb;
+      }
     }
-    if (ehImagem) {
-      onStatus && onStatus("otimizando imagem…");
-      onProg(0.4);
-      const ot = await otimizarImagemParaFallback(file, maxServidorBytes);
-      onStatus && onStatus("enviando (alternativo)…");
-      onProg(0.7);
-      const b64 = await lerComoBase64(ot.blob);
-      const r = await api("upload.arquivo", { nome: ot.nome, b64 });
-      return { chave: r.chave, nome: r.nome || ot.nome };
-    }
-    throw erroDireto || new Error(`Não foi possível enviar o arquivo. Se passar de ${Math.round(maxServidorBytes / 1048576)} MB, envie por link do Google Drive.`);
+    throw erroDireto || new Error(`Não foi possível enviar o arquivo. Se passar de ${Math.round(maxServConfig / 1048576)} MB, envie por link do Google Drive.`);
   }
 
   // Título padrão automático por cliente: "Peça #X | Nome do Cliente"

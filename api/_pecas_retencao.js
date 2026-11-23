@@ -1,6 +1,7 @@
-// Retenção de arquivos (7 dias no Blob) e arquivamento de peças antigas preservando os dados do dashboard.
+// Retenção de arquivos (7 dias no Blob ou fallback no banco) e arquivamento de peças antigas preservando os dados do dashboard.
 import { listar, gravar } from "./_mdados.js";
 import { apagarArquivos, listarArquivos } from "./_arquivos.js";
+import { ehChaveBanco, apagarBlobsDoBanco, listarBlobsDoBanco } from "./_pecas_blobs_db.js";
 
 const M = "pecas";
 export const RETENCAO_DIAS = 7;
@@ -43,8 +44,18 @@ export async function limparVencidos(agoraMs = Date.now()) {
     const r = processarRetencaoPeca(p, limite, em);
     for (const k of r.emUso) emUso.add(k);
     if (r.vencidos.length) {
-      await apagarArquivos(r.vencidos);
-      out.arquivosApagados += r.vencidos.length;
+      const vencidosBanco = r.vencidos.filter(ehChaveBanco);
+      const vencidosBlob = r.vencidos.filter(c => !ehChaveBanco(c));
+      if (vencidosBanco.length) {
+        await apagarBlobsDoBanco(vencidosBanco);
+        out.arquivosApagados += vencidosBanco.length;
+      }
+      if (vencidosBlob.length) {
+        try {
+          await apagarArquivos(vencidosBlob);
+          out.arquivosApagados += vencidosBlob.length;
+        } catch {}
+      }
       out.pecasExpiradas++;
     }
     if (r.arquivouAgora) {
@@ -54,7 +65,13 @@ export async function limparVencidos(agoraMs = Date.now()) {
     if (r.alterou) await gravar(M, "pecas", p.id, p);
   }
   // Arquivos enviados mas nunca ligados a uma peça (envio abandonado), também com mais de 7 dias.
-  const orfaos = (await listarArquivos("pecas/")).filter(f => !emUso.has(f.chave) && Date.parse(f.enviadoEm) < limite).map(f => f.chave);
-  if (orfaos.length) { await apagarArquivos(orfaos); out.orfaosApagados = orfaos.length; }
+  try {
+    const orfaosBlob = (await listarArquivos("pecas/")).filter(f => !emUso.has(f.chave) && Date.parse(f.enviadoEm) < limite).map(f => f.chave);
+    if (orfaosBlob.length) { await apagarArquivos(orfaosBlob); out.orfaosApagados += orfaosBlob.length; }
+  } catch {}
+  try {
+    const orfaosBanco = (await listarBlobsDoBanco()).filter(f => !emUso.has(f.chave) && Date.parse(f.enviadoEm) < limite).map(f => f.chave);
+    if (orfaosBanco.length) { await apagarBlobsDoBanco(orfaosBanco); out.orfaosApagados += orfaosBanco.length; }
+  } catch {}
   return out;
 }
