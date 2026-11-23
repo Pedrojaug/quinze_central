@@ -1,20 +1,164 @@
-  // ---------- Envio dos arquivos direto ao armazenamento ----------
-  function enviarArquivo(file, onProg) {
-    return new Promise(async (ok, erro) => {
-      let t;
-      try { t = await api("upload.token", { nome: file.name, tipo: file.type, tamanho: file.size }); } catch (e) { return erro(e); }
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", t.url, true);
-      Object.entries(t.headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
-      xhr.setRequestHeader("x-content-type", t.tipo);
-      xhr.setRequestHeader("x-content-length", String(file.size));
-      xhr.setRequestHeader("x-api-blob-request-id", Math.random().toString(16).slice(2) + Date.now());
-      xhr.setRequestHeader("x-api-blob-request-attempt", "0");
-      xhr.upload.onprogress = e => { if (e.lengthComputable) onProg(e.loaded / e.total); };
-      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? ok({ chave: t.chave, nome: file.name }) : erro(new Error("O armazenamento recusou o arquivo (" + xhr.status + ").")));
-      xhr.onerror = () => erro(new Error("Falha de conexão no envio."));
-      xhr.send(file);
+  // ---------- Envio dos arquivos direto ao armazenamento (com retry e fallback via servidor) ----------
+  function extrairErroXhrBlob(status, responseText) {
+    let code = "";
+    let message = "";
+    const bruto = String(responseText || "").trim();
+    if (bruto.startsWith("{")) {
+      try {
+        const j = JSON.parse(bruto);
+        code = String(j?.error?.code || j?.code || "").trim().toLowerCase();
+        message = String(j?.error?.message || j?.message || j?.msg || "").trim();
+      } catch {}
+    }
+    if (code === "content_type_not_allowed" || /content\s*type.*not allowed/i.test(message)) {
+      return "O armazenamento recusou o formato/tipo do arquivo.";
+    }
+    if (code === "file_too_large" || status === 413) {
+      return "O arquivo excede o tamanho máximo permitido.";
+    }
+    if (code === "rate_limited" || status === 429) {
+      return "Muitos envios ao mesmo tempo. Aguarde alguns segundos e tente de novo.";
+    }
+    if (code === "forbidden" || code === "store_suspended" || status === 401 || status === 403) {
+      return message
+        ? `O armazenamento recusou a permissão de envio (${status}): ${message.slice(0, 120)}`
+        : `O armazenamento recusou a permissão de envio (${status}).`;
+    }
+    if (code === "service_unavailable" || status >= 500) {
+      return `O serviço de armazenamento está temporariamente indisponível (${status}).`;
+    }
+    if (message) {
+      return `O armazenamento recusou o arquivo (${status}): ${message.slice(0, 140)}`;
+    }
+    return status ? `O armazenamento recusou o arquivo (${status}).` : "Falha de conexão com o armazenamento.";
+  }
+
+  function lerComoBase64(blob) {
+    return new Promise((ok, erro) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const s = String(fr.result || "");
+        const idx = s.indexOf(",");
+        ok(idx >= 0 ? s.slice(idx + 1) : s);
+      };
+      fr.onerror = () => erro(new Error("Não deu para ler o arquivo selecionado."));
+      fr.readAsDataURL(blob);
     });
+  }
+
+  async function otimizarImagemParaFallback(file, maxBytes) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, erro) => {
+        const el = new Image();
+        el.onload = () => ok(el);
+        el.onerror = () => erro(new Error("Não foi possível processar a imagem para o envio alternativo."));
+        el.src = url;
+      });
+      const wOrig = img.naturalWidth || img.width || 1;
+      const hOrig = img.naturalHeight || img.height || 1;
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Navegador não suporta otimização de imagem.");
+      const stem = String(file.name || "imagem").replace(/\.[^.]+$/, "") || "imagem";
+      const limites = [2400, 1800, 1400];
+      const qualidades = [0.9, 0.82, 0.72];
+      for (const maxLado of limites) {
+        const escala = Math.min(1, maxLado / Math.max(wOrig, hOrig));
+        const w = Math.max(1, Math.round(wOrig * escala));
+        const h = Math.max(1, Math.round(hOrig * escala));
+        canvas.width = w;
+        canvas.height = h;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        for (const q of qualidades) {
+          const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", q));
+          if (blob && blob.size > 0 && blob.size <= maxBytes) {
+            return { blob, nome: `${stem}.jpg` };
+          }
+        }
+      }
+      throw new Error(`A imagem ainda passa de ${Math.round(maxBytes / 1048576)} MB para envio alternativo. Envie via link do Google Drive.`);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function enviarDiretoUmaTentativa(url, headers, tipo, storeId, file, attempt, onProg) {
+    return new Promise((ok, erro) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url, true);
+      Object.entries(headers || {}).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+      xhr.setRequestHeader("x-content-type", tipo);
+      xhr.setRequestHeader("x-content-length", String(file.size));
+      xhr.setRequestHeader("x-api-blob-request-id", `${storeId || "qz"}:${Date.now()}:${Math.random().toString(16).slice(2)}`);
+      xhr.setRequestHeader("x-api-blob-request-attempt", String(attempt));
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProg(e.loaded / e.total); };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) return ok();
+        const err = new Error(extrairErroXhrBlob(xhr.status, xhr.responseText));
+        err.status = xhr.status;
+        err.retentavel = xhr.status >= 500 || xhr.status === 429;
+        erro(err);
+      };
+      xhr.onerror = () => {
+        const err = new Error("Falha de conexão no envio direto.");
+        err.status = 0;
+        err.retentavel = true;
+        erro(err);
+      };
+      xhr.send(new Blob([file], { type: tipo }));
+    });
+  }
+
+  async function enviarArquivo(file, onProg, onStatus) {
+    let t = null;
+    let erroDireto = null;
+    try {
+      t = await api("upload.token", { nome: file.name, tipo: file.type, tamanho: file.size });
+    } catch (e) {
+      if (e?.status === 400 || e?.status === 403 || e?.code === "blob_nao_configurado") throw e;
+      erroDireto = e;
+    }
+
+    if (t) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await enviarDiretoUmaTentativa(t.url, t.headers, t.tipo, t.storeId, file, attempt, onProg);
+          return { chave: t.chave, nome: file.name };
+        } catch (e) {
+          erroDireto = e;
+          if (e?.retentavel && attempt === 0) {
+            await new Promise(r => setTimeout(r, 450));
+            continue;
+          }
+          break;
+        }
+      }
+    }
+
+    // Fallback automático pelo servidor (same-origin) caso o PUT direto ao armazenamento falhe na rede/navegador
+    const maxServidorBytes = (Number(base?.maxMBServidor) || 3) * 1048576;
+    const ehImagem = /\.(jpe?g|jfif|png|webp|gif)$/i.test(file.name) || String(file.type || "").startsWith("image/");
+    if (file.size <= maxServidorBytes) {
+      onStatus && onStatus("enviando (alternativo)…");
+      onProg(0.6);
+      const b64 = await lerComoBase64(file);
+      const r = await api("upload.arquivo", { nome: file.name, b64 });
+      return { chave: r.chave, nome: r.nome || file.name };
+    }
+    if (ehImagem) {
+      onStatus && onStatus("otimizando imagem…");
+      onProg(0.4);
+      const ot = await otimizarImagemParaFallback(file, maxServidorBytes);
+      onStatus && onStatus("enviando (alternativo)…");
+      onProg(0.7);
+      const b64 = await lerComoBase64(ot.blob);
+      const r = await api("upload.arquivo", { nome: ot.nome, b64 });
+      return { chave: r.chave, nome: r.nome || ot.nome };
+    }
+    throw erroDireto || new Error(`Não foi possível enviar o arquivo. Se passar de ${Math.round(maxServidorBytes / 1048576)} MB, envie por link do Google Drive.`);
   }
 
   // Título padrão automático por cliente: "Peça #X | Nome do Cliente"
@@ -58,13 +202,13 @@
         </div>
       </div>
       <div class="full">
-        <div class="pc-step"><b>${nova ? "3. Material para aprovação (Arquivo ou Reels do Google Drive)" : "Material da nova versão"} <span class="pc-req">*</span></b><span class="pc-sub">Até ${base.maxArquivos} arquivos · JPG, PNG, PDF ou Vídeo · até ${base.maxMB} MB</span></div>
+        <div class="pc-step"><b>${nova ? "3. Material para aprovação (Arquivo ou Reels do Google Drive)" : "Material da nova versão"} <span class="pc-req">*</span></b><span class="pc-sub">Até ${base.maxArquivos} arquivos · JPG, PNG, WEBP, GIF, PDF ou Vídeo · até ${base.maxMB} MB</span></div>
         <div class="pc-drop" data-f="drop">
           <div class="ico">📤</div>
           <div class="cta">Arraste os arquivos da peça aqui ou <u>clique para escolher no computador</u></div>
-          <div class="hint">Imagens (JPG, PNG), PDF ou Vídeo (MP4, MOV) · Ou cole abaixo o link de Reels/Vídeo do Google Drive</div>
+          <div class="hint">Imagens (JPG, PNG, WEBP, GIF), PDF ou Vídeo (MP4, MOV) · Ou cole abaixo o link do Google Drive</div>
         </div>
-        <input type="file" data-f="file" multiple accept=".jpg,.jpeg,.png,.pdf,.mp4,.mov,.webm,image/jpeg,image/png,application/pdf,video/mp4,video/quicktime,video/webm" hidden>
+        <input type="file" data-f="file" multiple accept=".jpg,.jpeg,.jfif,.png,.webp,.gif,.pdf,.mp4,.mov,.webm,image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/quicktime,video/webm" hidden>
         <div class="pc-fs" data-f="lista"></div>
         <div class="pc-reels-box">
           <b>🎬 Link de material no Google Drive (Imagem, Reels ou Vídeo)</b>
@@ -111,10 +255,37 @@
     atualizarCardsTipo();
     const pintar = a => {
       a.el.className = "pc-f" + (a.erro ? " erro" : a.chave ? " ok" : "");
-      a.el.innerHTML = `<span class="n" title="${esc(a.file.name)}">${esc(a.file.name)}</span><span class="pc-sub">${mb(a.file.size)}</span><span class="pc-prog"><i style="width:${Math.round(a.prog * 100)}%"></i></span>
-        <span class="pc-sub">${a.erro ? "erro" : a.chave ? "enviado" : Math.round(a.prog * 100) + "%"}</span><button class="btn" type="button" style="padding:2px 8px;min-height:0" title="Remover">✕</button>`;
-      a.el.querySelector("button").onclick = () => { arquivos.splice(arquivos.indexOf(a), 1); a.el.remove(); };
-      if (a.erro) a.el.querySelector(".pc-sub").title = a.erro;
+      const statusTexto = a.erro ? "erro" : a.chave ? "enviado" : (a.statusTxt || (Math.round(a.prog * 100) + "%"));
+      a.el.innerHTML = `<span class="n" title="${esc(a.file.name)}">${esc(a.file.name)}</span>
+        <span class="pc-sub">${mb(a.file.size)}</span>
+        <span class="pc-prog"><i style="width:${Math.round(a.prog * 100)}%"></i></span>
+        <span class="pc-sub" title="${esc(a.erro || statusTexto)}">${esc(statusTexto)}</span>
+        <div class="pc-f-act">
+          ${a.erro ? `<button class="btn small" type="button" data-f-act="retry" style="padding:2px 8px;min-height:0;font-size:12px" title="Tentar enviar novamente">↻ Tentar de novo</button>` : ""}
+          <button class="btn" type="button" data-f-act="rm" style="padding:2px 8px;min-height:0" title="Remover">✕</button>
+        </div>
+        ${a.erro ? `<div class="pc-f-err">${esc(a.erro)}</div>` : ""}`;
+      a.el.querySelector('[data-f-act="rm"]').onclick = () => { arquivos.splice(arquivos.indexOf(a), 1); a.el.remove(); };
+      const retryBtn = a.el.querySelector('[data-f-act="retry"]');
+      if (retryBtn) {
+        retryBtn.onclick = () => {
+          a.erro = null;
+          a.prog = 0;
+          a.statusTxt = "";
+          pintar(a);
+          iniciarEnvio(a);
+        };
+      }
+    };
+    const iniciarEnvio = a => {
+      a.promessa = enviarArquivo(
+        a.file,
+        p => { a.prog = p; pintar(a); },
+        s => { a.statusTxt = s; pintar(a); }
+      ).then(
+        r => { a.chave = r.chave; a.nomeFinal = r.nome || a.file.name; a.prog = 1; a.statusTxt = ""; pintar(a); },
+        e => { a.erro = e?.message || "Falha no envio do arquivo."; a.statusTxt = ""; pintar(a); }
+      );
     };
     const atualizarTituloPadrao = () => {
       if (!nova) return;
@@ -130,12 +301,11 @@
     const adicionar = files => {
       for (const file of files) {
         if (arquivos.length >= base.maxArquivos) { msg(`No máximo ${base.maxArquivos} arquivos.`); break; }
-        if (!/\.(jpe?g|png|pdf|mp4|mov|webm)$/i.test(file.name)) { msg(`"${file.name}": envie JPG, PNG, PDF ou Vídeo (MP4/MOV/WEBM).`); continue; }
+        if (!/\.(jpe?g|jfif|png|webp|gif|pdf|mp4|mov|webm)$/i.test(file.name)) { msg(`"${file.name}": envie JPG, PNG, WEBP, GIF, PDF ou Vídeo (MP4/MOV/WEBM).`); continue; }
         if (file.size > base.maxMB * 1048576) { msg(`"${file.name}" passa de ${base.maxMB} MB.`); continue; }
-        const a = { file, prog: 0, chave: null, erro: null, el: document.createElement("div") };
+        const a = { file, prog: 0, chave: null, nomeFinal: null, erro: null, statusTxt: "", el: document.createElement("div") };
         arquivos.push(a); $("lista").appendChild(a.el); pintar(a);
-        a.promessa = enviarArquivo(file, p => { a.prog = p; pintar(a); })
-          .then(r => { a.chave = r.chave; a.prog = 1; pintar(a); }, e => { a.erro = e.message; pintar(a); });
+        iniciarEnvio(a);
       }
     };
     $("drop").onclick = () => $("file").click();
@@ -173,7 +343,7 @@
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
       const links = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
       if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo ou informe o link do Reels/Google Drive.");
-      const corpo = { obs: $("obs").value, mencoes: coletarMencoesDoTextarea($("obs")), arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.file.name })), links, tipoMidia };
+      const corpo = { obs: $("obs").value, mencoes: coletarMencoesDoTextarea($("obs")), arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.nomeFinal || a.file.name })), links, tipoMidia };
       if (nova) {
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
         const tituloFinal = $("titulo").value.trim() || tituloPadraoCliente($("cliente").value);
