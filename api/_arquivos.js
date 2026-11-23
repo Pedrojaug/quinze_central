@@ -26,7 +26,17 @@ export const nomeSeguro = s => String(s || "arquivo").normalize("NFD").replace(A
 const blobToken = () => String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
 const local = () => !blobToken();
 const emVercel = () => process.env.VERCEL === "1" || Boolean(process.env.VERCEL_ENV);
-const blobAccess = () => (String(process.env.BLOB_ACCESS || "").trim().toLowerCase() === "public" ? "public" : "private");
+let accessDetectado = null;
+export function resetAccessDetectado() {
+  accessDetectado = null;
+}
+export function detectarAccessAlternativo(err, atual) {
+  const msg = String(err?.message || "");
+  if (/public store|cannot use private/i.test(msg) && atual !== "public") return "public";
+  if (/private store|cannot use public/i.test(msg) && atual !== "private") return "private";
+  return null;
+}
+const blobAccess = () => accessDetectado || (String(process.env.BLOB_ACCESS || "").trim().toLowerCase() === "public" ? "public" : "private");
 const dirLocal = () => process.env.ARQUIVOS_DIR || "/tmp/qz-arquivos";
 function erroBlobNaoConfigurado() {
   return Object.assign(
@@ -55,8 +65,42 @@ export async function guardar(chave, buf, nome, tipoExplicito) {
     return { chave, tamanho: buf.length, tipo: contentType };
   }
   const { put } = await import("@vercel/blob");
-  const r = await put(chave, buf, { token: blobToken(), access: blobAccess(), contentType, addRandomSuffix: false, allowOverwrite: false });
+  const access = blobAccess();
+  let r;
+  try {
+    r = await put(chave, buf, { token: blobToken(), access, contentType, addRandomSuffix: false, allowOverwrite: false });
+  } catch (e) {
+    const alt = detectarAccessAlternativo(e, access);
+    if (!alt) throw e;
+    accessDetectado = alt;
+    r = await put(chave, buf, { token: blobToken(), access: alt, contentType, addRandomSuffix: false, allowOverwrite: false });
+  }
   return { chave: r.pathname, tamanho: buf.length, tipo: contentType };
+}
+
+async function _getBlob(chave) {
+  const { get } = await import("@vercel/blob");
+  const access = blobAccess();
+  let r;
+  try {
+    r = await get(chave, { token: blobToken(), access });
+  } catch (e) {
+    const alt = detectarAccessAlternativo(e, access);
+    if (!alt) throw e;
+    accessDetectado = alt;
+    r = await get(chave, { token: blobToken(), access: alt });
+  }
+  if ((!r || r.statusCode === 404) && !accessDetectado && !String(process.env.BLOB_ACCESS || "").trim()) {
+    const alt = access === "private" ? "public" : "private";
+    try {
+      const rAlt = await get(chave, { token: blobToken(), access: alt });
+      if (rAlt && rAlt.statusCode === 200) {
+        accessDetectado = alt;
+        return rAlt;
+      }
+    } catch {}
+  }
+  return r;
 }
 
 // Envia o arquivo na resposta (download ou visualização embutida).
@@ -70,8 +114,7 @@ export async function enviar(res, chave, nomeDownload, inline) {
     res.statusCode = 200;
     return res.end(fs.readFileSync(f));
   }
-  const { get } = await import("@vercel/blob");
-  const r = await get(chave, { token: blobToken(), access: blobAccess() });
+  const r = await _getBlob(chave);
   if (!r || r.statusCode !== 200) return res.status(404).json({ code: "sem_arquivo" });
   const buf = Buffer.from(await new Response(r.stream).arrayBuffer());
   res.setHeader("content-type", r.blob.contentType || "application/octet-stream");
@@ -87,8 +130,7 @@ export async function lerArquivo(chave) {
     const f = path.join(dirLocal(), chave);
     return fs.existsSync(f) ? fs.readFileSync(f) : null;
   }
-  const { get } = await import("@vercel/blob");
-  const r = await get(chave, { token: blobToken(), access: blobAccess() });
+  const r = await _getBlob(chave);
   return r && r.statusCode === 200 ? Buffer.from(await new Response(r.stream).arrayBuffer()) : null;
 }
 
@@ -154,10 +196,21 @@ export async function listarArquivos(prefixo) {
 let delegacao = null;
 export async function linkTemporario(chave, minutos = 10) {
   if (local()) return null;
+  const access = blobAccess();
+  if (access === "public") return null;
   const { issueSignedToken, presignUrl } = await import("@vercel/blob");
   const agora = Date.now();
   if (!delegacao || delegacao.validUntil < agora + 15 * 60000)
     delegacao = await issueSignedToken({ token: blobToken(), pathname: "*", operations: ["get"], validUntil: agora + 60 * 60000 });
-  const r = await presignUrl(delegacao, { operation: "get", pathname: chave, access: blobAccess(), validUntil: agora + minutos * 60000 });
-  return r.presignedUrl;
+  try {
+    const r = await presignUrl(delegacao, { operation: "get", pathname: chave, access, validUntil: agora + minutos * 60000 });
+    return r.presignedUrl;
+  } catch (e) {
+    const alt = detectarAccessAlternativo(e, access);
+    if (alt === "public") {
+      accessDetectado = "public";
+      return null;
+    }
+    throw e;
+  }
 }

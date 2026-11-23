@@ -24,8 +24,8 @@ export default async function handler(req, res) {
   }
   const [{ m }] = await sql`SELECT coalesce(max(seq), 0)::bigint AS m FROM docs`;
   const rows = since === 0
-    ? await sql`SELECT path, data, deleted, seq FROM docs WHERE NOT deleted AND path NOT LIKE 'm/administrativo/%' AND path NOT LIKE 'm/cs/%' AND path NOT LIKE 'm/politicas/%' AND path NOT LIKE 'm/financeiro/%' ORDER BY seq`
-    : await sql`SELECT path, data, deleted, seq FROM docs WHERE seq > ${since} AND path NOT LIKE 'm/administrativo/%' AND path NOT LIKE 'm/cs/%' AND path NOT LIKE 'm/politicas/%' AND path NOT LIKE 'm/financeiro/%' ORDER BY seq LIMIT 5000`;
+    ? await sql`SELECT path, data, deleted, seq FROM docs WHERE NOT deleted AND path NOT LIKE 'm/atendimento/%' AND path NOT LIKE 'm/pecas/%' AND path NOT LIKE 'm/administrativo/%' AND path NOT LIKE 'm/cs/%' AND path NOT LIKE 'm/politicas/%' AND path NOT LIKE 'm/financeiro/%' ORDER BY seq`
+    : await sql`SELECT path, data, deleted, seq FROM docs WHERE seq > ${since} AND path NOT LIKE 'm/atendimento/%' AND path NOT LIKE 'm/pecas/%' AND path NOT LIKE 'm/administrativo/%' AND path NOT LIKE 'm/cs/%' AND path NOT LIKE 'm/politicas/%' AND path NOT LIKE 'm/financeiro/%' ORDER BY seq LIMIT 5000`;
   const all = rows.map(r => ({ path: r.path, data: r.data, deleted: r.deleted, seq: Number(r.seq) }));
   const docs = all.filter(d => !soApi(d.path) && canPath(u, d.path, false));
   const seq = Math.max(since, Number(m), ...all.map(d => d.seq));

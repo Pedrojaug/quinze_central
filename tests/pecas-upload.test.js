@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tokenEnvioDireto } from "../api/_arquivos.js";
+import { tokenEnvioDireto, detectarAccessAlternativo, resetAccessDetectado } from "../api/_arquivos.js";
 import {
   TIPOS_PECAS,
   MAX_BYTES_SERVIDOR,
@@ -49,6 +49,15 @@ test("montarChavePeca higieniza login com ponto, remove .., suporta novos format
   const proibido = montarChavePeca({ login: "artur.da", nome: "script.exe", dia: "20261123", randHex: "1234" });
   assert.equal(proibido.erro, "tipo_invalido");
   assert.equal(TIPOS_PECAS.webp, "image/webp");
+
+  const rDb = montarChavePeca({
+    login: "pablo.da",
+    nome: "CAPA.png",
+    dia: "20261123",
+    randHex: "001122334455",
+    prefixoPasta: "db-",
+  });
+  assert.equal(rDb.chave, "pecas/pablo.da/db-20261123-001122334455/CAPA.png");
 });
 
 test("validarUploadBase64 valida imagens com/sem prefixo data:, PDFs reais/falsos, vazio, tamanho e extensão", () => {
@@ -135,6 +144,7 @@ test("tokenEnvioDireto respeita modo local, erro 503 na Vercel sem token e aplic
     assert.equal(prodRes.headers["x-vercel-blob-access"], "private");
     assert.equal(prodRes.headers.authorization.startsWith("Bearer vercel_blob_client_storeTest99_"), true);
   } finally {
+    resetAccessDetectado();
     if (prevTok === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
     else process.env.BLOB_READ_WRITE_TOKEN = prevTok;
     if (prevVercel === undefined) delete process.env.VERCEL;
@@ -142,4 +152,11 @@ test("tokenEnvioDireto respeita modo local, erro 503 na Vercel sem token e aplic
     if (prevVercelEnv === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = prevVercelEnv;
   }
+});
+
+test("detectarAccessAlternativo identifica divergência entre store public e private", () => {
+  assert.equal(detectarAccessAlternativo(new Error("Cannot use private access on a public store"), "private"), "public");
+  assert.equal(detectarAccessAlternativo(new Error("Cannot use public access on a private store"), "public"), "private");
+  assert.equal(detectarAccessAlternativo(new Error("Cannot use private access on a public store"), "public"), null);
+  assert.equal(detectarAccessAlternativo(new Error("Store is suspended"), "private"), null);
 });
