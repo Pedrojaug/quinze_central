@@ -9,27 +9,19 @@ import crypto from "node:crypto";
 import { sql, conferirSenhaMestre } from "./_lib.js";
 import { perfilDe, podeEnviarPecas, ehGestao } from "./_modules.js";
 import { listar, ler, gravar, apagar, novoId, clientesCarteira, clientesCarteiraComMes, txt, usuariosAtivos } from "./_mdados.js";
-import { tokenEnvioDireto, infoArquivo, apagarArquivos, linkTemporario, enviar, nomeSeguro, extensao } from "./_arquivos.js";
+import { tokenEnvioDireto, guardar, infoArquivo, apagarArquivos, linkTemporario, enviar, nomeSeguro } from "./_arquivos.js";
 import { hojeSP } from "./_adm.js";
 import { DECISOES, diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario } from "./_pecas_resumo.js";
 import { resolverMencoes, mencoesNaoLidasPara, marcarMencoesLidasNaPeca } from "./_pecas_mencoes.js";
 import { RETENCAO_DIAS, DIA, processarRetencaoPeca, limparVencidos } from "./_pecas_retencao.js";
 import { extrairDriveFileId, inspecionarLinksDrive, baixarImagemDrive } from "./_pecas_drive.js";
+import { TIPOS_PECAS, MAX_BYTES_DIRETO, MAX_BYTES_SERVIDOR, extensaoPeca, montarChavePeca, validarUploadBase64 } from "./_pecas_upload.js";
 
 export { diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario, RETENCAO_DIAS, processarRetencaoPeca, limparVencidos };
 
 const M = "pecas";
 export const MAX_ARQUIVOS = 10, MAX_LINKS = 10;
-export const MAX_BYTES = 100 * 1024 * 1024;   // por arquivo (envio direto ao armazenamento, sem passar pela função)
-const TIPOS = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  pdf: "application/pdf",
-  mp4: "video/mp4",
-  mov: "video/quicktime",
-  webm: "video/webm",
-};
+export const MAX_BYTES = MAX_BYTES_DIRETO;   // por arquivo (envio direto ao armazenamento, sem passar pela função)
 export const STATUS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
 
 const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
@@ -131,10 +123,11 @@ async function conferirArquivos(u, lista) {
   const out = [], pre = prefixoDe(u);
   for (const a of arr) {
     const chave = String(a?.chave || "");
-    if (!chave.startsWith(pre) || chave.includes("..") || !/^[A-Za-z0-9._\/-]{1,300}$/.test(chave) || !TIPOS[extensao(chave)]) return { erro: "Arquivo inválido. Envie de novo." };
+    const ext = extensaoPeca(chave);
+    if (!chave.startsWith(pre) || chave.includes("..") || !/^[A-Za-z0-9._\/-]{1,300}$/.test(chave) || !TIPOS_PECAS[ext]) return { erro: "Arquivo inválido. Envie de novo." };
     const info = await infoArquivo(chave);
     if (!info) return { erro: `O arquivo "${txt(a?.nome, 80)}" não chegou ao armazenamento. Envie de novo.` };
-    out.push({ chave, nome: txt(a?.nome, 160) || chave.split("/").pop(), tipo: TIPOS[extensao(chave)], tamanho: info.tamanho });
+    out.push({ chave, nome: txt(a?.nome, 160) || chave.split("/").pop(), tipo: TIPOS_PECAS[ext], tamanho: info.tamanho });
   }
   return { arquivos: out };
 }
@@ -182,7 +175,7 @@ async function inicio(u, req, res) {
   }));
   return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login, nome: u.nome || u.login, avatar: u.avatar || null, funcao: perfilDe(u),
     clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, equipe, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
-    retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
+    maxMBServidor: MAX_BYTES_SERVIDOR / 1048576, retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
 }
 
 // Token para o navegador enviar UM arquivo direto ao armazenamento.
@@ -190,14 +183,42 @@ async function uploadToken(u, req, res) {
   if (!so(req, res, "POST")) return;
   if (!podeEnviar(u)) return negado(res, "Seu usuário não envia peças.");
   const b = corpo(req);
-  const nome = txt(b.nome, 160), ext = extensao(nome), tamanho = Number(b.tamanho);
-  if (!TIPOS[ext]) return res.status(400).json({ code: "tipo_invalido", msg: "Envie JPG, PNG, PDF ou vídeo (MP4/MOV/WEBM)." });
+  const tamanho = Number(b.tamanho);
+  const dia = hojeSP().replace(/-/g, "");
+  const montado = montarChavePeca({ login: u.login, nome: b.nome, dia, randHex: crypto.randomBytes(6).toString("hex") });
+  if (montado.erro) return res.status(400).json({ code: montado.erro, msg: montado.msg });
   if (!(tamanho > 0)) return res.status(400).json({ code: "arquivo_vazio", msg: "O arquivo está vazio." });
   if (tamanho > MAX_BYTES) return res.status(400).json({ code: "arquivo_grande", msg: `O arquivo passa de ${MAX_BYTES / 1048576} MB.` });
+  try {
+    const envio = await tokenEnvioDireto(montado.chave, { tipos: [montado.tipo], maxBytes: MAX_BYTES });
+    return res.json({ chave: montado.chave, tipo: montado.tipo, ...envio });
+  } catch (e) {
+    if (e?.code === "blob_nao_configurado") {
+      return res.status(503).json({ code: e.code, msg: e.message });
+    }
+    throw e;
+  }
+}
+
+// Fallback pelo servidor (same-origin) para quando o PUT direto ao Vercel Blob for bloqueado na rede do usuário.
+async function uploadArquivo(u, req, res) {
+  if (!so(req, res, "POST")) return;
+  if (!podeEnviar(u)) return negado(res, "Seu usuário não envia peças.");
+  const b = corpo(req);
+  const v = validarUploadBase64({ nome: b.nome, b64: b.b64, maxBytes: MAX_BYTES_SERVIDOR });
+  if (v.erro) return res.status(400).json({ code: v.erro, msg: v.msg });
   const dia = hojeSP().replace(/-/g, "");
-  const chave = `${prefixoDe(u)}${dia}-${crypto.randomBytes(6).toString("hex")}/${nomeSeguro(nome).replace(/\.[^.]*$/, "")}.${ext}`;
-  const envio = await tokenEnvioDireto(chave, { tipos: [TIPOS[ext]], maxBytes: MAX_BYTES });
-  return res.json({ chave, tipo: TIPOS[ext], ...envio });
+  const montado = montarChavePeca({ login: u.login, nome: v.nomeLimpo, dia, randHex: crypto.randomBytes(6).toString("hex") });
+  if (montado.erro) return res.status(400).json({ code: montado.erro, msg: montado.msg });
+  try {
+    const g = await guardar(montado.chave, v.buf, montado.nomeLimpo, v.tipo);
+    return res.json({ chave: g.chave, nome: montado.nomeLimpo, tipo: g.tipo, tamanho: g.tamanho });
+  } catch (e) {
+    if (e?.code === "blob_nao_configurado") {
+      return res.status(503).json({ code: e.code, msg: e.message });
+    }
+    throw e;
+  }
 }
 
 async function pecaEnviar(u, req, res) {
@@ -636,7 +657,7 @@ async function pecasCron(req, res) {
 }
 
 export const rotas = {
-  inicio, "upload.token": uploadToken, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
+  inicio, "upload.token": uploadToken, "upload.arquivo": uploadArquivo, "peca.enviar": pecaEnviar, "peca.reenviar": pecaReenviar, "peca.decidir": pecaDecidir,
   "peca.comentar": pecaComentar, "peca.excluir": pecaExcluir, "fila.apagar": filaApagar,
   pecas, "peca.arquivo": pecaArquivo, "drive.meta": driveMeta, "drive.arquivo": driveArquivo, dashboard, "limpeza.executar": limpezaExecutar,
   notificacoes, "mencao.ler": mencaoLer,
