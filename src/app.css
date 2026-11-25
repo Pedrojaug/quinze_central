@@ -359,7 +359,7 @@ a.lockbtn{text-decoration:none}
 #agCal .fc .fc-toolbar-title{font:700 18px var(--display)}
 #agCal .fc .fc-button-primary{background:#fff;border-color:var(--line);color:var(--ink);font-weight:600}
 #agCal .fc .fc-button-primary:not(:disabled).fc-button-active,#agCal .fc .fc-button-primary:not(:disabled):active{background:var(--blue);border-color:var(--blue);color:#fff}
-#agCal .fc .fc-timegrid-slot{height:2.1em}
+#agCal .fc .fc-timegrid-slot{height:1.9em}
 #agCal .fc-event{cursor:pointer}
 .ag-feeds{display:flex;flex-direction:column;gap:10px}
 .ag-feeds .row{flex-wrap:nowrap}
