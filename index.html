@@ -56,8 +56,8 @@ button,input{font:inherit;color:inherit}
 .inside span{font-size:13px;opacity:.82}
 
 .side{position:relative;display:flex;align-items:center;justify-content:center;padding:48px 24px;padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
-.theme-toggle{position:absolute;top:16px;right:16px;border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:20px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.theme-toggle:hover{border-color:var(--blue);color:var(--ink)}
+.theme-toggle{position:absolute;top:20px;right:20px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(15,23,42,.08);transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
+.theme-toggle:hover{border-color:var(--blue);background:var(--blue-soft);color:var(--blue-dk);box-shadow:0 0 0 3px var(--blue-soft)}
 .card{width:100%;max-width:400px}
 .card h2{font:700 28px/1.15 var(--display);margin:0 0 6px;letter-spacing:-.01em}
 .card .lead{color:var(--ink2);margin:0 0 28px}
@@ -129,7 +129,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
   </section>
 
   <main class="side">
-    <button class="theme-toggle" type="button" id="qzThemeBtn" aria-pressed="false" title="Mudar para modo escuro">🌙 Escuro</button>
+    <button class="theme-toggle" type="button" id="qzThemeBtn" aria-pressed="false" title="Tema atual: Claro. Clique para mudar para Escuro">☀️ Tema: Claro</button>
     <div class="card" id="loginBox">
       <h2>Entrar</h2>
       <p class="lead">Use seu e-mail da Quinze e a senha do e-mail, ou o usuário e a senha que a gestão te passou.</p>
@@ -211,8 +211,10 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     const b = $("#qzThemeBtn");
     if (b) {
       b.setAttribute("aria-pressed", String(dark));
-      b.textContent = dark ? "☀️ Claro" : "🌙 Escuro";
-      b.title = dark ? "Mudar para modo claro" : "Mudar para modo escuro";
+      b.textContent = dark ? "🌙 Tema: Escuro" : "☀️ Tema: Claro";
+      const rotulo = dark ? "Tema atual: Escuro. Clique para mudar para Claro" : "Tema atual: Claro. Clique para mudar para Escuro";
+      b.title = rotulo;
+      b.setAttribute("aria-label", rotulo);
     }
   };
   paintTheme(document.documentElement.dataset.theme);

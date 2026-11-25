@@ -32,7 +32,7 @@
 <body>
 <main class="mp">
   <div class="mp-top"><h1>Meu POP</h1><span class="sp"></span>
-    <button class="btn" type="button" id="qzThemeBtn" aria-pressed="false" title="Alternar modo escuro">🌙 Escuro</button>
+    <button class="qz-theme-btn" type="button" id="qzThemeBtn" aria-pressed="false" title="Tema atual: Claro. Clique para mudar para Escuro">☀️ Tema: Claro</button>
     <a class="btn" href="/?modulos=1">Voltar aos módulos</a>
     <button class="btn primary" type="button" id="imprimir">Imprimir / salvar em PDF</button></div>
   <p class="mp-sub" id="quem">Carregando…</p>
@@ -52,8 +52,10 @@
     const b = $("#qzThemeBtn");
     if (b) {
       b.setAttribute("aria-pressed", String(dark));
-      b.textContent = dark ? "☀️ Claro" : "🌙 Escuro";
-      b.title = dark ? "Mudar para modo claro" : "Mudar para modo escuro";
+      b.textContent = dark ? "🌙 Tema: Escuro" : "☀️ Tema: Claro";
+      const rotulo = dark ? "Tema atual: Escuro. Clique para mudar para Claro" : "Tema atual: Claro. Clique para mudar para Escuro";
+      b.title = rotulo;
+      b.setAttribute("aria-label", rotulo);
     }
   };
   paintTheme(document.documentElement.dataset.theme);
