@@ -3,6 +3,7 @@
 // Toda consulta ou alteração de Pessoal vai para a tabela auditoria.
 import crypto from "node:crypto";
 import { sql, ehGestao } from "./_lib.js";
+import { hojeSP, somarMeses, somarDias, diasEntre } from "./_datas.js";
 import { listar, ler, gravar, apagar, auditar, novoId, idValido, clientesCarteira, txt, dataIso, num } from "./_mdados.js";
 import { decodificar, guardar, enviar, extensao, nomeSeguro, lerArquivo, linkTemporario } from "./_arquivos.js";
 import { enviarArquivoDrive, googleConfigurado, emailContaServico } from "./_google.js";
@@ -12,18 +13,7 @@ const M = "administrativo";
 const TIPOS_CONTRATO = ["Fee mensal", "Job", "Prestação de serviço", "Fornecedor", "Locação", "Outro"];
 
 // ---------- Datas ----------
-export const hojeSP = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-const d = iso => new Date(iso + "T12:00:00Z");
-const iso = dt => dt.toISOString().slice(0, 10);
-export function somarMeses(isoData, meses) {
-  const [y, m, dd] = isoData.split("-").map(Number);
-  const alvo = new Date(Date.UTC(y, m - 1 + meses, 1, 12));
-  const ultimo = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0, 12)).getUTCDate();
-  alvo.setUTCDate(Math.min(dd, ultimo));
-  return iso(alvo);
-}
-const somarDias = (isoData, n) => { const x = d(isoData); x.setUTCDate(x.getUTCDate() + n); return iso(x); };
-const diasEntre = (a, b) => Math.round((d(b) - d(a)) / 864e5);
+export { hojeSP, somarMeses };
 // Data final padrão: início + prazo em meses - 1 dia (ex.: 01/01/2026 + 12 meses -> 31/12/2026).
 export const dataFinalPadrao = (inicio, prazo) => (inicio && prazo > 0 ? somarDias(somarMeses(inicio, prazo), -1) : "");
 

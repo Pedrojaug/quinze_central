@@ -38,38 +38,49 @@ export async function auditar(u, modulo, acao, alvo, detalhe) {
   await sql`INSERT INTO auditoria (login, modulo, acao, alvo, detalhe)
             VALUES (${u.login}, ${modulo}, ${acao}, ${alvo || null}, ${detalhe ? JSON.stringify(detalhe) : null}::jsonb)`;
 }
-// Clientes da Carteira (do mês alvo ou do mês mais recente com clientes), excluindo inativos e retirados.
-export async function clientesCarteiraComMes(mesAlvo = null) {
-  const r = await sql`SELECT parent, id, data FROM docs WHERE parent LIKE 'meses/%/clientes' AND NOT deleted`;
-  const porMes = {};
-  r.forEach(x => (porMes[x.parent.split("/")[1]] ||= []).push({
-    id: x.id,
-    nome: x.data.nome || x.id,
-    status: x.data.status || "",
-    tipo: x.data.tipo || "",
-    nivel: x.data.nivel || "",
-    atendimento: x.data.atendimento || "",
-    social: x.data.social || "",
-    conteudos: Number(x.data.conteudos) || 0,
-    motions: Number(x.data.motions) || 0,
-  }));
-  const mesesDisponiveis = Object.keys(porMes).sort();
-  let mes = null;
-  if (mesAlvo && porMes[mesAlvo]) {
-    mes = mesAlvo;
-  } else if (mesAlvo) {
-    const anteriores = mesesDisponiveis.filter(m => m <= mesAlvo);
-    mes = anteriores.length ? anteriores[anteriores.length - 1] : (mesesDisponiveis[mesesDisponiveis.length - 1] || null);
-  } else {
-    mes = mesesDisponiveis[mesesDisponiveis.length - 1] || null;
+export function escolherMesCarteira(mesesDisponiveis = [], mesAlvo = null) {
+  const ordenados = [...new Set(mesesDisponiveis.filter(m => typeof m === "string" && m.trim()))].sort();
+  if (!ordenados.length) return null;
+  if (mesAlvo && ordenados.includes(mesAlvo)) return mesAlvo;
+  if (mesAlvo) {
+    const anteriores = ordenados.filter(m => m <= mesAlvo);
+    return anteriores.length ? anteriores[anteriores.length - 1] : ordenados[ordenados.length - 1];
   }
-  const clientes = (mes ? porMes[mes] : [])
+  return ordenados[ordenados.length - 1];
+}
+
+export function normalizarClientesCarteira(rows = []) {
+  return rows
+    .map(x => ({
+      id: x.id,
+      nome: x.data?.nome || x.id,
+      status: x.data?.status || "",
+      tipo: x.data?.tipo || "",
+      nivel: x.data?.nivel || "",
+      atendimento: x.data?.atendimento || "",
+      social: x.data?.social || "",
+      conteudos: Number(x.data?.conteudos) || 0,
+      motions: Number(x.data?.motions) || 0,
+    }))
     .filter(c => {
       const st = String(c.status || "").trim().toLowerCase();
       return st !== "inativo" && st !== "retirado";
     })
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  return { mes, clientes };
+}
+
+// Clientes da Carteira (do mês alvo ou do mês mais recente com clientes), excluindo inativos e retirados.
+export async function clientesCarteiraComMes(mesAlvo = null) {
+  if (mesAlvo && /^\d{4}-\d{2}$/.test(mesAlvo)) {
+    const rows = await sql`SELECT id, data FROM docs WHERE parent = ${`meses/${mesAlvo}/clientes`} AND NOT deleted`;
+    if (rows.length > 0) return { mes: mesAlvo, clientes: normalizarClientesCarteira(rows) };
+  }
+  const parents = await sql`SELECT DISTINCT parent FROM docs WHERE parent LIKE 'meses/%/clientes' AND NOT deleted`;
+  const mesesDisponiveis = parents.map(p => String(p.parent || "").split("/")[1]).filter(Boolean);
+  const mes = escolherMesCarteira(mesesDisponiveis, mesAlvo);
+  if (!mes) return { mes: null, clientes: [] };
+  const rows = await sql`SELECT id, data FROM docs WHERE parent = ${`meses/${mes}/clientes`} AND NOT deleted`;
+  return { mes, clientes: normalizarClientesCarteira(rows) };
 }
 export async function clientesCarteira(mesAlvo = null) {
   const { clientes } = await clientesCarteiraComMes(mesAlvo);

@@ -1,9 +1,11 @@
-// Datas no horário de Fortaleza (UTC-3, sem horário de verão), usadas pelo Atendimento (tarefas, relatório, pendências).
+// Datas nos horários locais (Fortaleza e São Paulo, UTC-3), usadas nos módulos da Central.
 const FUSO = "America/Fortaleza";
 const fmtData = new Intl.DateTimeFormat("en-CA", { timeZone: FUSO });
+const fmtDataSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" });
 const fmtHora = new Intl.DateTimeFormat("en-GB", { timeZone: FUSO, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 export const hojeLocal = (agora = new Date()) => fmtData.format(agora);                 // "2026-10-08"
+export const hojeSP = (agora = new Date()) => fmtDataSP.format(agora);                  // "2026-10-08" (America/Sao_Paulo)
 export const horaLocal = (agora = new Date()) => fmtHora.format(agora);                 // "20:05"
 export const dataLocal = iso => (iso ? fmtData.format(new Date(iso)) : "");             // instante ISO -> dia local
 const d = iso => new Date(iso + "T12:00:00Z");
