@@ -8,6 +8,7 @@ import path from "node:path";
 const {
   escolherMesCarteira,
   normalizarClientesCarteira,
+  montarPaginacao,
 } = await import("../api/_mdados.js");
 
 test("escolherMesCarteira seleciona mês exato, fallback anterior e casos de borda", () => {
@@ -32,6 +33,31 @@ test("normalizarClientesCarteira filtra inativos/retirados, converte números e 
   assert.equal(res[0].motions, 0);
   assert.equal(res[1].conteudos, 8);
   assert.equal(res[1].motions, 2);
+});
+
+test("montarPaginacao aplica limite, offset e sinaliza temMais corretamente", () => {
+  const itens = ["a", "b", "c", "d", "e"];
+  assert.deepEqual(montarPaginacao(itens, { limite: 2, offset: 0 }), {
+    itens: ["a", "b"],
+    total: 5,
+    limite: 2,
+    offset: 0,
+    temMais: true,
+  });
+  assert.deepEqual(montarPaginacao(itens, { limite: 2, offset: 4 }), {
+    itens: ["e"],
+    total: 5,
+    limite: 2,
+    offset: 4,
+    temMais: false,
+  });
+  assert.deepEqual(montarPaginacao(itens, { limite: 1000, offset: -3 }), {
+    itens: ["a", "b", "c", "d", "e"],
+    total: 5,
+    limite: 500,
+    offset: 0,
+    temMais: false,
+  });
 });
 
 test("higiene arquitetural Fase 0A: sync sem cleanup legado e sem acoplamento com _adm.js", () => {

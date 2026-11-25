@@ -33,12 +33,12 @@ Este documento define o plano diretor de preparação técnica da **Central Quin
 - [x] Otimizar `clientesCarteiraComMes()` em `api/_mdados.js` para buscar direto o mês solicitado (ou listar apenas os `parent` distintos antes de ler os documentos do mês escolhido), sem carregar todos os meses da história.
 - [x] Centralizar `hojeSP` e funções de data em `api/_datas.js`, removendo importações cruzadas de `_cs.js`, `_fin.js` e `_pecas.js` para `_adm.js`.
 
-### Fase 1 — Fundação Backend & Banco
-- [ ] Trocar importações estáticas em `api/m.js` por lazy-loading com literais estáticos (`import("./_...")`), compatível com `@vercel/nft` e reduzindo o cold start.
-- [ ] Criar `api/_http.js` com helpers padronizados de leitura de corpo, método HTTP, respostas de erro, paginação e validação declarativa de payloads.
-- [ ] Formalizar sistema de migrations SQL versionadas (`migrations/008_...sql` + `scripts/migrate.js`) integrado à tabela existente `schema_migrations` (`versao`, `nome`, `aplicada_em`) do Neon.
-- [ ] Adicionar paginação segura (`listarPaginado` e `montarPaginacao`) em `api/_mdados.js` para evitar `listar()` irrestrito onde houver crescimento.
-- [ ] Adicionar travas automáticas em `scripts/check.js`:
+### Fase 1 — Fundação Backend & Banco *(Concluída)*
+- [x] Trocar importações estáticas em `api/m.js` por lazy-loading com literais estáticos (`import("./_...")`), compatível com `@vercel/nft` e reduzindo o cold start.
+- [x] Criar `api/_http.js` com helpers padronizados de leitura de corpo, método HTTP, respostas de erro, paginação e validação declarativa de payloads.
+- [x] Formalizar sistema de migrations SQL versionadas (`migrations/008_...sql` + `scripts/migrate.js`) integrado à tabela existente `schema_migrations` (`versao`, `nome`, `aplicada_em`) do Neon.
+- [x] Adicionar paginação segura (`listarPaginado` e `montarPaginacao`) em `api/_mdados.js` para evitar `listar()` irrestrito onde houver crescimento.
+- [x] Adicionar travas automáticas em `scripts/check.js`:
   - impedir novos arquivos sem prefixo `_` em `api/` fora da allowlist explícita e respeitar o limite de funções da Vercel;
   - impedir `CREATE`/`ALTER`/`DROP TABLE|INDEX|SEQUENCE|SCHEMA` dentro de `api/` (DDL somente via `migrations/`);
   - impedir `import()` dinâmico com variável/interpolação em `api/m.js`.
