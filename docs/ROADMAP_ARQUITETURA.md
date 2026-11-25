@@ -11,7 +11,6 @@ Este documento define o plano diretor de preparação técnica da **Central Quin
 - **Boilerplate repetitivo:** sem bundler de módulos ES e sem biblioteca compartilhada de UI/API, cada feature nova repete montagem manual de DOM, modais, tabelas, formatação e chamadas `fetch`.
 - **Tabela única `docs` (JSONB):** útil para prototipação inicial, mas gera carregamento excessivo em memória e complexidade para relatórios, filtros e histórico em grande volume.
 - **Bundle único e limite Vercel:** `api/` já opera perto do limite de 12 Serverless Functions do plano Hobby (10 funções na raiz), e `api/m.js` importa todos os módulos estaticamente no mesmo cold start.
-- **Pendência de segurança herdada:** `SENHA_PADRAO_INICIAL = "12345678"` ainda existe em `api/_lib.js` (tema do PR #56).
 
 ### Decisões acordadas
 - **Perfil das expansões:** UI operacional da Central (tabelas, formulários, filtros, fluxos de aprovação, dashboards) — **Vanilla JS + `esbuild` + `src/shared/`** atende com máxima simplicidade e velocidade.
@@ -27,19 +26,12 @@ Este documento define o plano diretor de preparação técnica da **Central Quin
 
 ## 2. Fases do Plano
 
-### Fase 0A — Higiene Técnica & Desacoplamento *(Concluída neste PR)*
+### Fase 0 — Higiene Técnica & Desacoplamento *(Concluída neste PR)*
 - [x] Documentar este roadmap em `docs/ROADMAP_ARQUITETURA.md`.
 - [x] Remover cleanup pontual (`ANDREW`) que rodava `UPDATE docs` em todo boot (`since === 0`) de `api/sync.js` e simplificar a filtragem para `path NOT LIKE 'm/%'`.
 - [x] Derivar `SO_API` automaticamente a partir de `AREAS` em `api/_modules.js`.
 - [x] Otimizar `clientesCarteiraComMes()` em `api/_mdados.js` para buscar direto o mês solicitado (ou listar apenas os `parent` distintos antes de ler os documentos do mês escolhido), sem carregar todos os meses da história.
 - [x] Centralizar `hojeSP` e funções de data em `api/_datas.js`, removendo importações cruzadas de `_cs.js`, `_fin.js` e `_pecas.js` para `_adm.js`.
-
-### Fase 0B — Segurança de Autenticação *(Substitui o PR #56)*
-- [ ] Alinhar com o dono do repositório (`Pedrojaug`) e fechar o PR #56 (atualmente com conflitos após o PR #58).
-- [ ] Antes do deploy: consultar no Neon quais usuários ainda possuem `pass_hash` correspondente a `12345678` / `1234578` para comunicar ou redefinir sem travar a equipe.
-- [ ] Remover `SENHA_PADRAO_INICIAL` e o fallback `12345678`/`1234578` de `api/_lib.js`.
-- [ ] Gerar senha temporária aleatória no servidor em `api/users.js` e exibir modal de cópia única em `src/js/07-usuarios.js`.
-- [ ] Migrar validação da senha mestre compartilhada para hash bcrypt em variável de ambiente (`MASTER_PASS_BCRYPT` na Vercel), se aplicável.
 
 ### Fase 1 — Fundação Backend & Banco
 - [ ] Trocar importações estáticas em `api/m.js` por lazy-loading dinâmico (`import()`) por módulo, reduzindo peso de cold start.
@@ -71,4 +63,4 @@ Este documento define o plano diretor de preparação técnica da **Central Quin
 ---
 
 ## 3. Critério para Liberar Expansões Grandes
-As novas adições e expansões de grande porte ficam liberadas para iniciar com segurança assim que as **Fases 0A, 0B, 1, 2 e 3** estiverem concluídas, validadas pelo CI (`npm run check && npm test`) e em produção.
+As novas adições e expansões de grande porte ficam liberadas para iniciar com segurança assim que as **Fases 0, 1, 2 e 3** estiverem concluídas, validadas pelo CI (`npm run check && npm test`) e em produção.
