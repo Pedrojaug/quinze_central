@@ -50,7 +50,12 @@
     }
 
     async function api(modulo, acao, body, opt = {}) {
-      let url = `/api/m?r=${encodeURIComponent(modulo)}/${encodeURIComponent(acao)}`;
+      const acaoStr = String(acao || "");
+      const amp = acaoStr.indexOf("&");
+      const acaoNome = amp >= 0 ? acaoStr.slice(0, amp) : acaoStr;
+      const extraRaw = amp >= 0 ? acaoStr.slice(amp + 1) : "";
+      let url = `/api/m?r=${encodeURIComponent(modulo)}/${encodeURIComponent(acaoNome)}`;
+      if (extraRaw) url += `&${extraRaw}`;
       if (opt.query && typeof opt.query === "object") {
         const qs = new URLSearchParams();
         for (const [k, v] of Object.entries(opt.query)) {

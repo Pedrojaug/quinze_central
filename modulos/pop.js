@@ -7,13 +7,7 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const dataBr = iso => (iso ? new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }) : "");
   const dataHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Fortaleza", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
-  async function api(r, body) {
-    const res = await fetch("/api/m?r=pop/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || (res.status === 403 ? "Sem permissão." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status });
-    return j;
-  }
+  const api = (r, body) => window.QZ.api("pop", r, body);
   // Texto com formatação simples: **negrito**, links e marcas [CONFIRMAR] / [CONTEÚDO NÃO VEIO NA EXPORTAÇÃO].
   const fmt = t => esc(t)
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")

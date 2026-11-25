@@ -10,16 +10,13 @@ import { perfilDe } from "./_modules.js";
 import { listar, ler, gravar, apagar, novoId, clientesCarteira, txt, dataIso } from "./_mdados.js";
 import { hojeLocal, horaLocal, dataLocal, diasEntre, somarDiasUteis, br, brCurta } from "./_datas.js";
 import { garantirTarefaOrigem, atualizarPrazoOrigem, concluirTarefaOrigem, registrarBlocoRelatorio, registrarSincronizador } from "./_tarefas.js";
+import { corpo, exigirMetodo as so, quem, negado } from "./_http.js";
 
 const M = "atendimento";
 export const TIPOS = { material_ooh_offline: "Material OOH/offline", orcamento: "Orçamento", retorno_necessario: "Retorno necessário" };
 export const STATUS = { aguardando_retorno: "Aguardando retorno", respondida: "Respondida", aprovada: "Aprovada", recusada: "Recusada", cancelada: "Cancelada" };
 const RETORNOS = ["respondida", "aprovada", "recusada"];
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
-const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const ehGestao = u => ["mestre", "gestao", "coordenador"].includes(perfilDe(u));
 export const usaPendencias = u => ["mestre", "gestao", "coordenador", "atendimento"].includes(perfilDe(u));
 const podeEditar = (u, p) => ehGestao(u) || p.criadoPor?.login === u.login || p.responsavel?.login === u.login;

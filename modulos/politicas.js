@@ -3,16 +3,10 @@
 (function () {
   if (window.__qzPol) return; window.__qzPol = true;
 
-  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const { esc } = QZ.fmt;
   const data = iso => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "");
   const dataHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
-  async function api(r, body) {
-    const res = await fetch("/api/m?r=pol/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || (res.status === 403 ? "Sem permissão." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status });
-    return j;
-  }
+  const api = QZ.criarApi("pol");
   const lerArquivo = file => new Promise((ok, erro) => {
     if (!file) return ok(null);
     if (file.size > 3 * 1024 * 1024) return erro(new Error("O PDF passa de 3 MB."));

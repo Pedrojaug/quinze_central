@@ -3,20 +3,10 @@
 (function () {
   if (window.__qzFin) return; window.__qzFin = true;
 
-  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const br = iso => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
-  const brHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
-  const brl = v => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  const mesBr = m => (m ? ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][+m.slice(5, 7) - 1] + "/" + m.slice(0, 4) : "");
+  const { esc, br, brHora, brl, mesBr } = QZ.fmt;
   const pct = v => (v == null ? "—" : (v > 0 ? "+" : "") + v.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%");
   const hoje = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  async function api(r, body) {
-    const res = await fetch("/api/m?r=fin/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || (res.status === 403 ? "Sem permissão." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status });
-    return j;
-  }
+  const api = QZ.criarApi("fin");
 
   if (!document.getElementById("qzFinCss")) {
     const st = document.createElement("style"); st.id = "qzFinCss";

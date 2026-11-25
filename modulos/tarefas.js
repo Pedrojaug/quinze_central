@@ -3,15 +3,8 @@
 (function () {
   if (window.__qzTar) return; window.__qzTar = true;
 
-  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const br = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : "");
-  const brAno = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "");
+  const { esc, brCurta: br, br: brAno, somarDias, copiar } = QZ.fmt;
   const dataHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Fortaleza", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
-  const somarDias = (iso, n) => {
-    const dt = new Date((iso || new Date().toISOString().slice(0, 10)) + "T12:00:00Z");
-    dt.setUTCDate(dt.getUTCDate() + n);
-    return dt.toISOString().slice(0, 10);
-  };
   const proximoDiaUtil = iso => {
     let x = iso || new Date().toISOString().slice(0, 10);
     do { x = somarDias(x, 1); } while ([0, 6].includes(new Date(x + "T12:00:00Z").getUTCDay()));
@@ -22,19 +15,7 @@
     do { x = somarDias(x, 1); } while (new Date(x + "T12:00:00Z").getUTCDay() !== 1);
     return x;
   };
-  async function copiar(txt) {
-    try { await navigator.clipboard.writeText(txt); return true; } catch {}
-    const ta = document.createElement("textarea"); ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
-    document.body.appendChild(ta); ta.select();
-    try { const ok = document.execCommand("copy"); ta.remove(); return ok; } catch { ta.remove(); return false; }
-  }
-  async function api(r, body) {
-    const res = await fetch("/api/m?r=tar/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || (res.status === 403 ? "Sem permissão." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status, dados: j });
-    return j;
-  }
+  const api = QZ.criarApi("tar");
   let base = null;
   const carregarBase = async (forcar = false) => {
     if (!base || forcar) base = await api("inicio");

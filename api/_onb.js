@@ -11,10 +11,8 @@ import { lerArquivoDrive, googleConfigurado } from "./_google.js";
 import { perguntarJSON, ErroIA, MSG_IA } from "./_ia.js";
 import { contratoDoOnboarding } from "./_adm.js";
 import { hojeLocal } from "./_datas.js";
+import { corpo, exigirMetodo as so, quem, negado as negadoHttp } from "./_http.js";
 
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const usaOnboarding = u => perfilDe(u) === "mestre" || (u.abas || []).includes("onb");
 const MAX_LEITURA = 22 * 1024 * 1024;   // a API da IA aceita até 32 MB por pedido (o PDF vai em base64)
@@ -29,7 +27,7 @@ async function mesclarOnb(id, patch) {
   await sql`UPDATE docs SET data = jsonb_deep_merge(data, ${JSON.stringify(patch)}::jsonb), updated_at = now(), seq = nextval('docs_seq')
             WHERE path = ${"onboarding/" + id} AND NOT deleted`;
 }
-const negado = res => res.status(403).json({ code: "sem_acesso", msg: "Sem acesso ao Onboarding." });
+const negado = res => negadoHttp(res, "Sem acesso ao Onboarding.");
 
 // ---------- Contrato: envio do PDF ----------
 async function contratoToken(u, req, res) {

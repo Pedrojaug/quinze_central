@@ -3,6 +3,7 @@
 // Toda consulta ou alteração de Pessoal vai para a tabela auditoria.
 import crypto from "node:crypto";
 import { sql, ehGestao } from "./_lib.js";
+import { corpo, exigirMetodo as so, quem } from "./_http.js";
 import { hojeSP, somarMeses, somarDias, diasEntre } from "./_datas.js";
 import { listar, ler, gravar, apagar, auditar, novoId, idValido, clientesCarteira, txt, dataIso, num } from "./_mdados.js";
 import { decodificar, guardar, enviar, extensao, nomeSeguro, lerArquivo, linkTemporario } from "./_arquivos.js";
@@ -84,9 +85,6 @@ export function decimoTerceiro(p, ano) {
 }
 
 // ---------- Ajudas ----------
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const semChave = a => (a ? { nome: a.nome, tamanho: a.tamanho, em: a.em || "", por: a.por || null } : null);
 

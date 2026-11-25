@@ -3,16 +3,9 @@
 (function () {
   if (window.__qzPen) return; window.__qzPen = true;
 
-  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const br = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : "");
-  const brd = iso => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "");
+  const { esc, brCurta: br, br: brd, somarDias, copiar } = QZ.fmt;
   const dLocal = iso => (iso ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date(iso)) : "");
   const dataHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Fortaleza", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
-  const somarDias = (iso, n) => {
-    const dt = new Date((iso || new Date().toISOString().slice(0, 10)) + "T12:00:00Z");
-    dt.setUTCDate(dt.getUTCDate() + n);
-    return dt.toISOString().slice(0, 10);
-  };
   const somarDiasUteis = (iso, n) => {
     let x = iso || new Date().toISOString().slice(0, 10), k = 0;
     while (k < n) { x = somarDias(x, 1); if (![0, 6].includes(new Date(x + "T12:00:00Z").getUTCDay())) k++; }
@@ -23,18 +16,7 @@
     do { x = somarDias(x, 1); } while (new Date(x + "T12:00:00Z").getUTCDay() !== 1);
     return x;
   };
-  async function api(r, body) {
-    const res = await fetch("/api/m?r=pen/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || (res.status === 403 ? "Sem permissão." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status });
-    return j;
-  }
-  async function copiar(texto) {
-    try { await navigator.clipboard.writeText(texto); return true; }
-    catch { const t = document.createElement("textarea"); t.value = texto; t.style.position = "fixed"; t.style.opacity = "0"; document.body.appendChild(t); t.select();
-      let ok = false; try { ok = document.execCommand("copy"); } catch { /* sem cópia */ } t.remove(); return ok; }
-  }
+  const api = QZ.criarApi("pen");
   const ACAO = { rascunho: "criou o rascunho", aguardando_retorno: "registrou a pendência", registrada: "registrou a pendência",
     respondida: "registrou: respondida", aprovada: "registrou: aprovada", recusada: "registrou: recusada",
     cancelada: "cancelou", cobranca: "realizou cobrança", reprogramada: "reprogramou o prazo" };

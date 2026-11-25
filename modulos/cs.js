@@ -3,19 +3,10 @@
 (function () {
   if (window.__qzCs) return; window.__qzCs = true;
 
-  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const br = iso => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
-  const brHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
-  const mesBr = m => { if (!m) return ""; const [y, mm] = m.split("-"); return ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][+mm - 1] + "/" + y; };
+  const { esc, br, brHora, mesBr } = QZ.fmt;
   const num1 = v => (v == null ? "—" : Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 }));
   const mesAtual = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
-  async function api(r, body) {
-    const res = await fetch("/api/m?r=cs/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || (res.status === 403 ? "Sem permissão." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status });
-    return j;
-  }
+  const api = QZ.criarApi("cs");
 
   if (!document.getElementById("qzCsCss")) {
     const st = document.createElement("style"); st.id = "qzCsCss";

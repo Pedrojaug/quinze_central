@@ -5,6 +5,7 @@
 import { sql, ehGestao } from "./_lib.js";
 import { listar, ler, gravar, apagar, auditar, novoId, clientesCarteira, txt, dataIso, num } from "./_mdados.js";
 import { hojeSP, somarMeses } from "./_datas.js";
+import { corpo, exigirMetodo as so, quem } from "./_http.js";
 import { pdfDashboard, pdfFluxo } from "./_finpdf.js";
 
 const M = "financeiro";
@@ -13,9 +14,6 @@ const CATEGORIAS = {
   pagar: ["Salários", "Fornecedores", "Impostos", "Aluguel", "Software", "Marketing", "Outros"],
 };
 const FORMAS = ["Pix", "Boleto", "Transferência", "Cartão", "Dinheiro", "Outro"];
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const mesOk = m => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m || ""));
 const r2 = v => Math.round((Number(v) || 0) * 100) / 100;
