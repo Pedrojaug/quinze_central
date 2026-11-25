@@ -8,6 +8,7 @@ import {
   abasDe,
   areasDe,
   podeCaminho,
+  SO_API,
   soApi,
 } from "../api/_modules.js";
 
@@ -102,4 +103,9 @@ test("podeCaminho e soApi protegem coleções restritas e rotas só-API", () => 
   assert.equal(soApi("m/administrativo/y"), true);
   assert.equal(soApi("meses/2026-11/clientes/c1"), false);
   assert.equal(soApi("config/geral"), false);
+
+  for (const area of AREAS) {
+    assert.equal(SO_API.includes(`m/${area.id}/`), true);
+    assert.equal(soApi(`m/${area.id}/doc1`), true);
+  }
 });

@@ -10,7 +10,7 @@ import { sql, conferirSenhaMestre } from "./_lib.js";
 import { perfilDe, podeEnviarPecas, ehGestao } from "./_modules.js";
 import { listar, ler, gravar, apagar, novoId, clientesCarteira, clientesCarteiraComMes, txt, usuariosAtivos } from "./_mdados.js";
 import { tokenEnvioDireto, guardar, infoArquivo, apagarArquivos, linkTemporario, enviar, nomeSeguro } from "./_arquivos.js";
-import { hojeSP } from "./_adm.js";
+import { hojeSP } from "./_datas.js";
 import { DECISOES, diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario } from "./_pecas_resumo.js";
 import { resolverMencoes, mencoesNaoLidasPara, marcarMencoesLidasNaPeca } from "./_pecas_mencoes.js";
 import { RETENCAO_DIAS, DIA, processarRetencaoPeca, limparVencidos } from "./_pecas_retencao.js";

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   hojeLocal,
+  hojeSP,
   horaLocal,
   dataLocal,
   diaSemana,
@@ -18,6 +19,8 @@ import {
 test("hojeLocal, horaLocal e dataLocal respeitam America/Fortaleza (UTC-3)", () => {
   const inst = new Date("2026-10-09T01:05:00Z");
   assert.equal(hojeLocal(inst), "2026-10-08");
+  assert.equal(hojeSP(inst), "2026-10-08");
+  assert.equal(hojeSP(new Date("2026-10-09T04:00:00Z")), "2026-10-09");
   assert.equal(horaLocal(inst), "22:05");
   assert.equal(dataLocal("2026-10-09T01:05:00Z"), "2026-10-08");
   assert.equal(dataLocal(""), "");

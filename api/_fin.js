@@ -4,7 +4,7 @@
 // (sem valores). Nada de dado financeiro no console.
 import { sql, ehGestao } from "./_lib.js";
 import { listar, ler, gravar, apagar, auditar, novoId, clientesCarteira, txt, dataIso, num } from "./_mdados.js";
-import { hojeSP, somarMeses } from "./_adm.js";
+import { hojeSP, somarMeses } from "./_datas.js";
 import { pdfDashboard, pdfFluxo } from "./_finpdf.js";
 
 const M = "financeiro";

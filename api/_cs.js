@@ -5,7 +5,7 @@ import { listar, ler, gravar, apagar, criarSeNovo, novoId, idValido, clientesCar
 import { googleConfigurado, criarFormulario, lerRespostas, lerArquivoDrive, ErroGoogle } from "./_google.js";
 import crypto from "node:crypto";
 import { perguntarJSON, iaDisponivel, ErroIA, MSG_IA } from "./_ia.js";
-import { hojeSP } from "./_adm.js";
+import { hojeSP } from "./_datas.js";
 
 const M = "cs";
 export const STATUS = ["rascunho", "perguntas_em_aprovacao", "aprovada", "formulario_gerado", "enviada"];

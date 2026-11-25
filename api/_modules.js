@@ -127,7 +127,7 @@ export const COLECOES_RESTRITAS = [
   { caminho: "rh/", ler: GESTAO, gravar: GESTAO },
 ];
 
-export const SO_API = ["m/atendimento/", "m/pecas/", "m/administrativo/", "m/cs/", "m/politicas/", "m/financeiro/"];
+export const SO_API = AREAS.map(a => `m/${a.id}/`);
 export const soApi = path => SO_API.some(p => path === p.replace(/\/$/, "") || path.startsWith(p));
 
 // ---------------------------------------------------------------------------
