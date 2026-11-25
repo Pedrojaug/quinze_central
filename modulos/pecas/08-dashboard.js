@@ -175,8 +175,8 @@
         if (fNivel) partes.push(`Nível ${fNivel}`);
         if (fAt) partes.push(`Atendimento: ${fAt}`);
         const estiloAviso = ehModoOffline
-          ? "background:#F3E8FF;color:#6B21A8;border:1px solid rgba(107,33,168,0.25)"
-          : "background:var(--blue-soft);color:var(--blue-dk);border:1px solid rgba(6,96,255,0.18)";
+          ? "background:var(--purple-soft);color:var(--purple);border:1px solid var(--purple-bd)"
+          : "background:var(--blue-soft);color:var(--blue-dk);border:1px solid var(--blue-bd)";
         box("aviso-filtro").innerHTML = `<div style="margin-top:10px;padding:7px 11px;border-radius:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;${estiloAviso}">
           <span><b>Filtro ativo:</b> ${esc(partes.join(" · "))} (${clientesFiltrados.length} cliente${clientesFiltrados.length === 1 ? "" : "s"})</span>
           <button class="btn small" type="button" data-x="limpar-filtros">Limpar filtros</button>
@@ -239,7 +239,7 @@
           const qtdCliMeta = t.clientesComMeta || 0;
 
           const badgeStatus = pecasTot === 0
-            ? `<span class="pc-meta-status" style="background:#F1F5F9;color:var(--ink2)">Nenhum envio no período</span>`
+            ? `<span class="pc-meta-status" style="background:var(--muted-bg);color:var(--ink2)">Nenhum envio no período</span>`
             : aprovTot === pecasTot
               ? `<span class="pc-meta-status ok">✓ 100% do produzido aprovado</span>`
               : aprovTot < pecasTot
@@ -491,20 +491,20 @@
         .sort((a, b) => valorBarraUser(b) - valorBarraUser(a) || (b.pecas || 0) - (a.pecas || 0));
 
       const maxBarra = Math.max(1, ...listaUsersOrdenada.map(valorBarraUser));
-      const corBarra = ehModoOffline ? "#7E22CE" : (fMidia === "online" ? "var(--blue)" : "linear-gradient(90deg, var(--blue) 0%, #7E22CE 100%)");
+      const corBarra = ehModoOffline ? "var(--purple)" : (fMidia === "online" ? "var(--blue)" : "linear-gradient(90deg, var(--blue) 0%, var(--purple) 100%)");
       box("barras").innerHTML = listaUsersOrdenada.length ? `<div class="pc-barras">${listaUsersOrdenada.map(u => {
         const qtd = valorBarraUser(u);
         const on = valOnUser(u), off = valOffUser(u);
         const detTags = (!fMidia && (on > 0 || off > 0))
-          ? `<span style="display:inline-flex;gap:4px;margin-left:6px;font-size:11px;font-weight:600;vertical-align:middle">${on > 0 ? `<span style="background:#EAF2FF;color:#0B57D0;padding:1px 6px;border-radius:4px" title="${on} Online">🌐 ${on}</span>` : ""}${off > 0 ? `<span style="background:#F3E8FF;color:#6B21A8;padding:1px 6px;border-radius:4px" title="${off} Offline">📦 ${off}</span>` : ""}</span>`
+          ? `<span style="display:inline-flex;gap:4px;margin-left:6px;font-size:11px;font-weight:600;vertical-align:middle">${on > 0 ? `<span style="background:var(--blue-soft);color:var(--blue-dk);padding:1px 6px;border-radius:4px" title="${on} Online">🌐 ${on}</span>` : ""}${off > 0 ? `<span style="background:var(--purple-soft);color:var(--purple);padding:1px 6px;border-radius:4px" title="${off} Offline">📦 ${off}</span>` : ""}</span>`
           : "";
-        return `<div class="l" style="grid-template-columns:minmax(150px,auto) minmax(0,1fr) auto"><span class="nm" title="${esc(u.nome)}: ${qtd} total (${on} Online + ${off} Offline)">${esc(u.nome)}${detTags}</span><span class="b"><i style="width:${maxBarra > 0 ? (qtd / maxBarra * 100) : 0}%;background:${corBarra}"></i></span><b class="num" style="min-width:28px;${ehModoOffline ? "color:#6B21A8" : ""}">${qtd}</b></div>`;
+        return `<div class="l" style="grid-template-columns:minmax(150px,auto) minmax(0,1fr) auto"><span class="nm" title="${esc(u.nome)}: ${qtd} total (${on} Online + ${off} Offline)">${esc(u.nome)}${detTags}</span><span class="b"><i style="width:${maxBarra > 0 ? (qtd / maxBarra * 100) : 0}%;background:${corBarra}"></i></span><b class="num" style="min-width:28px;${ehModoOffline ? "color:var(--purple)" : ""}">${qtd}</b></div>`;
       }).join("")}</div>` : `<div class="pc-vazio">Nenhuma peça registrada no período/filtro selecionado.</div>`;
       box("dec").innerHTML = escopo.decisoes.length ? `<table class="pc-tbl"><thead><tr><th>Quem decidiu</th><th class="num">Aprovadas</th><th class="num">Alteração</th><th class="num">Reprovadas</th><th class="num">Total</th></tr></thead><tbody>
         ${escopo.decisoes.map(c => `<tr><td>${esc(c.nome)}</td><td class="num">${c.aprovada}</td><td class="num">${c.alteracao_solicitada}</td><td class="num">${c.reprovada}</td><td class="num"><b>${c.total}</b></td></tr>`).join("")}</tbody></table>` : `<div class="pc-vazio">Sem decisões no período/filtro selecionado.</div>`;
       box("env").innerHTML = escopo.enviadas.length ? `<table class="pc-tbl"><thead><tr><th>Usuário</th><th class="num">Total produzido (On + Off)</th><th class="num">🌐 Online</th><th class="num">📦 Offline</th><th class="num">Peças aprovadas</th><th class="num">Versões enviadas</th></tr></thead><tbody>
-        ${escopo.enviadas.map(u => `<tr><td><b>${esc(u.nome)}</b></td><td class="num"><b>${u.pecas || 0}</b></td><td class="num" style="color:#0B57D0">${u.pecasOnline || 0}</td><td class="num" style="color:#6B21A8">${u.pecasOffline || 0}</td><td class="num"><b>${u.aprovadas || 0}</b>${(u.aprovadasOnline || u.aprovadasOffline) ? ` <span class="pc-sub" style="font-size:11px">(${u.aprovadasOnline || 0} on · ${u.aprovadasOffline || 0} off)</span>` : ""}</td><td class="num">${u.versoes || 0}</td></tr>`).join("")}
-        <tr><td><b>Total</b></td><td class="num"><b>${t.pecas || 0}</b></td><td class="num" style="color:#0B57D0"><b>${t.pecasOnline || 0}</b></td><td class="num" style="color:#6B21A8"><b>${t.pecasOffline || 0}</b></td><td class="num"><b>${t.aprovada || 0}</b></td><td class="num"><b>${t.versoes || 0}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
+        ${escopo.enviadas.map(u => `<tr><td><b>${esc(u.nome)}</b></td><td class="num"><b>${u.pecas || 0}</b></td><td class="num" style="color:var(--blue-dk)">${u.pecasOnline || 0}</td><td class="num" style="color:var(--purple)">${u.pecasOffline || 0}</td><td class="num"><b>${u.aprovadas || 0}</b>${(u.aprovadasOnline || u.aprovadasOffline) ? ` <span class="pc-sub" style="font-size:11px">(${u.aprovadasOnline || 0} on · ${u.aprovadasOffline || 0} off)</span>` : ""}</td><td class="num">${u.versoes || 0}</td></tr>`).join("")}
+        <tr><td><b>Total</b></td><td class="num"><b>${t.pecas || 0}</b></td><td class="num" style="color:var(--blue-dk)"><b>${t.pecasOnline || 0}</b></td><td class="num" style="color:var(--purple)"><b>${t.pecasOffline || 0}</b></td><td class="num"><b>${t.aprovada || 0}</b></td><td class="num"><b>${t.versoes || 0}</b></td></tr></tbody></table>` : `<div class="pc-vazio">Sem envios no período/filtro selecionado.</div>`;
     }
     const obterParamsPeriodoDash = () => {
       const per = qx("f-per")?.value || "mes";

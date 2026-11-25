@@ -13,7 +13,7 @@
     st.textContent = `
       .fin-h{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.fin-h h2{margin:0}.fin-h .sp{flex:1}
       .fin-sub{font-size:12.5px;color:var(--ink2)}
-      .fin-nota{background:#EEF4FF;border:1px solid #CFE0FF;color:#1D4F91;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:14px}
+      .fin-nota{background:var(--blue-soft);border:1px solid var(--blue-bd);color:var(--blue-dk);border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:14px}
       .fin-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
       .fin-filtros label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink2)}
       .fin-filtros input,.fin-filtros select{min-height:34px;padding:4px 8px;font-size:13px}
@@ -21,17 +21,17 @@
       .fin-kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
       .fin-kpi b{display:block;font:700 22px/1.1 var(--display);font-variant-numeric:tabular-nums}.fin-kpi span{font-size:12.5px;color:var(--ink2)}
       .fin-kpi em{display:block;font-style:normal;font-size:12px;color:var(--ink2);margin-top:3px}
-      .fin-kpi.pos b{color:#1B6B3A}.fin-kpi.neg b{color:#A12020}
+      .fin-kpi.pos b{color:var(--green)}.fin-kpi.neg b{color:var(--danger)}
       .fin-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:14px}
       .fin-tbl{width:100%;border-collapse:collapse;font-size:13.5px}
       .fin-tbl th{font-size:12px;color:var(--ink2);font-weight:600;text-align:left;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
       .fin-tbl td{padding:7px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
       .fin-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-      .fin-tbl tfoot td{font-weight:700;background:#FAFBFD}
+      .fin-tbl tfoot td{font-weight:700;background:var(--surface)}
       .fin-tbl .acts{white-space:nowrap;text-align:right}.fin-tbl .acts .btn{padding:3px 8px;font-size:12.5px;min-height:0;margin-left:3px}
-      .fin-tbl tr.cancelado td{color:#9AA3AE;text-decoration:line-through}.fin-tbl tr.prev td{color:#5A6B85;font-style:italic}
+      .fin-tbl tr.cancelado td{color:var(--ink2);opacity:.65;text-decoration:line-through}.fin-tbl tr.prev td{color:var(--ink2);font-style:italic}
       .st{font-size:12px;padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:600}
-      .st.aberto{background:#E5EFFC;color:#1D4F91}.st.pago{background:#E6F6EC;color:#1B6B3A}.st.atrasado{background:#FDE8E8;color:#A12020}.st.cancelado{background:#EEF0F3;color:#6B7280}
+      .st.aberto{background:var(--blue-soft);color:var(--blue-dk)}.st.pago{background:var(--green-soft);color:var(--green)}.st.atrasado{background:var(--danger-soft);color:var(--danger)}.st.cancelado{background:var(--muted-bg);color:var(--ink2)}
       .fin-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
       .fin-card h3{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
       .fin-form{background:var(--card);border:1px solid var(--blue);border-radius:10px;padding:14px 16px;margin-bottom:14px}
@@ -84,7 +84,7 @@
         <td class="acts">${x.status === "aberto" ? `<button class="btn" data-a="pagar">Pagar</button>` : ""}${x.status !== "aberto" ? `<button class="btn" data-a="reabrir">Reabrir</button>` : ""}<button class="btn" data-a="editar">Editar</button>${x.status !== "cancelado" ? `<button class="btn" data-a="cancelar">Cancelar</button>` : ""}<button class="btn" data-a="excluir">Excluir</button></td></tr>`).join("")
         : `<tr><td colspan="8" class="empty">${d.lancamentos.length ? "Nenhum lançamento com esses filtros." : "Nenhum lançamento ainda."}</td></tr>`;
       const soma = s => l.filter(x => x.statusEfetivo === s).reduce((t, x) => t + x.valor, 0);
-      box("foot").innerHTML = `<tr><td colspan="8"><span style="margin-right:18px">Em aberto: ${brl(soma("aberto"))}</span><span style="margin-right:18px;color:#A12020">Atrasado: ${brl(soma("atrasado"))}</span><span style="margin-right:18px;color:#1B6B3A">Pago: ${brl(soma("pago"))}</span><span class="fin-sub">${l.length} lançamento(s)</span></td></tr>`;
+      box("foot").innerHTML = `<tr><td colspan="8"><span style="margin-right:18px">Em aberto: ${brl(soma("aberto"))}</span><span style="margin-right:18px;color:var(--danger)">Atrasado: ${brl(soma("atrasado"))}</span><span style="margin-right:18px;color:var(--green)">Pago: ${brl(soma("pago"))}</span><span class="fin-sub">${l.length} lançamento(s)</span></td></tr>`;
     }
     function form(x) {
       x = x || { vencimento: hoje(), competencia: hoje().slice(0, 7) };
@@ -169,14 +169,14 @@
     const y = v => T + (top - v) / (top - base) * (H - T - B);
     const passo = (W - L - R) / itens.length, bw = Math.max(3, Math.min(18, passo / 4));
     const x = i => L + passo * i + passo / 2;
-    let s = [0, 0.25, 0.5, 0.75, 1].map(f => { const v = base + (top - base) * f; return `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#E6E9EE"/><text x="${L - 6}" y="${y(v) + 4}" font-size="10" text-anchor="end" fill="#6B7280">${Math.round(v).toLocaleString("pt-BR")}</text>`; }).join("");
+    let s = [0, 0.25, 0.5, 0.75, 1].map(f => { const v = base + (top - base) * f; return `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" font-size="10" text-anchor="end" fill="var(--ink2)">${Math.round(v).toLocaleString("pt-BR")}</text>`; }).join("");
     itens.forEach((i, k) => {
       const z = y(0);
       if (i.ent) s += `<rect x="${x(k) - bw - 1}" y="${y(i.ent)}" width="${bw}" height="${z - y(i.ent)}" fill="#2E9E5B"><title>Entradas ${brl(i.ent)}</title></rect>`;
       if (i.sai) s += `<rect x="${x(k) + 1}" y="${y(i.sai)}" width="${bw}" height="${z - y(i.sai)}" fill="#D64545"><title>Saídas ${brl(i.sai)}</title></rect>`;
       if (i.pe) s += `<rect x="${x(k) - bw - 1}" y="${y(i.pe)}" width="${bw}" height="${z - y(i.pe)}" fill="none" stroke="#2E9E5B" stroke-dasharray="3 2"><title>Entradas previstas ${brl(i.pe)}</title></rect>`;
       if (i.ps) s += `<rect x="${x(k) + 1}" y="${y(i.ps)}" width="${bw}" height="${z - y(i.ps)}" fill="none" stroke="#D64545" stroke-dasharray="3 2"><title>Saídas previstas ${brl(i.ps)}</title></rect>`;
-      if (itens.length <= 24 || k % Math.ceil(itens.length / 24) === 0) s += `<text x="${x(k)}" y="${H - 10}" font-size="10" text-anchor="middle" fill="#6B7280">${esc(i.rot)}</text>`;
+      if (itens.length <= 24 || k % Math.ceil(itens.length / 24) === 0) s += `<text x="${x(k)}" y="${H - 10}" font-size="10" text-anchor="middle" fill="var(--ink2)">${esc(i.rot)}</text>`;
     });
     const linha = (k, cor, tr) => { const p = itens.map((i, n) => (i[k] == null ? null : `${x(n)},${y(i[k])}`)).filter(Boolean); return p.length ? `<polyline fill="none" stroke="${cor}" stroke-width="2.5"${tr ? ` stroke-dasharray="6 4"` : ""} points="${p.join(" ")}"/>` : ""; };
     s += linha("prev", "#7AA7FF", true) + linha("saldo", "#0660FF", false);
@@ -216,7 +216,7 @@
       box("rows").innerHTML = d.buckets.length ? d.buckets.map(b => `<tr><td>${rot(b.chave)}</td><td class="num">${brl(b.entradas)}</td><td class="num">${brl(b.saidas)}</td><td class="num"><b>${brl(b.saldo)}</b></td>
         <td class="num">${brl(b.prevEntradas)}</td><td class="num">${brl(b.prevSaidas)}</td><td class="num">${brl(b.saldoPrevisto)}</td></tr>`).join("") : `<tr><td colspan="7" class="empty">Sem movimento no período.</td></tr>`;
       box("foot").innerHTML = `<tr><td>Total</td><td class="num">${brl(t.entradas)}</td><td class="num">${brl(t.saidas)}</td><td class="num">${brl(t.saldoFinal)}</td><td class="num">${brl(t.prevEntradas)}</td><td class="num">${brl(t.prevSaidas)}</td><td class="num">${brl(t.saldoFinalPrevisto)}</td></tr>`;
-      const lista = (l, prev) => l.length ? `<table class="fin-tbl"><tbody>${l.map(x => `<tr class="${prev ? "prev" : ""}"><td>${br(x.data)}</td><td>${esc(x.descricao)}${x.atrasado ? ' <span class="st atrasado">Atrasado</span>' : ""}<div class="fin-sub">${esc(x.quem)} · ${esc(x.categoria)}</div></td><td class="num" style="color:${x.tipo === "receber" ? "#1B6B3A" : "#A12020"}">${x.tipo === "receber" ? "" : "−"}${brl(x.valor)}</td></tr>`).join("")}</tbody></table>` : `<p class="fin-sub">Nada no período.</p>`;
+      const lista = (l, prev) => l.length ? `<table class="fin-tbl"><tbody>${l.map(x => `<tr class="${prev ? "prev" : ""}"><td>${br(x.data)}</td><td>${esc(x.descricao)}${x.atrasado ? ' <span class="st atrasado">Atrasado</span>' : ""}<div class="fin-sub">${esc(x.quem)} · ${esc(x.categoria)}</div></td><td class="num" style="color:${x.tipo === "receber" ? "var(--green)" : "var(--danger)"}">${x.tipo === "receber" ? "" : "−"}${brl(x.valor)}</td></tr>`).join("")}</tbody></table>` : `<p class="fin-sub">Nada no período.</p>`;
       box("real").innerHTML = lista(d.realizados, false); box("prev").innerHTML = lista(d.previstos, true);
     }
     el.addEventListener("change", ev => { if (ev.target.dataset.f) carregar(); });
@@ -278,7 +278,7 @@
       box("cli").innerHTML = barras(d.receitaPorCliente, t.receitas);
       box("lanc").innerHTML = d.lancamentos.length ? `<div style="overflow-x:auto"><table class="fin-tbl"><thead><tr><th>Comp.</th><th>Venc.</th><th>Descrição</th><th>Cliente / fornecedor</th><th>Categoria</th><th>Status</th><th class="num">Valor</th></tr></thead><tbody>
         ${d.lancamentos.map(l => `<tr><td>${mesBr(l.competencia)}</td><td>${br(l.vencimento)}</td><td>${esc(l.descricao)}</td><td>${esc(l.quem)}</td><td>${esc(l.categoria)}</td><td><span class="st ${l.status}">${STATUS[l.status]}</span></td>
-          <td class="num" style="color:${l.tipo === "receber" ? "#1B6B3A" : "#A12020"}">${l.tipo === "receber" ? "" : "−"}${brl(l.valor)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="fin-sub">Nenhum lançamento nessa competência.</p>`;
+          <td class="num" style="color:${l.tipo === "receber" ? "var(--green)" : "var(--danger)"}">${l.tipo === "receber" ? "" : "−"}${brl(l.valor)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="fin-sub">Nenhum lançamento nessa competência.</p>`;
     }
     el.addEventListener("change", ev => { if (ev.target.dataset.f === "periodo") opcoesN(); if (ev.target.dataset.f) carregar(); });
     opcoesN();

@@ -26,11 +26,11 @@
       .pol-doc{white-space:pre-wrap;line-height:1.6;max-height:60vh;overflow:auto;font-size:15px;padding-right:6px}
       .pol-pdf{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px}
       .pol-st{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-radius:10px;margin-bottom:14px;font-size:15px}
-      .pol-st.ok{background:#E6F6EC;color:#1B6B3A}.pol-st.pend{background:#FFF8E6;color:#6B4E00;border:1px solid #F2DDA4}
+      .pol-st.ok{background:var(--green-soft);color:var(--green)}.pol-st.pend{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-bd)}
       .pol-tbl{width:100%;border-collapse:collapse;font-size:14px}
       .pol-tbl th{font-size:12.5px;color:var(--ink2);font-weight:600;text-align:left;padding:8px;border-bottom:1px solid var(--line)}
       .pol-tbl td{padding:8px;border-bottom:1px solid var(--line2)}
-      .pol-tag{font-size:12px;padding:2px 8px;border-radius:20px;font-weight:600}.pol-tag.lido{background:#E6F6EC;color:#1B6B3A}.pol-tag.pendente{background:#FFF4DE;color:#8A5A00}
+      .pol-tag{font-size:12px;padding:2px 8px;border-radius:20px;font-weight:600}.pol-tag.lido{background:var(--green-soft);color:var(--green)}.pol-tag.pendente{background:var(--amber-soft);color:var(--amber)}
       .pol-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
       .pol-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink2)}.pol-grid .full{grid-column:1/-1}
       .pol-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}`;

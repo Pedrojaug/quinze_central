@@ -48,11 +48,11 @@
       .adm-tbl .acts{white-space:nowrap;text-align:right}.adm-tbl .acts .btn{padding:4px 9px;font-size:13px;min-height:0;margin-left:4px}
       .adm-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
       .st{font-size:12px;padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:600}
-      .st.vigente,.st.assinado,.st.enviado{background:#E6F6EC;color:#1B6B3A}
-      .st.vencendo,.st.pendente{background:#FFF4DE;color:#8A5A00}
-      .st.vencido,.st.erro{background:#FDE8E8;color:#A12020}
-      .st.pendente_renovacao{background:#FCE9D9;color:#97440B}
-      .st.renovado_automaticamente{background:#E5EFFC;color:#1D4F91}
+      .st.vigente,.st.assinado,.st.enviado{background:var(--green-soft);color:var(--green)}
+      .st.vencendo,.st.pendente{background:var(--amber-soft);color:var(--amber)}
+      .st.vencido,.st.erro{background:var(--danger-soft);color:var(--danger)}
+      .st.pendente_renovacao{background:var(--warn-soft);color:var(--warn)}
+      .st.renovado_automaticamente{background:var(--blue-soft);color:var(--blue-dk)}
       .adm-form{background:var(--card);border:1px solid var(--blue);border-radius:10px;padding:16px 18px;margin-bottom:16px}
       .adm-form h3{margin:0 0 12px}
       .adm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
@@ -67,9 +67,9 @@
       .adm-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:12px;text-align:center}
       .adm-dias span{padding:4px 0;border-radius:4px}.adm-dias .h{color:var(--ink2);font-weight:600}
       .adm-dias .f{background:var(--blue);color:#fff;font-weight:600}
-      .adm-ia-box{background:#F0F6FF;border:1.5px dashed var(--blue);border-radius:10px;padding:12px 16px;margin-bottom:14px;transition:background .15s}
+      .adm-ia-box{background:var(--blue-soft);border:1.5px dashed var(--blue);border-radius:10px;padding:12px 16px;margin-bottom:14px;transition:background .15s}
       .adm-ia-box.dragover{background:var(--blue-soft)}
-      .campo-ia{border-color:var(--blue)!important;background:#F0F6FF!important;box-shadow:0 0 0 2px var(--blue-soft)}
+      .campo-ia{border-color:var(--blue)!important;background:var(--blue-soft)!important;box-shadow:0 0 0 2px var(--blue-soft)}
       .adm-sub{font-size:12.5px;color:var(--ink2)}`;
     document.head.appendChild(st);
   }
@@ -406,13 +406,13 @@
           </div>
           <span class="st ${corSt}" style="font-size:12.5px;padding:4px 10px">${esc(tituloSt)}</span>
         </div>
-        <div class="adm-grid" style="background:#FAFBFD;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+        <div class="adm-grid" style="background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px">
           <div><div class="adm-sub">Código do Certificado Quinze</div><div style="font-weight:700;font-size:15px;font-family:monospace;margin-top:2px">${esc(v.codigo || "—")} <button class="btn" type="button" id="vCopyCod" style="padding:2px 8px;min-height:0;font-size:11.5px;margin-left:4px">Copiar</button></div></div>
           <div><div class="adm-sub">Assinado enviado por</div><div style="font-weight:600;margin-top:2px">${esc(a.assinadoPor?.nome || "—")} em ${brHora(a.assinadoEm)}</div></div>
           <div><div class="adm-sub">Validação realizada em</div><div style="font-weight:600;margin-top:2px">${brHora(v.validadoEm)}</div></div>
           <div class="full"><div class="adm-sub">Hash Criptográfico SHA-256 do Arquivo Assinado (${esc(a.assinadoArquivo?.nome || "")})</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
-              <code style="font-size:12px;background:#fff;padding:4px 8px;border:1px solid var(--line2);border-radius:6px;word-break:break-all">${esc(v.hashSha256 || "—")}</code>
+              <code style="font-size:12px;background:var(--input-bg);padding:4px 8px;border:1px solid var(--line2);border-radius:6px;word-break:break-all">${esc(v.hashSha256 || "—")}</code>
               <button class="btn" type="button" id="vCopyHash" style="padding:2px 8px;min-height:0;font-size:11.5px">Copiar Hash</button>
             </div>
           </div>
@@ -422,7 +422,7 @@
               : `<span style="color:var(--ok);font-weight:600">✓ Confirmado: o arquivo assinado foi modificado/assinado em relação ao original (SHA-256 original: ${esc(v.hashOriginal.slice(0, 16))}…).</span>`}</div>
           </div>` : ""}
           ${certs.length ? `<div class="full"><div class="adm-sub" style="margin-bottom:6px">Certificados Digitais X.509 extraídos do PDF (${certs.length})</div>
-            <div style="display:grid;gap:6px">${certs.map(c => `<div style="background:#fff;border:1px solid var(--line2);border-radius:6px;padding:8px 10px;font-size:12.5px">
+            <div style="display:grid;gap:6px">${certs.map(c => `<div style="background:var(--card);border:1px solid var(--line2);border-radius:6px;padding:8px 10px;font-size:12.5px">
               <div><b>Signatário / Titular:</b> ${esc(c.titular || "—")} ${c.icpBrasil ? `<span class="st assinado" style="font-size:11px;margin-left:4px">ICP-Brasil / Gov.br</span>` : ""}</div>
               <div class="adm-sub"><b>Emissor (AC):</b> ${esc(c.emissor || "—")} · <b>Serial:</b> <code>${esc(c.serial || "—")}</code></div>
               ${c.validoDe || c.validoAte ? `<div class="adm-sub"><b>Validade do certificado:</b> ${esc(c.validoDe)} até ${esc(c.validoAte)}</div>` : ""}
