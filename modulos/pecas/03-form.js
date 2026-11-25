@@ -266,8 +266,8 @@
             <textarea data-f="obs" rows="2" placeholder="${nova ? "Contexto, legenda ou orientações para quem vai aprovar" : "O que mudou nesta versão"}"></textarea>
           </label>
           ${nova ? `<div class="full"><label class="pc-sub" style="margin-bottom:6px;display:block">Quem vai aprovar? (opcional · todos os coordenadores têm direito de aprovar)</label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;max-height:150px;overflow-y:auto">
-              ${(base.usuarios || []).map(u => `<label style="display:inline-flex;gap:7px;align-items:center;padding:5px 10px 5px 6px;border:1px solid var(--line2);border-radius:999px;background:#FAFBFD;font-size:13px;font-weight:500;cursor:pointer">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--input-bg);max-height:150px;overflow-y:auto">
+              ${(base.usuarios || []).map(u => `<label style="display:inline-flex;gap:7px;align-items:center;padding:5px 10px 5px 6px;border:1px solid var(--line2);border-radius:999px;background:var(--surface);font-size:13px;font-weight:500;cursor:pointer">
                 <input type="checkbox" data-f="aprovador" value="${esc(u.login)}" style="min-height:0;width:15px;height:15px">
                 ${avatarHtml(u, "xs")}
                 <span>${esc(u.nome || u.login)}</span>

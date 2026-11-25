@@ -16,14 +16,14 @@
       .cs-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
       .cs-card h3{margin:0 0 10px;font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
       .cs-card.lock{opacity:.55}.cs-card.lock *{pointer-events:none}
-      .cs-card.ok .cs-n{background:#1B8A4B}
+      .cs-card.ok .cs-n{background:var(--green)}
       .cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
       .cs-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink2)}.cs-grid .full{grid-column:1/-1}
       .cs-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
       .st{font-size:12px;padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:600;background:var(--line2);display:inline-block}
-      .st.em_andamento,.st.media,.st.neutro{background:#FFF4DE;color:#8A5A00}
-      .st.resolvida,.st.baixa,.st.promotor{background:#E6F6EC;color:#1B6B3A}
-      .st.aberta,.st.alta,.st.detrator{background:#FDE8E8;color:#A12020}
+      .st.em_andamento,.st.media,.st.neutro{background:var(--amber-soft);color:var(--amber)}
+      .st.resolvida,.st.baixa,.st.promotor{background:var(--green-soft);color:var(--green)}
+      .st.aberta,.st.alta,.st.detrator{background:var(--danger-soft);color:var(--danger)}
       .cs-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin-bottom:14px}
       .cs-kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
       .cs-kpi b{display:block;font:700 26px/1 var(--display);font-variant-numeric:tabular-nums}.cs-kpi span{font-size:13px;color:var(--ink2)}
@@ -37,18 +37,18 @@
       .cs-fbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;align-items:end}
       .cs-fbar label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ink2);font-weight:600}
       .cs-pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
-      .cs-pbox{border:1px solid var(--line2);border-radius:8px;padding:12px;background:#FAFBFD}
+      .cs-pbox{border:1px solid var(--line2);border-radius:8px;padding:12px;background:var(--surface)}
       .cs-pbox h4{margin:0 0 8px;font-size:13.5px;line-height:1.35;color:var(--ink)}
-      .cs-bar-bg{height:8px;background:#E6E9EE;border-radius:99px;overflow:hidden;margin:6px 0}
+      .cs-bar-bg{height:8px;background:var(--line2);border-radius:99px;overflow:hidden;margin:6px 0}
       .cs-bar-fg{height:100%;background:var(--blue);border-radius:99px}
       .cs-opt-row{display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:5px}
       .cs-opt-row .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .cs-opt-row .track{width:90px;height:6px;background:#E6E9EE;border-radius:99px;overflow:hidden}
-      .cs-opt-row .fill{height:100%;background:#1F6FEB;border-radius:99px}
-      .cs-resp-item{border:1px solid var(--line2);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#fff}
+      .cs-opt-row .track{width:90px;height:6px;background:var(--line2);border-radius:99px;overflow:hidden}
+      .cs-opt-row .fill{height:100%;background:var(--blue);border-radius:99px}
+      .cs-resp-item{border:1px solid var(--line2);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:var(--card)}
       .cs-resp-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
       .cs-resp-qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line2);font-size:13px}
-      .cs-resp-qa div{background:#F8FAFC;padding:6px 8px;border-radius:6px;border:1px solid var(--line2)}
+      .cs-resp-qa div{background:var(--surface-2);padding:6px 8px;border-radius:6px;border:1px solid var(--line2)}
       .cs-resp-qa small{display:block;color:var(--ink2);font-size:11.5px;margin-bottom:2px}`;
     document.head.appendChild(st);
   }
@@ -115,9 +115,9 @@
         <div class="cs-kpi"><b>${num1(t.nps)}</b><span>Score NPS (−100 a 100)</span></div>
         <div class="cs-kpi"><b>${num1(t.media)}</b><span>Média Recomendação (0–10)</span></div>
         <div class="cs-kpi"><b>${num1(t.mediaServicos)}</b><span>Nota Serviços (0–10)</span></div>
-        <div class="cs-kpi"><b style="color:#1B6B3A">${t.promotores}</b><span>Promotores (9–10)</span></div>
-        <div class="cs-kpi"><b style="color:#8A5A00">${t.neutros}</b><span>Neutros (7–8)</span></div>
-        <div class="cs-kpi"><b style="color:#A12020">${t.detratores}</b><span>Detratores (0–6)</span></div>`;
+        <div class="cs-kpi"><b style="color:var(--green)">${t.promotores}</b><span>Promotores (9–10)</span></div>
+        <div class="cs-kpi"><b style="color:var(--amber)">${t.neutros}</b><span>Neutros (7–8)</span></div>
+        <div class="cs-kpi"><b style="color:var(--danger)">${t.detratores}</b><span>Detratores (0–6)</span></div>`;
 
       renderPerguntas(dados.porPergunta || []);
       renderPorCliente(dados.porCliente || [], f.cliente);
@@ -217,7 +217,7 @@
               <button class="btn" type="button" data-delresp="${esc(r.id)}" title="Excluir resposta" style="padding:3px 8px;font-size:12px">✕</button>
             </div>
           </div>
-          ${r.comentario ? `<div style="margin-top:8px;font-size:13.5px;background:#FFFDF5;border-left:3px solid #E0A100;padding:6px 10px;border-radius:4px"><b>Sugestão / Comentário:</b> ${esc(r.comentario)}</div>` : ""}
+          ${r.comentario ? `<div style="margin-top:8px;font-size:13.5px;background:var(--amber-soft);border-left:3px solid var(--amber-bd);padding:6px 10px;border-radius:4px"><b>Sugestão / Comentário:</b> ${esc(r.comentario)}</div>` : ""}
           ${det.length ? `<details style="margin-top:8px"><summary class="cs-sub" style="cursor:pointer;font-weight:600;color:var(--blue)">Ver todas as respostas do formulário (${det.length} itens)</summary>
             <div class="cs-resp-qa">${det.map(d => `<div><small>${esc(d.pergunta)}</small><b>${esc(d.valor)}</b></div>`).join("")}</div>
           </details>` : ""}
@@ -312,7 +312,7 @@
               <label>Coluna de Atendimento (opcional)<select id="impColAtend"></select></label>
               <label id="impMesPadraoBox" style="display:none">Mês padrão (quando não há data)<input type="month" id="impMesPadrao" value="${mesAtual()}"></label>
             </div>
-            <div id="impExtras" class="cs-sub" style="margin-top:10px;background:#F8FAFC;border:1px solid var(--border);padding:8px 10px;border-radius:6px"></div>
+            <div id="impExtras" class="cs-sub" style="margin-top:10px;background:var(--surface-2);border:1px solid var(--line);padding:8px 10px;border-radius:6px"></div>
             <div class="cs-bar" style="margin-top:12px">
               <button class="btn primary" type="button" id="impOk">Confirmar e importar respostas</button>
               <span class="cs-sub" id="impMsg2"></span>
@@ -488,10 +488,10 @@
       const x = i => L + (meses.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (meses.length - 1));
       const y = v => T + (100 - v) / 200 * (H - T - B);
       const yM = v => T + (10 - v) / 10 * (H - T - B);
-      const grade = [-100, -50, 0, 50, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#E6E9EE"/><text x="${L - 6}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="#6B7280">${v}</text>`).join("");
+      const grade = [-100, -50, 0, 50, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="var(--ink2)">${v}</text>`).join("");
       const linha = (fn, k, cor) => `<polyline fill="none" stroke="${cor}" stroke-width="2.5" points="${meses.map((m, i) => `${x(i)},${fn(m[k] ?? 0)}`).join(" ")}"/>` + meses.map((m, i) => `<circle cx="${x(i)}" cy="${fn(m[k] ?? 0)}" r="4" fill="${cor}"><title>${mesBr(m.chave)}: ${k === "nps" ? "NPS " + num1(m.nps) : "média " + num1(m.media)} (${m.n} resp.)</title></circle>`).join("");
       $("#mChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="NPS por mês">${grade}${linha(y, "nps", "#1F6FEB")}${linha(yM, "media", "#E0A100")}
-        ${meses.map((m, i) => `<text x="${x(i)}" y="${H - 12}" font-size="11" text-anchor="middle" fill="#6B7280">${mesBr(m.chave)}</text>`).join("")}</svg>
+        ${meses.map((m, i) => `<text x="${x(i)}" y="${H - 12}" font-size="11" text-anchor="middle" fill="var(--ink2)">${mesBr(m.chave)}</text>`).join("")}</svg>
         <div class="cs-sub"><span style="color:#1F6FEB">●</span> NPS (escala −100 a 100) &nbsp; <span style="color:#E0A100">●</span> Nota média (escala 0 a 10)</div>`;
     }
 

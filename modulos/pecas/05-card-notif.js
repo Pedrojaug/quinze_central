@@ -18,7 +18,7 @@
         })
         .map(m => `<span class="pc-tag-mencao${(m.login || m) === meuLogin ? " eu" : ""}">@${esc(resolverInfoUsuario(m).nome)}</span>`)
         .join(" ");
-      return `<li style="${mencionouEu ? "background:#FFFBEB;padding:7px 9px;border-radius:6px;border-left:3px solid #F59E0B" : ""}">
+      return `<li style="${mencionouEu ? "background:var(--amber-soft);padding:7px 9px;border-radius:6px;border-left:3px solid var(--amber-bd)" : ""}">
         <div class="pc-hist-item">
           ${avatarHtml(autorInfo, "md")}
           <div class="pc-hist-body">
@@ -48,7 +48,7 @@
           : "🔔 <b>Você foi marcado neste material</b> por";
     const bannerMencao = mencoesNaoLidas.length ? `<div class="pc-card-mencao-banner">
       <span>${rotuloBannerCard} ${esc(mencoesNaoLidas.map(m => resolverInfoUsuario(m.por).nome).filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>
-      <button class="btn small" type="button" data-marcar-mencao-lida="${esc(p.id)}" style="background:#fff;border-color:#F59E0B;color:#92400E;padding:2px 9px;min-height:0">✓ Marcar como visto</button>
+      <button class="btn small" type="button" data-marcar-mencao-lida="${esc(p.id)}" style="background:var(--card);border-color:var(--amber-bd);color:var(--amber);padding:2px 9px;min-height:0">✓ Marcar como visto</button>
     </div>` : "";
     const boxComentario = podeComentar ? `<div class="pc-coment-area" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)">
       <details style="font-size:13px" data-coment-wrap="${esc(p.id)}"${mencoesNaoLidas.length ? " open" : ""}>
@@ -208,14 +208,14 @@
     if (!itens.length) return "";
     itens.sort((a, b) => (b.hist.em || "").localeCompare(a.hist.em || ""));
     const permNav = ("Notification" in window && Notification.permission === "default")
-      ? `<button class="btn small" type="button" data-x="ativar-notif-nav" style="background:#fff;border-color:#F59E0B;color:#92400E">🔔 Ativar alertas do navegador</button>`
+      ? `<button class="btn small" type="button" data-x="ativar-notif-nav" style="background:var(--card);border-color:var(--amber-bd);color:var(--amber)">🔔 Ativar alertas do navegador</button>`
       : "";
     return `<div class="pc-notif-panel">
       <div class="pc-notif-head">
         <b>🔔 Você tem ${itens.length} notificação${itens.length === 1 ? "" : "ões"} pendente${itens.length === 1 ? "" : "s"} (pedidos de alteração, comentários ou menções)</b>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           ${permNav}
-          <button class="btn small" type="button" data-x="ler-todas-mencoes" style="background:#fff;border-color:#F59E0B;color:#92400E">✓ Marcar todas como vistas</button>
+          <button class="btn small" type="button" data-x="ler-todas-mencoes" style="background:var(--card);border-color:var(--amber-bd);color:var(--amber)">✓ Marcar todas como vistas</button>
         </div>
       </div>
       <div class="pc-notif-list">

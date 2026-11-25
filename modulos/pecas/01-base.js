@@ -180,7 +180,7 @@
         <span style="font-size:12px;color:var(--ink2);font-weight:600;min-width:44px;text-align:center">${idx + 1} / ${lista.length}</span>
         <button class="btn small" type="button" id="qzNextMidiaPecas" title="Próxima imagem (→)">▶</button>
       </div>` : "";
-      dlg.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:#FAFBFD;flex-wrap:wrap">
+      dlg.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface);flex-wrap:wrap">
           <b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:140px">${esc(atual.titulo || "Visualização do material")}</b>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap">
             ${navHtml}

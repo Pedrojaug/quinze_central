@@ -279,7 +279,7 @@
   function avatarHtml(ref, tamanho = "md") {
     const { login, nome, avatar } = resolverInfoUsuario(ref);
     if (avatar && /^data:image\//.test(avatar)) {
-      return `<span class="pc-av ${tamanho}" title="${esc(nome)}" style="background:#E2E8F0"><img src="${esc(avatar)}" alt="${esc(nome)}"></span>`;
+      return `<span class="pc-av ${tamanho}" title="${esc(nome)}" style="background:var(--muted-bg)"><img src="${esc(avatar)}" alt="${esc(nome)}"></span>`;
     }
     const [c1, c2] = corParDe(login || nome);
     return `<span class="pc-av ${tamanho}" title="${esc(nome)}" style="background:linear-gradient(135deg,${c1} 0%,${c2} 100%)">${esc(iniciaisDe(nome, login))}</span>`;
@@ -487,15 +487,15 @@
   function rotuloEventoNotificacao(p, h) {
     const souRem = !!(p?.minha || p?.remetente?.login === base?.login);
     if (h.tipo === "alteracao_solicitada") {
-      return { icone: "🛠️", badge: "Alteração solicitada", cor: "#1D4F91", bg: "#E5EFFC", verbo: souRem ? "pediu alteração na sua peça" : "pediu alteração e marcou você em" };
+      return { icone: "🛠️", badge: "Alteração solicitada", cor: "var(--blue-dk)", bg: "var(--blue-soft)", verbo: souRem ? "pediu alteração na sua peça" : "pediu alteração e marcou você em" };
     }
     if (h.tipo === "reprovada") {
-      return { icone: "❌", badge: "Peça reprovada", cor: "#A12020", bg: "#FDE8E8", verbo: souRem ? "reprovou sua peça" : "reprovou e marcou você em" };
+      return { icone: "❌", badge: "Peça reprovada", cor: "var(--danger)", bg: "var(--danger-soft)", verbo: souRem ? "reprovou sua peça" : "reprovou e marcou você em" };
     }
     const ms = Array.isArray(h.mencoes) ? h.mencoes : [];
     const marcouExplicito = (h.comentario || "").includes("@") && ms.some(m => (m.login || m) === base?.login);
     if (souRem && !marcouExplicito) {
-      return { icone: "💬", badge: "Novo comentário", cor: "#0B57D0", bg: "#EAF2FF", verbo: "comentou na sua peça" };
+      return { icone: "💬", badge: "Novo comentário", cor: "var(--blue-dk)", bg: "var(--blue-soft)", verbo: "comentou na sua peça" };
     }
-    return { icone: "🔔", badge: "Menção (@)", cor: "#92400E", bg: "#FEF3C7", verbo: "mencionou você em" };
+    return { icone: "🔔", badge: "Menção (@)", cor: "var(--amber)", bg: "var(--amber-soft)", verbo: "mencionou você em" };
   }
