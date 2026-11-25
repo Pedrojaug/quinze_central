@@ -153,8 +153,9 @@
     const ps = agPeople();
     el.innerHTML = `<button type="button" data-agf="" aria-pressed="${!agFilter}">Todos</button>` + ps.map(n => `<button type="button" data-agf="${esc(n)}" aria-pressed="${agFilter === n}"><i style="background:${agColor(n)}"></i>${esc(n)}${agFeeds[n] ? " ⟳" : ""}</button>`).join("");
     const nf = Object.values(agFeeds).filter(Boolean).length;
-    $("#agNote").textContent = IS_SITE ? (nf ? `${nf} agenda${nf>1?"s":""} externa${nf>1?"s":""} conectada${nf>1?"s":""} (⟳). Reuniões delas só podem ser editadas na agenda de origem.` : "Conecte a agenda de cada atendimento em “Agendas externas” para trazer as reuniões de lá.")
-      : "As agendas externas (Google, Outlook e outras) aparecem na versão do site da Quinze. Aqui ficam as reuniões lançadas no app.";
+    $("#agNote").textContent = nf
+      ? `${nf} agenda${nf>1?"s":""} externa${nf>1?"s":""} conectada${nf>1?"s":""} (⟳). Reuniões delas só podem ser editadas na agenda de origem.`
+      : "Conecte a agenda de cada atendimento em “Agendas externas” para trazer as reuniões de lá.";
     const dl = $("#agClientes"); if (dl) dl.innerHTML = [...new Set(clients.map(c => c.nome))].map(n => `<option value="${esc(n)}">`).join("");
   }
   function syncAgSlotBounds(events){
@@ -308,7 +309,7 @@
     if (!db) { toast("Sem conexão com o banco de dados."); return; }
     const ps = [...new Set([...people("atendimentos","atendimento"), ...Object.keys(agFeeds)])];
     $("#feedRows").innerHTML = ps.map(n => `<div><label class="f" for="feed_${esc(n)}">${esc(n)}</label><input id="feed_${esc(n)}" data-feed="${esc(n)}" value="${esc(agFeeds[n] || "")}" placeholder="https://… .ics"></div>`).join("") || `<p class="muted">Cadastre os atendimentos em “Equipe e ajustes” primeiro.</p>`;
-    $("#feedNote").textContent = IS_SITE ? "As reuniões das agendas externas aparecem na Agenda e são atualizadas sempre que a página carrega." : "Na versão do Claude as agendas externas não aparecem; os links ficam salvos e passam a funcionar no site da Quinze.";
+    $("#feedNote").textContent = "As reuniões das agendas externas aparecem na Agenda e são atualizadas sempre que a página carrega.";
     $("#dlgFeeds").showModal();
   });
   $("#feedCancel").addEventListener("click", () => $("#dlgFeeds").close());

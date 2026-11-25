@@ -718,7 +718,7 @@ const gestao = fn => (u, req, res) => (ehGestao(u) ? fn(u, req, res) : res.statu
 export const rotas = Object.fromEntries(Object.entries({
   contratos, "contrato.salvar": contratoSalvar, "contrato.excluir": contratoExcluir, "contrato.arquivo": contratoArquivo,
   "contrato.reajustar": contratoReajustar, "contrato.renovar": contratoRenovar, igpm,
-  "contratos.importar": contratosImportar, "contrato.conferir": contratoConferir, "contrato.lerIA": contratoLerIA, "contrato.ler_ia": contratoLerIA,
+  "contratos.importar": contratosImportar, "contrato.conferir": contratoConferir, "contrato.lerIA": contratoLerIA,
   assinaturas, "assinatura.salvar": assinaturaSalvar, "assinatura.assinado": assinaturaAssinado,
   "assinatura.arquivo": assinaturaArquivo, "assinatura.excluir": assinaturaExcluir, "assinatura.validar": assinaturaValidar,
   "assinatura.drive": assinaturaDrive, "assinatura.drive_lote": assinaturaDriveLote,

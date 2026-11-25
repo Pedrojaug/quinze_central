@@ -1,4 +1,4 @@
-// 04 CS / Sucesso do Cliente: NPS Pesquisa, NPS Média e Reclamações (todos os perfis).
+// 04 CS / Sucesso do Cliente: NPS Média e Reclamações (todos os perfis).
 // Tudo pela rota /api/m?r=cs/... (a IA roda no servidor; a chave nunca chega aqui).
 (function () {
   if (window.__qzCs) return; window.__qzCs = true;
@@ -22,25 +22,16 @@
     st.textContent = `
       .cs-h{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.cs-h h2{margin:0}.cs-h .sp{flex:1}
       .cs-sub{font-size:12.5px;color:var(--ink2)}
-      .cs-lay{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;align-items:start}
-      @media(max-width:860px){.cs-lay{grid-template-columns:1fr}}
-      .cs-list{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-      .cs-it{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line2);background:none;padding:10px 12px;cursor:pointer;font:inherit}
-      .cs-it:hover{background:#F6F8FB}.cs-it.on{background:var(--blue-soft)}.cs-it b{display:block;font-size:14px}
       .cs-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
       .cs-card h3{margin:0 0 10px;font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
       .cs-card.lock{opacity:.55}.cs-card.lock *{pointer-events:none}
-      .cs-n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px}
       .cs-card.ok .cs-n{background:#1B8A4B}
       .cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
       .cs-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink2)}.cs-grid .full{grid-column:1/-1}
       .cs-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
-      .cs-q{display:grid;grid-template-columns:145px minmax(0,1fr) auto;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line2)}
-      .cs-q textarea{min-height:38px}.cs-q .op{grid-column:2/3}
       .st{font-size:12px;padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:600;background:var(--line2);display:inline-block}
-      .st.perguntas_em_aprovacao,.st.em_andamento,.st.media,.st.neutro{background:#FFF4DE;color:#8A5A00}
-      .st.aprovada,.st.formulario_gerado{background:#E5EFFC;color:#1D4F91}
-      .st.enviada,.st.resolvida,.st.baixa,.st.promotor{background:#E6F6EC;color:#1B6B3A}
+      .st.em_andamento,.st.media,.st.neutro{background:#FFF4DE;color:#8A5A00}
+      .st.resolvida,.st.baixa,.st.promotor{background:#E6F6EC;color:#1B6B3A}
       .st.aberta,.st.alta,.st.detrator{background:#FDE8E8;color:#A12020}
       .cs-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin-bottom:14px}
       .cs-kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
@@ -50,7 +41,6 @@
       .cs-tbl td{padding:8px;border-bottom:1px solid var(--line2);vertical-align:top}.cs-tbl .num{text-align:right;font-variant-numeric:tabular-nums}
       .cs-tbl .acts{text-align:right;white-space:nowrap}.cs-tbl .acts .btn{padding:4px 9px;font-size:13px;min-height:0;margin-left:4px}
       .cs-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
-      .cs-msg{width:100%;min-height:170px;font:inherit;white-space:pre-wrap}
       .cs-pontos{margin:0;padding-left:20px}.cs-pontos li{margin-bottom:8px}
       .cs-chart svg{width:100%;height:220px;display:block}
       .cs-fbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;align-items:end}
@@ -70,195 +60,6 @@
       .cs-resp-qa div{background:#F8FAFC;padding:6px 8px;border-radius:6px;border:1px solid var(--line2)}
       .cs-resp-qa small{display:block;color:var(--ink2);font-size:11.5px;margin-bottom:2px}`;
     document.head.appendChild(st);
-  }
-
-  // ======================================================================
-  // NPS PESQUISA
-  // ======================================================================
-  const ST_P = { rascunho: "Rascunho", perguntas_em_aprovacao: "Perguntas em aprovação", aprovada: "Aprovada", formulario_gerado: "Formulário pronto", enviada: "Enviada" };
-  const TIPOS_Q = { nps: "NPS / Nota (0 a 10)", escala: "Escala (1 a 5)", multipla: "Múltipla escolha", aberta: "Aberta / Texto" };
-
-  function nps(ctx) {
-    const el = ctx.el; let base = null, sel = null, novo = false, vincularForm = false;
-    el.innerHTML = `<div class="cs-h"><div><h2>NPS Pesquisa</h2><div class="cs-sub">Gerencie a pesquisa oficial do Google Forms ou crie/vincule novas pesquisas de satisfação.</div></div><span class="sp"></span>
-      <button class="btn" type="button" id="nVincular">🔗 Vincular Google Forms</button>
-      <button class="btn primary" type="button" id="nNova">Nova pesquisa</button></div>
-      <div class="cs-lay"><div class="cs-list" id="nLista"></div><div id="nEd"></div></div>`;
-    const $ = s => el.querySelector(s);
-    const etapa = s => base.status.indexOf(s);
-    async function carregar(manter) {
-      try { base = await api("inicio"); } catch (e) { $("#nEd").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
-      if (!manter) sel = (sel && base.pesquisas.find(p => p.id === sel.id)) || base.pesquisas[0] || null;
-      else if (sel) sel = base.pesquisas.find(p => p.id === sel.id) || sel;
-      lista(); editor();
-    }
-    function lista() {
-      $("#nLista").innerHTML = base.pesquisas.length ? base.pesquisas.map(p => `<button type="button" class="cs-it${!novo && !vincularForm && sel && sel.id === p.id ? " on" : ""}" data-id="${esc(p.id)}">
-        <b>${esc(p.titulo || p.clienteNome || "Pesquisa Geral")}</b>
-        <span class="cs-sub">${esc(p.clienteNome || "Todos os clientes")} · ${mesBr(p.mes)}</span>
-        <div style="margin-top:4px"><span class="st ${p.status}">${ST_P[p.status] || p.status}</span>${p.perguntas?.length ? ` <span class="cs-sub">(${p.perguntas.length} perg.)</span>` : ""}</div></button>`).join("")
-        : `<div class="empty" style="padding:14px">Nenhuma pesquisa ainda.</div>`;
-    }
-    function passo(n, titulo, feito, travado, corpo) {
-      return `<div class="cs-card${feito ? " ok" : ""}${travado ? " lock" : ""}"><h3><span class="cs-n">${feito ? "✓" : n}</span>${titulo}</h3>${corpo}</div>`;
-    }
-    function editor() {
-      if (vincularForm) {
-        const cli = base.clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join("");
-        $("#nEd").innerHTML = `<div class="cs-card" style="border-color:var(--blue)">
-          <h3>🔗 Vincular formulário do Google Forms (atual ou futuro)</h3>
-          <p class="cs-sub" style="margin-top:0">Cole o link público do Google Forms (<code>docs.google.com/forms/.../viewform</code> ou <code>forms.gle/...</code>). O sistema lê automaticamente o título, todas as perguntas, escalas e opções para usar nas análises e mensagens de WhatsApp.</p>
-          <div class="cs-grid">
-            <label class="full">Link do formulário no Google Forms *<input id="vfLink" placeholder="https://docs.google.com/forms/d/e/.../viewform"></label>
-            <label class="full">Link da Planilha de Respostas no Google Sheets (opcional — permite sincronizar respostas com 1 clique)<input id="vfPlan" placeholder="https://docs.google.com/spreadsheets/d/.../edit"></label>
-            <label>Título (opcional — lido do Forms se vazio)<input id="vfTit" placeholder="Ex.: NPS Quinze — 2º Trimestre"></label>
-            <label>Mês de referência<input id="vfMes" type="month" value="${mesAtual()}"></label>
-            <label>Escopo / Cliente<select id="vfCli"><option value="">Todos os clientes (Pesquisa Geral)</option>${cli}</select></label>
-          </div>
-          <div class="cs-bar">
-            <button class="btn primary" type="button" data-a="importar_form">Importar formulário e perguntas</button>
-            <button class="btn" type="button" data-a="cancelar_vf">Cancelar</button>
-            <span class="cs-sub" id="mVf"></span>
-          </div>
-        </div>`;
-        return;
-      }
-      if (!sel && !novo) { $("#nEd").innerHTML = `<div class="cs-card"><p class="cs-sub" style="margin:0">Escolha uma pesquisa na lista ao lado, clique em “🔗 Vincular Google Forms” ou em “Nova pesquisa”.</p></div>`; return; }
-      const p = sel || { status: "rascunho", mes: mesAtual(), perguntas: [] };
-      const e = etapa(p.status);
-      const cli = base.clientes.map(c => `<option value="${esc(c.id)}"${c.id === p.clienteId ? " selected" : ""}>${esc(c.nome)}</option>`).join("");
-      const bloq1 = e > etapa("perguntas_em_aprovacao");
-      let html = passo(1, "Identificação, tom de voz e objetivo", !!p.id, false, `<div class="cs-grid">
-        <label class="full">Título da pesquisa<input id="pTit" placeholder="Ex.: NPS Quinze — Pesquisa de Satisfação" value="${esc(p.titulo || "")}"${bloq1 ? " disabled" : ""}></label>
-        <label>Cliente / Escopo<select id="pCli"${bloq1 ? " disabled" : ""}><option value="">Todos os clientes (Pesquisa Geral)</option>${cli}</select></label>
-        <label>Mês de referência<input id="pMes" type="month" value="${esc(p.mes || "")}"${bloq1 ? " disabled" : ""}></label>
-        <label class="full">Tom de voz da pesquisa<textarea id="pTom" rows="2" placeholder="Ex.: próximo, leve e direto"${bloq1 ? " disabled" : ""}>${esc(p.tom || "")}</textarea></label>
-        <label class="full">O que o levantamento do mês quer descobrir (pode colar texto)<textarea id="pObj" rows="3"${bloq1 ? " disabled" : ""}>${esc(p.objetivo || "")}</textarea></label></div>
-        ${bloq1 ? `<div class="cs-bar"><span class="cs-sub">Pesquisa configurada e aprovada.</span><span style="flex:1"></span>${p.id && p.id !== "form_nps_quinze_oficial" ? `<button class="btn" type="button" data-a="excluir">Excluir pesquisa</button>` : ""}<span class="cs-sub" id="m1"></span></div>` : `<div class="cs-bar"><button class="btn primary" type="button" data-a="salvar">${p.id ? "Salvar alterações" : "Salvar e seguir"}</button>
-        ${p.id && p.id !== "form_nps_quinze_oficial" ? `<span style="flex:1"></span><button class="btn" type="button" data-a="excluir">Excluir pesquisa</button>` : ""}<span class="cs-sub" id="m1"></span></div>`}`);
-      if (p.id) {
-        html += passo(2, "Briefing e estrutura de perguntas", e >= etapa("perguntas_em_aprovacao"), bloq1, `
-          ${p.briefing ? `<label class="cs-sub" style="display:block">Briefing${p.origemPerguntas === "ia" ? " (gerado por IA)" : ""}<textarea id="pBrief" rows="3" style="width:100%"${bloq1 ? " disabled" : ""}>${esc(p.briefing)}</textarea></label>` : `<p class="cs-sub" style="margin-top:0">A IA monta um briefing curto e propõe até ${base.maxPerguntas} perguntas (a NPS de 0 a 10 é obrigatória), ou você pode usar o modelo padrão da Quinze.</p>`}
-          ${bloq1 ? "" : `${base.ia ? "" : `<div class="note warn">A IA ainda não está ligada (falta a chave OPENAI_API_KEY na Vercel). Use as perguntas-modelo ou vincule um Google Forms.</div>`}
-          <div class="cs-bar"><button class="btn primary" type="button" data-a="ia"${base.ia ? "" : " disabled"}>${p.briefing ? "Gerar de novo com IA" : "Gerar briefing com IA"}</button>
-          <button class="btn" type="button" data-a="modelo">Usar perguntas-modelo da Quinze</button><span class="cs-sub" id="m2"></span></div>`}`);
-        html += passo(3, `Perguntas da pesquisa (${(p.perguntas || []).length})`, e >= etapa("aprovada"), e < etapa("perguntas_em_aprovacao"), e < etapa("perguntas_em_aprovacao") ? `<p class="cs-sub">Gere o briefing ou carregue o modelo primeiro.</p>` : `
-          <div id="pQs">${(p.perguntas || []).map((q, i) => `<div class="cs-q" data-i="${i}" data-escmax="${esc(q.escalaMax || "")}">
-            <select data-k="tipo"${bloq1 ? " disabled" : ""}>${Object.entries(TIPOS_Q).map(([k, v]) => `<option value="${k}"${k === q.tipo ? " selected" : ""}>${v}</option>`).join("")}</select>
-            <textarea data-k="texto" rows="1"${bloq1 ? " disabled" : ""}>${esc(q.texto)}</textarea>
-            ${bloq1 ? "<span></span>" : `<button class="btn" type="button" data-a="rmq" title="Remover">✕</button>`}
-            ${q.tipo === "multipla" ? `<input class="op" data-k="opcoes" placeholder="Opções separadas por ;" value="${esc((q.opcoes || []).join("; "))}"${bloq1 ? " disabled" : ""}>` : ""}</div>`).join("")}</div>
-          ${bloq1 ? `<p class="cs-sub">Perguntas aprovadas${p.aprovadoPor?.nome ? ` por ${esc(p.aprovadoPor.nome)}` : ""}${p.aprovadoEm ? ` em ${brHora(p.aprovadoEm)}` : ""}.</p>` : `<div class="cs-bar"><button class="btn" type="button" data-a="addq"${(p.perguntas || []).length >= base.maxPerguntas ? " disabled" : ""}>+ Pergunta</button>
-          <button class="btn" type="button" data-a="salvarq">Salvar alterações</button><button class="btn primary" type="button" data-a="aprovar">Aprovar perguntas</button><span class="cs-sub" id="m3"></span></div>`}`);
-        html += passo(4, "Formulário Google Forms e Planilha de Respostas", e >= etapa("formulario_gerado"), e < etapa("aprovada"), e < etapa("aprovada") ? `<p class="cs-sub">Aprove as perguntas para seguir.</p>` : `
-          ${p.formularioUrl ? `<div class="cs-bar" style="margin-top:0;margin-bottom:10px">
-            <a class="btn primary" href="${esc(p.formularioUrl)}" target="_blank" rel="noopener">Abrir formulário (link de resposta) ↗</a>
-            ${p.formularioEdicao ? `<a class="btn" href="${esc(p.formularioEdicao)}" target="_blank" rel="noopener">Editar no Google Forms</a>` : ""}
-            <button class="btn" type="button" data-a="reler_form" title="Reler perguntas diretamente do link do Google Forms">🔄 Atualizar estrutura do Forms</button>
-          </div>` : `<div class="cs-bar" style="margin-top:0"><button class="btn primary" type="button" data-a="form"${base.google ? "" : " disabled"}>Gerar formulário automaticamente</button>${base.google ? `<span class="cs-sub">Cria no Google Forms com as perguntas aprovadas.</span>` : `<span class="cs-sub">Ou cole abaixo o link de um formulário já criado no Google Forms:</span>`}<span class="cs-sub" id="m4f"></span></div>`}
-          ${p.avisoForm ? `<div class="note warn" style="margin-top:10px">${esc(p.avisoForm)}</div>` : ""}
-          <div class="cs-grid" style="margin-top:10px">
-            <label class="full">Link público do formulário (Google Forms)<input id="pLink" placeholder="https://docs.google.com/forms/d/e/.../viewform" value="${esc(p.formularioUrl || "")}"></label>
-            <label class="full">Link da Planilha de Respostas (Google Sheets vinculado ao Forms — opcional, permite sincronização direta)<input id="pPlan" placeholder="https://docs.google.com/spreadsheets/d/.../edit" value="${esc(p.planilhaUrl || "")}"></label>
-          </div>
-          <div class="cs-bar"><button class="btn" type="button" data-a="link">Salvar links do formulário / planilha</button><span class="cs-sub" id="m4"></span></div>
-          <p class="cs-sub" style="margin:8px 0 0">${p.respostasSincronizadasEm ? `${p.respostasNoForm || 0} resposta(s) sincronizada(s) · última leitura em ${brHora(p.respostasSincronizadasEm)}.` : "Você também pode sincronizar ou importar respostas pela aba “NPS Média”."}</p>`);
-        html += passo(5, "Mensagem de WhatsApp (com link personalizado por cliente)", p.status === "enviada", e < etapa("formulario_gerado"), e < etapa("formulario_gerado") ? `<p class="cs-sub">Salve o link do formulário para gerar a mensagem.</p>` : `
-          <div class="cs-grid"><label>Cliente para envio (pré-preenche Nome da Empresa e Atendimento no link do Forms)<select id="pMsgCli"><option value="">Geral / Sem personalizar</option>${base.clientes.map(c => `<option value="${esc(c.nome)}"${c.id === p.clienteId ? " selected" : ""}>${esc(c.nome)}${c.atendimento ? ` (${esc(c.atendimento)})` : ""}</option>`).join("")}</select></label></div>
-          <textarea class="cs-msg" id="pMsg" style="margin-top:10px"></textarea>
-          <div class="cs-bar"><button class="btn primary" type="button" data-a="copiar">Copiar mensagem</button>${p.status === "enviada" ? `<span class="cs-sub">Marcada como enviada em ${brHora(p.enviadaEm)}.</span>` : `<span class="cs-sub">Ao copiar, a pesquisa é marcada como enviada.</span>`}</div>`);
-      }
-      $("#nEd").innerHTML = html;
-      if (p.id && e >= etapa("formulario_gerado")) mensagem();
-      const mc = $("#pMsgCli"); if (mc) mc.onchange = mensagem;
-    }
-    async function mensagem() {
-      try { const j = await api("pesquisa.mensagem", { id: sel.id, hora: new Date().getHours(), clienteNome: $("#pMsgCli")?.value || "" }); $("#pMsg").value = j.mensagem; } catch (e) { $("#pMsg").value = e.message; }
-    }
-    const lerPerguntas = () => [...el.querySelectorAll(".cs-q")].map(r => ({
-      tipo: r.querySelector('[data-k="tipo"]').value,
-      texto: r.querySelector('[data-k="texto"]').value,
-      escalaMax: r.dataset.escmax ? Number(r.dataset.escmax) : undefined,
-      opcoes: (r.querySelector('[data-k="opcoes"]')?.value || "").split(";").map(s => s.trim()).filter(Boolean)
-    }));
-    const msg = (id, t) => { const m = $("#" + id); if (m) m.textContent = t; };
-    let armado = false;
-    el.addEventListener("click", async ev => {
-      const it = ev.target.closest(".cs-it");
-      if (it) { sel = base.pesquisas.find(p => p.id === it.dataset.id); novo = false; vincularForm = false; armado = false; lista(); editor(); return; }
-      const a = ev.target.dataset.a; if (!a) return;
-      const b = ev.target;
-      try {
-        if (a === "cancelar_vf") { vincularForm = false; lista(); editor(); return; }
-        if (a === "importar_form") {
-          b.disabled = true; msg("mVf", "Lendo perguntas do Google Forms…");
-          const j = await api("pesquisa.importar_form", {
-            link: $("#vfLink").value,
-            planilhaUrl: $("#vfPlan").value,
-            titulo: $("#vfTit").value,
-            mes: $("#vfMes").value,
-            clienteId: $("#vfCli").value
-          });
-          sel = j.pesquisa; vincularForm = false; novo = false;
-          ctx.toast(`Formulário vinculado (${j.perguntasDetectadas || sel.perguntas?.length || 0} perguntas detectadas)`);
-          return carregar(true);
-        }
-        if (a === "reler_form") {
-          b.disabled = true; msg("m4", "Relendo estrutura do Google Forms…");
-          const j = await api("pesquisa.importar_form", {
-            id: sel.id,
-            link: $("#pLink")?.value || sel.formularioUrl,
-            planilhaUrl: $("#pPlan")?.value || sel.planilhaUrl,
-            titulo: sel.titulo,
-            mes: sel.mes,
-            clienteId: sel.clienteId
-          });
-          sel = j.pesquisa; ctx.toast("Estrutura do formulário atualizada");
-          return carregar(true);
-        }
-        if (a === "salvar") {
-          msg("m1", "Salvando…");
-          const j = await api("pesquisa.salvar", { id: sel?.id, titulo: $("#pTit")?.value, clienteId: $("#pCli").value, mes: $("#pMes").value, tom: $("#pTom").value, objetivo: $("#pObj").value });
-          sel = j.pesquisa; novo = false; ctx.toast("Pesquisa salva"); return carregar(true);
-        }
-        if (a === "excluir") {
-          if (!armado) { armado = true; b.textContent = "Clique de novo para excluir"; return; }
-          await api("pesquisa.excluir", { id: sel.id }); sel = null; armado = false; ctx.toast("Pesquisa excluída"); return carregar();
-        }
-        if (a === "ia" || a === "modelo") {
-          b.disabled = true; msg("m2", a === "ia" ? "A IA está montando o briefing… (pode levar alguns segundos)" : "");
-          const j = await api("pesquisa.briefing", { id: sel.id, modelo: a === "modelo" });
-          sel = j.pesquisa; return carregar(true);
-        }
-        if (a === "addq") { const qs = lerPerguntas(); qs.push({ tipo: "aberta", texto: "Nova pergunta" }); sel.perguntas = qs; return editor(); }
-        if (a === "rmq") { const qs = lerPerguntas(); qs.splice(+b.closest(".cs-q").dataset.i, 1); sel.perguntas = qs; return editor(); }
-        if (a === "salvarq" || a === "aprovar") {
-          const j = await api("pesquisa.perguntas", { id: sel.id, perguntas: lerPerguntas(), briefing: $("#pBrief") ? $("#pBrief").value : undefined });
-          sel = j.pesquisa;
-          if (a === "salvarq") { ctx.toast(j.aviso ? "Salvo. Atenção: " + j.aviso : "Perguntas salvas"); return carregar(true); }
-          const k = await api("pesquisa.aprovar", { id: sel.id }); sel = k.pesquisa; ctx.toast("Perguntas aprovadas"); return carregar(true);
-        }
-        if (a === "form") { b.disabled = true; msg("m4f", "Criando o formulário no Google…"); const j = await api("pesquisa.formulario", { id: sel.id }); sel = j.pesquisa; ctx.toast("Formulário criado no Google Forms"); return carregar(true); }
-        if (a === "link") {
-          msg("m4", "Salvando e inspecionando link…");
-          const j = await api("pesquisa.link", { id: sel.id, link: $("#pLink").value, planilhaUrl: $("#pPlan")?.value || "" });
-          sel = j.pesquisa; ctx.toast("Links salvos"); return carregar(true);
-        }
-        if (a === "copiar") {
-          try { await navigator.clipboard.writeText($("#pMsg").value); } catch { $("#pMsg").select(); document.execCommand && document.execCommand("copy"); }
-          ctx.toast("Mensagem copiada");
-          if (sel.status !== "enviada") { const j = await api("pesquisa.enviada", { id: sel.id }); sel = j.pesquisa; return carregar(true); }
-        }
-      } catch (e) {
-        b.disabled = false;
-        const alvo = { salvar: "m1", excluir: "m1", ia: "m2", modelo: "m2", salvarq: "m3", aprovar: "m3", link: "m4", form: "m4f", importar_form: "mVf", reler_form: "m4" }[a];
-        if (alvo && $("#" + alvo)) msg(alvo, e.message); else ctx.toast(e.message);
-        if (a === "aprovar") carregar(true);
-      }
-    });
-    $("#nNova").onclick = () => { sel = null; novo = true; vincularForm = false; lista(); editor(); };
-    $("#nVincular").onclick = () => { vincularForm = true; novo = false; lista(); editor(); };
-    return () => carregar();
   }
 
   // ======================================================================

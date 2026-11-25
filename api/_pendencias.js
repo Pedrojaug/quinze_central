@@ -8,8 +8,6 @@
 import { sql } from "./_lib.js";
 import { perfilDe } from "./_modules.js";
 import { listar, ler, gravar, apagar, novoId, clientesCarteira, txt, dataIso } from "./_mdados.js";
-import { perguntarJSON, ErroIA, MSG_IA, iaDisponivel } from "./_ia.js";
-import { lerLink } from "./_linkleitor.js";
 import { hojeLocal, horaLocal, dataLocal, diasEntre, somarDiasUteis, br, brCurta } from "./_datas.js";
 import { garantirTarefaOrigem, atualizarPrazoOrigem, concluirTarefaOrigem, registrarBlocoRelatorio, registrarSincronizador } from "./_tarefas.js";
 
@@ -61,45 +59,6 @@ export function mensagemCobranca({ cliente, titulo, link, enviadoEm, cobrancas =
   return `${saudacao(hora)}, ${cliente}! Tudo bem?\n\n${cobrancas ? "Passando mais uma vez" : "Passando"} para lembrar${quando ? ` do envio do dia ${quando}` : ""}: *${titulo}*.${trechoLink}\n\nConseguiu dar uma olhada? Precisamos do seu retorno para seguirmos com o trabalho. Obrigado!`;
 }
 
-const SISTEMA_CLASSIFICAR = `Você classifica envios que uma agência de comunicação (Quinze) faz aos clientes e ainda aguardam resposta.
-Tipos possíveis:
-- material_ooh_offline: peças e materiais de mídia exterior ou offline (outdoor, busdoor, panfleto, banner, impressos, fachada, adesivos etc.).
-- orcamento: orçamentos, propostas de valores, tabelas de preço.
-- retorno_necessario: qualquer outro envio que dependa de resposta ou decisão do cliente (aprovações de posts, dúvidas, informações pendentes).
-Regras: use SOMENTE o conteúdo recebido. Não invente nomes, valores, datas ou detalhes que não estejam lá. Se o conteúdo for pouco, faça um título e um resumo genéricos e fiéis ao que existe.
-Responda só com JSON: {"tipo":"material_ooh_offline|orcamento|retorno_necessario","titulo":"até 60 caracteres","resumo":"uma linha, até 140 caracteres","confianca":"alta|media|baixa"}`;
-const SISTEMA_MENSAGEM = `Você escreve mensagens de WhatsApp de um atendimento da agência Quinze para um cliente, no tom da Quinze: cordial, profissional e curto, em português do Brasil.
-Use exatamente os dados recebidos. Não invente nada além deles. A mensagem DEVE: começar com a saudação e o nome do cliente exatamente como recebidos; dizer o que está sendo enviado (título e resumo); se houver link nos dados, trazer o link exatamente como recebido, sozinho numa linha (se não houver link, NÃO mencione nem invente link); dizer o que precisamos do cliente; pedir retorno até o prazo recebido. Pode usar *negrito* do WhatsApp no título. No máximo 600 caracteres. Sem assinatura com nome de pessoa.
-Responda só com JSON: {"mensagem":"..."}`;
-
-async function classificar({ blocos, link, nota, descricao, cliente }) {
-  const contexto = [`Cliente: ${cliente}`, link && `Link: ${link}`, nota && `Assunto / Nota: ${nota}`, descricao && `Descrição do atendimento: ${descricao}`].filter(Boolean).join("\n");
-  const instrucaoConteudo = blocos?.length
-    ? "\n\nConteúdo lido do link:"
-    : link
-    ? "\n\nO conteúdo do link NÃO foi lido. Classifique só pelo assunto, descrição e nota acima."
-    : "\n\nClassifique com base no assunto e descrição acima.";
-  const pedido = [{ type: "text", text: contexto + instrucaoConteudo }, ...(blocos || [])];
-  const j = await perguntarJSON(SISTEMA_CLASSIFICAR, pedido, 600);
-  const tipo = TIPOS[j.tipo] ? j.tipo : "retorno_necessario";
-  return { tipo, titulo: txt(j.titulo, 80) || txt(nota || descricao || "Envio para o cliente", 80), resumo: txt(j.resumo, 200), confianca: ["alta", "media", "baixa"].includes(j.confianca) ? j.confianca : "media" };
-}
-// Gera a mensagem com a IA; se a IA falhar ou não respeitar os dados (link, nome, saudação), usa o modelo fixo.
-async function gerarMensagem(dados, variar) {
-  const padrao = mensagemPadrao(dados);
-  if (!iaDisponivel()) return { mensagem: padrao, fonte: "modelo" };
-  const sauda = saudacao(dados.hora ?? horaAgora());
-  const fatos = { saudacao: sauda, cliente: dados.cliente, tipo: TIPOS[dados.tipo], titulo: dados.titulo, resumo: dados.resumo, link: dados.link || "",
-    pedido: (PEDIDO[dados.tipo] || PEDIDO.retorno_necessario).pede, prazo_de_retorno: prazoTexto(dados.prazo) };
-  try {
-    const j = await perguntarJSON(SISTEMA_MENSAGEM, `Dados:\n${JSON.stringify(fatos, null, 1)}${variar ? `\n\nEscreva uma versão diferente da anterior (variação ${variar}).` : ""}`, 700);
-    const m = txt(j.mensagem, 1200);
-    const linkOk = !dados.link || m.includes(dados.link);
-    if (m && linkOk && m.startsWith(sauda) && m.includes(dados.cliente)) return { mensagem: m, fonte: "ia" };
-  } catch (e) { console.error("[pendencias] mensagem:", e.code || "erro"); }
-  return { mensagem: padrao, fonte: "modelo" };
-}
-
 // ---------- Pessoas ----------
 async function pessoas() {
   const r = await sql`SELECT login, nome, funcao FROM usuarios WHERE ativo ORDER BY nome`;
@@ -110,7 +69,7 @@ async function pessoas() {
 async function inicio(u, req, res) {
   if (!usaPendencias(u)) return negado(res, "Pendências de clientes é do Atendimento, da Coordenação, do Mestre e da gestão.");
   return res.json({ login: u.login, nome: u.nome, gestao: ehGestao(u), pessoas: await pessoas(), clientes: await clientesCarteira(),
-    tipos: TIPOS, status: STATUS, prazos: await prazos(), hoje: hojeLocal(), ia: iaDisponivel() });
+    tipos: TIPOS, status: STATUS, prazos: await prazos(), hoje: hojeLocal() });
 }
 
 async function pendencias(u, req, res) {
@@ -228,111 +187,11 @@ async function salvar(u, req, res) {
   return res.json({ ok: true, pendencia: publica({ ...nova, id }, u, hoje) });
 }
 
-// Passo 1 (legado/IA): interpreta o envio e já salva como aguardando_retorno para não ficar preso em rascunho.
-async function interpretar(u, req, res) {
-  if (!so(req, res, "POST")) return;
-  if (!usaPendencias(u)) return negado(res);
-  const b = corpo(req);
-  const link = txt(b.link, 1500), nota = txt(b.nota, 300), descricao = txt(b.descricao, 300);
-  if (link) {
-    let url; try { url = new URL(link); } catch { /* inválido */ }
-    if (!url || !["https:", "http:"].includes(url.protocol)) return res.status(400).json({ code: "link", msg: "Cole um link completo (começando com https://)." });
-  }
-  if (!link && !nota && !descricao) {
-    return res.status(400).json({ code: "assunto", msg: "Informe o que foi enviado (assunto/nota) ou cole um link." });
-  }
-  const cli = (await clientesCarteira()).find(c => c.id === b.clienteId);
-  if (!cli) return res.status(400).json({ code: "cliente", msg: "Escolha o cliente da Carteira." });
-  let resp = quem(u);
-  if (b.responsavel && b.responsavel !== u.login) {
-    if (!ehGestao(u)) return negado(res, "Só o Mestre, a gestão e a coordenação escolhem outro responsável.");
-    const p = (await pessoas()).find(x => x.login === b.responsavel);
-    if (!p) return res.status(400).json({ code: "responsavel", msg: "Responsável inválido." });
-    resp = { login: p.login, nome: p.nome };
-  }
-
-  let leitura = { ok: false, fonte: "manual", nome: "", baseadoSoNaDescricao: false };
-  if (link) {
-    leitura = await lerLink(link);
-    if (leitura.motivo === "endereco_bloqueado") return res.status(400).json({ code: "link", msg: "Este endereço não pode ser lido pela plataforma." });
-    if (!leitura.ok && !descricao && !nota) return res.json({ precisaDescricao: true, msg: "Não consegui ler esse link (pode ser privado ou exigir login). Descreva em uma linha o que foi enviado." });
-  }
-
-  const cliente = nomeCliente(cli.nome);
-  let c;
-  try { c = await classificar({ blocos: leitura.ok ? leitura.blocos : null, link, nota, descricao, cliente }); }
-  catch (e) {
-    if (!(e instanceof ErroIA)) throw e;
-    c = { tipo: "retorno_necessario", titulo: txt(descricao || nota || leitura.nome || "Envio para o cliente", 80), resumo: "", confianca: "baixa", erroIA: MSG_IA[e.code] || "IA indisponível" };
-  }
-  const pz = await prazos(), hoje = hojeLocal();
-  const prazo = dataIso(b.prazo) || somarDiasUteis(hoje, pz[c.tipo] || 2);
-  const m = await gerarMensagem({ cliente, tipo: c.tipo, titulo: c.titulo, resumo: c.resumo, link, prazo });
-  const em = agora();
-  const p = { link, clienteId: cli.id, clienteNome: cli.nome, responsavel: resp, nota, descricao, tipo: c.tipo, tipoSugerido: c.tipo,
-    titulo: c.titulo, resumo: c.resumo, confianca: c.confianca, prazo, mensagem: m.mensagem, mensagemFonte: m.fonte,
-    leitura: { ok: !!leitura.ok, fonte: leitura.ok ? leitura.fonte : (link ? "descricao" : "manual"), nome: leitura.nome || "", baseadoSoNaDescricao: !leitura.ok && !!link, semLink: !link },
-    status: "aguardando_retorno", enviadoEm: em, aprovadoPor: quem(u), cobrancas: [],
-    historico: [{ em, por: quem(u), acao: "aguardando_retorno", nota: "Pendência registrada" }],
-    criadoPor: quem(u), criadoEm: em, atualizadoEm: em, ...(c.erroIA ? { avisoIA: c.erroIA } : {}) };
-  const id = novoId();
-  await gravar(M, "pendencias", id, p);
-  await sincronizarTarefas(hoje);
-  return res.json({ pendencia: publica({ ...p, id }, u, hoje) });
-}
-
 async function lerPermitida(u, id, res) {
   const p = await ler(M, "pendencias", String(id || ""));
   if (!p) { res.status(404).json({ code: "nao_encontrado", msg: "Pendência não encontrada." }); return null; }
   if (!podeEditar(u, p)) { negado(res, "Só quem criou, o responsável, a coordenação, o Mestre e a gestão editam esta pendência."); return null; }
   return p;
-}
-function aplicarEdicao(p, b) {
-  if (b.tipo && TIPOS[b.tipo]) p.tipo = b.tipo;
-  if (b.titulo !== undefined) p.titulo = txt(b.titulo, 160) || p.titulo;
-  if (b.resumo !== undefined) p.resumo = txt(b.resumo, 300);
-  if (b.prazo !== undefined && dataIso(b.prazo)) p.prazo = dataIso(b.prazo);
-  if (b.mensagem !== undefined) p.mensagem = txt(b.mensagem, 3000);
-}
-async function rascunhoSalvar(u, req, res) {
-  if (!so(req, res, "POST")) return;
-  if (!usaPendencias(u)) return negado(res);
-  const b = corpo(req);
-  const p = await lerPermitida(u, b.id, res); if (!p) return;
-  aplicarEdicao(p, b);
-  if (p.status === "rascunho") { p.status = "aguardando_retorno"; p.enviadoEm = p.enviadoEm || agora(); }
-  p.atualizadoEm = agora();
-  await gravar(M, "pendencias", p.id, p);
-  return res.json({ pendencia: publica(p, u) });
-}
-// Regerar a mensagem (com o tipo, título, resumo e prazo atuais). Trocar o tipo recalcula o prazo padrão.
-async function mensagemRegerar(u, req, res) {
-  if (!so(req, res, "POST")) return;
-  if (!usaPendencias(u)) return negado(res);
-  const b = corpo(req);
-  const p = await lerPermitida(u, b.id, res); if (!p) return;
-  const tipoAntes = p.tipo;
-  aplicarEdicao(p, { ...b, mensagem: undefined });
-  if (b.tipo && b.tipo !== tipoAntes && !b.prazo) p.prazo = somarDiasUteis(hojeLocal(), (await prazos())[p.tipo] || 2);
-  p.variacao = (p.variacao || 0) + 1;
-  const m = await gerarMensagem({ cliente: nomeCliente(p.clienteNome), tipo: p.tipo, titulo: p.titulo, resumo: p.resumo, link: p.link, prazo: p.prazo }, p.variacao);
-  Object.assign(p, { mensagem: m.mensagem, mensagemFonte: m.fonte, atualizadoEm: agora() });
-  await gravar(M, "pendencias", p.id, p);
-  return res.json({ pendencia: publica(p, u) });
-}
-// Aprovar (ao copiar a mensagem): garante que a pendência está em aguardando_retorno.
-async function aprovar(u, req, res) {
-  if (!so(req, res, "POST")) return;
-  if (!usaPendencias(u)) return negado(res);
-  const b = corpo(req);
-  const p = await lerPermitida(u, b.id, res); if (!p) return;
-  aplicarEdicao(p, b);
-  const em = agora();
-  if (!p.prazo || p.prazo < hojeLocal()) p.prazo = somarDiasUteis(hojeLocal(), (await prazos())[p.tipo] || 2);
-  Object.assign(p, { status: "aguardando_retorno", enviadoEm: p.enviadoEm || em, aprovadoPor: quem(u), atualizadoEm: em });
-  p.historico.push({ em, por: quem(u), acao: "aguardando_retorno", nota: "Mensagem copiada" });
-  await gravar(M, "pendencias", p.id, p);
-  return res.json({ pendencia: publica(p, u) });
 }
 async function excluir(u, req, res) {
   if (!so(req, res, "POST")) return;
@@ -342,7 +201,6 @@ async function excluir(u, req, res) {
   await apagar(M, "pendencias", p.id);
   return res.json({ ok: true });
 }
-const descartar = excluir;
 
 // Registrar retorno do cliente (respondida, aprovada ou recusada), cancelar ou reabrir.
 async function retorno(u, req, res) {
@@ -376,21 +234,6 @@ async function cobranca(u, req, res) {
   p.atualizadoEm = em;
   await gravar(M, "pendencias", p.id, p);
   return res.json({ mensagem, pendencia: publica(p, u) });
-}
-async function reprogramarPrazo(u, req, res) {
-  if (!so(req, res, "POST")) return;
-  if (!usaPendencias(u)) return negado(res);
-  const b = corpo(req);
-  const p = await lerPermitida(u, b.id, res); if (!p) return;
-  const novoPrazo = dataIso(b.prazo);
-  if (!novoPrazo) return res.status(400).json({ code: "prazo", msg: "Informe uma data válida." });
-  const em = agora(), antes = p.prazo;
-  p.prazo = novoPrazo;
-  p.atualizadoEm = em;
-  p.historico.push({ em, por: quem(u), acao: "reprogramada", nota: `Prazo: ${br(antes)} → ${br(novoPrazo)}` });
-  await gravar(M, "pendencias", p.id, p);
-  await atualizarPrazoOrigem(origemDe(p.id), novoPrazo);
-  return res.json({ pendencia: publica(p, u) });
 }
 async function configSalvar(u, req, res) {
   if (!so(req, res, "POST")) return;
@@ -434,6 +277,5 @@ registrarSincronizador(() => sincronizarTarefas());
 registrarBlocoRelatorio("pendencias", blocoRelatorio);
 
 export const rotas = {
-  inicio, pendencias, salvar, excluir, interpretar, "rascunho.salvar": rascunhoSalvar, "mensagem.regerar": mensagemRegerar, aprovar, descartar,
-  retorno, cobranca, "prazo.salvar": reprogramarPrazo, "config.salvar": configSalvar,
+  inicio, pendencias, salvar, excluir, retorno, cobranca, "config.salvar": configSalvar,
 };

@@ -14,7 +14,6 @@ function credencial() {
 export const googleConfigurado = () => !!credencial();
 export const emailContaServico = () => credencial()?.email || "";
 export const pastaAssinados = () => process.env.DRIVE_PASTA_ASSINADOS_ID || "";
-export const donoForms = () => process.env.GOOGLE_FORMS_DONO_EMAIL || "";
 
 export class ErroGoogle extends Error {
   constructor(msg, status) { super(msg); this.status = status || 0; }
@@ -75,38 +74,6 @@ export async function enviarArquivoDrive(nome, buf, tipo) {
 }
 
 // ---------- Forms ----------
-// Cria o formulário com as perguntas aprovadas. NPS = escala 0 a 10 obrigatória.
-export async function criarFormulario({ titulo, descricao, perguntas }) {
-  const form = await google(`${FORMS}/forms`, { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ info: { title: titulo, documentTitle: titulo } }) });
-  const requests = [{ updateFormInfo: { info: { description: descricao }, updateMask: "description" } }];
-  perguntas.forEach((p, i) => {
-    let question;
-    if (p.tipo === "nps") question = { required: true, scaleQuestion: { low: 0, high: 10, lowLabel: "Nada provável", highLabel: "Extremamente provável" } };
-    else if (p.tipo === "multipla") question = { required: false, choiceQuestion: { type: "RADIO", options: (p.opcoes || []).map(value => ({ value })) } };
-    else question = { required: false, textQuestion: { paragraph: true } };
-    requests.push({ createItem: { item: { title: p.texto, questionItem: { question } }, location: { index: i } } });
-  });
-  const upd = await google(`${FORMS}/forms/${form.formId}:batchUpdate`, { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ requests, includeFormInResponse: false }) });
-  const questoes = perguntas.map((p, i) => ({ questionId: upd.replies?.[i + 1]?.createItem?.questionId?.[0] || "", tipo: p.tipo, texto: p.texto }));
-  // Publica e aceita respostas (formulários criados pela API podem nascer não publicados).
-  try {
-    await google(`${FORMS}/forms/${form.formId}:setPublishSettings`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ publishSettings: { publishState: { isPublished: true, isAcceptingResponses: true } }, updateMask: "publishState" }) }, 2);
-  } catch (e) { if (e.status !== 404 && e.status !== 400) throw e; }
-  // Acesso de Editor ao dono (Eduardo) e resposta aberta a qualquer pessoa com o link.
-  let avisoDono = "";
-  if (donoForms()) {
-    try {
-      await google(`${DRIVE}/files/${form.formId}/permissions?sendNotificationEmail=false&supportsAllDrives=true`, { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ role: "writer", type: "user", emailAddress: donoForms() }) }, 2);
-    } catch (e) { avisoDono = `Não deu para dar acesso de editor a ${donoForms()}: ${e.message}`; }
-  }
-  return { formId: form.formId, linkResposta: form.responderUri || `https://docs.google.com/forms/d/${form.formId}/viewform`,
-    linkEdicao: `https://docs.google.com/forms/d/${form.formId}/edit`, questoes, avisoDono };
-}
-
 // Lê as respostas de um formulário (todas as páginas).
 export async function lerRespostas(formId) {
   const out = [];
