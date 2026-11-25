@@ -1,6 +1,7 @@
 // Monta o site em public/: copia os arquivos estáticos, junta src/app.html + src/js/*.js (em ordem)
 // e compila módulos em pasta (modulos/<nome>/*.js) para public/modulos/<nome>.js.
 // Roda na Vercel a cada publicação (buildCommand) e localmente para testes: node build.js
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -46,6 +47,23 @@ for (const entry of entriesModulos) {
 const partes = fs.readdirSync("src/js").filter(f => f.endsWith(".js")).sort();
 const js = partes.map(f => `// ===== ${f} =====\n` + fs.readFileSync(path.join("src/js", f), "utf8")).join("\n");
 if (/<\/script/i.test(js)) throw new Error("O código não pode conter </script>");
-const html = fs.readFileSync("src/app.html", "utf8").replace("<!--APP_JS-->", `<script>\n(function(){\n${js}\n})();\n</script>`);
+
+const hasher = crypto.createHash("sha256");
+hasher.update(fs.readFileSync(path.join(OUT, "app.css")));
+hasher.update(fs.readFileSync(path.join(OUT, "store.js")));
+const publicModDir = path.join(OUT, "modulos");
+if (fs.existsSync(publicModDir)) {
+  for (const f of fs.readdirSync(publicModDir).filter(x => x.endsWith(".js")).sort()) {
+    hasher.update(f);
+    hasher.update(fs.readFileSync(path.join(publicModDir, f)));
+  }
+}
+hasher.update(js);
+const buildHash = hasher.digest("hex").slice(0, 8);
+
+const html = fs.readFileSync("src/app.html", "utf8")
+  .replace('href="/app.css"', `href="/app.css?v=${buildHash}"`)
+  .replace('src="/store.js"', `src="/store.js?v=${buildHash}"`)
+  .replace("<!--APP_JS-->", `<script>\n(function(){\nwindow.__QZ_BUILD = "${buildHash}";\n${js}\n})();\n</script>`);
 fs.writeFileSync(path.join(OUT, "app.html"), html);
-console.log(`public/ pronto: app.html com ${partes.length} partes (${Math.round(html.length / 1024)} KB)${modulosCompilados.length ? ` | módulos: ${modulosCompilados.join(", ")}` : ""}`);
+console.log(`public/ pronto [${buildHash}]: app.html com ${partes.length} partes (${Math.round(html.length / 1024)} KB)${modulosCompilados.length ? ` | módulos: ${modulosCompilados.join(", ")}` : ""}`);
