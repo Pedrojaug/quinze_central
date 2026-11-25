@@ -456,6 +456,26 @@ a.lockbtn{text-decoration:none}
 .qz-prof-av-actions{flex:1;min-width:0}
 .usr-avatar img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
 
+/* ---------- Primitivas Compartilhadas para Módulos (QZ.ui) ---------- */
+.qz-head{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+.qz-head h2{margin:0}
+.qz-head .sp{flex:1}
+.qz-sub{font-size:13px;color:var(--ink2)}
+.qz-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.qz-card + .qz-card{margin-top:14px}
+.qz-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.qz-seg button{border:0;background:transparent;padding:7px 14px;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--ink2)}
+.qz-seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
+.qz-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+.qz-badge-neutro{background:var(--line2);color:var(--ink2)}
+.qz-badge-info{background:var(--blue-soft);color:var(--blue-dk)}
+.qz-badge-ok{background:var(--ok-soft);color:var(--ok)}
+.qz-badge-warn{background:var(--warn-soft);color:var(--warn)}
+.qz-badge-danger{background:var(--danger-soft);color:var(--danger)}
+.qz-state,.qz-empty{padding:26px 16px;text-align:center;color:var(--ink2);font-size:14px}
+.qz-empty b{display:block;color:var(--ink);margin-bottom:4px}
+.qz-pag{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:13px}
+
 
 
 

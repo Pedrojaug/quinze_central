@@ -43,10 +43,10 @@ Este documento define o plano diretor de preparação técnica da **Central Quin
   - impedir `CREATE`/`ALTER`/`DROP TABLE|INDEX|SEQUENCE|SCHEMA` dentro de `api/` (DDL somente via `migrations/`);
   - impedir `import()` dinâmico com variável/interpolação em `api/m.js`.
 
-### Fase 2 — Fundação Frontend (100% Vanilla JS, zero dependências novas)
-- [ ] Criar camada compartilhada no próprio objeto global `QZ` (`QZ.api`, `QZ.fmt`, `QZ.ui`) + classes utilitárias reutilizáveis em `src/app.css`.
-- [ ] Substituir o cache busting por janela de tempo em `src/js/08-modulos.js` por hash determinístico gerado pelo `build.js`.
-- [ ] Atualizar `modulos/_modelo.js` para refletir o novo padrão oficial (`QZ.api` + `QZ.fmt` + `QZ.ui` + `/api/m`, sem depender de `ctx.dados()`).
+### Fase 2 — Fundação Frontend (100% Vanilla JS, zero dependências novas) *(Concluída)*
+- [x] Criar camada compartilhada no próprio objeto global `QZ` (`QZ.api`, `QZ.fmt`, `QZ.ui`) + classes utilitárias reutilizáveis em `src/app.css`.
+- [x] Substituir o cache busting por janela de tempo em `src/js/08-modulos.js` por hash determinístico gerado pelo `build.js`.
+- [x] Atualizar `modulos/_modelo.js` para refletir o novo padrão oficial (`QZ.api` + `QZ.fmt` + `QZ.ui` + `/api/m`, sem depender de `ctx.dados()`).
 
 ### Fase 3 — Contratos & Rede de Segurança
 - [ ] Criar testes unitários de contrato e integração para `api/m.js`, `api/_http.js`, utilitários `QZ` e rotas críticas de `api/_*.js` com mock de `sql`.

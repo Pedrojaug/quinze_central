@@ -16,6 +16,9 @@
       equipe: () => ({ atendimentos: people("atendimentos","atendimento"), socials: people("socials","social") }),
       onboardings: () => obs.slice(),
       irPara: tab => { const b = document.querySelector(`nav.tabs button[data-tab="${tab}"]`); if (b && !b.hidden) b.click(); },
+      api: (acao, body, opt) => window.QZ.api(id, acao, body, opt),
+      get fmt(){ return window.QZ.fmt; },
+      get ui(){ return window.QZ.ui; },
       toast, esc, br, brl: v => (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
       hoje: todayIso, diasUteis: bdCount, somarDiasUteis: addBD,
     };
@@ -42,7 +45,8 @@
       showSections(m.id);
       const d = QZ_defs[m.id]; if (d && d.aoMostrar && d._ok) { try { d.aoMostrar(QZ_contexto(m.id)); } catch(e) { console.error(e); } }
     });
-    loadScript(m.arquivo + (m.arquivo.includes("?") ? "" : "?v=" + Date.now().toString(36).slice(0,-3))).catch(() => { sec.innerHTML = `<div class="note warn">Não deu para carregar “${esc(m.nome)}”. Recarregue a página.</div>`; });
+    const vBuild = window.__QZ_BUILD || Date.now().toString(36).slice(0, -3);
+    loadScript(m.arquivo + (m.arquivo.includes("?") ? "" : "?v=" + vBuild)).catch(() => { sec.innerHTML = `<div class="note warn">Não deu para carregar “${esc(m.nome)}”. Recarregue a página.</div>`; });
   }
 
 
