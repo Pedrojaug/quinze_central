@@ -3,10 +3,8 @@
 import { sql } from "./_lib.js";
 import { perfilDe } from "./_modules.js";
 import { auditar, criarSeNovo, listar, ler, gravar, apagar } from "./_mdados.js";
+import { corpo, exigirMetodo as so, quem } from "./_http.js";
 
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 async function lerOnb(id) {
   if (typeof id !== "string" || !/^[A-Za-z0-9_\-.]{1,120}$/.test(id)) return null;

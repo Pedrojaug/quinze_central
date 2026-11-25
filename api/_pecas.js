@@ -17,6 +17,7 @@ import { RETENCAO_DIAS, DIA, processarRetencaoPeca, limparVencidos } from "./_pe
 import { extrairDriveFileId, inspecionarLinksDrive, baixarImagemDrive } from "./_pecas_drive.js";
 import { TIPOS_PECAS, MAX_BYTES_DIRETO, MAX_BYTES_SERVIDOR, extensaoPeca, montarChavePeca, validarUploadBase64 } from "./_pecas_upload.js";
 import { ehChaveBanco, guardarBlobNoBanco, infoBlobNoBanco, enviarBlobDoBanco, apagarBlobsDoBanco } from "./_pecas_blobs_db.js";
+import { corpo, exigirMetodo as so, quem, negado } from "./_http.js";
 
 export { diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario, RETENCAO_DIAS, processarRetencaoPeca, limparVencidos };
 
@@ -25,9 +26,6 @@ export const MAX_ARQUIVOS = 10, MAX_LINKS = 10;
 export const MAX_BYTES = MAX_BYTES_DIRETO;   // por arquivo (envio direto ao armazenamento, sem passar pela função)
 export const STATUS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
 
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const mesAtual = () => hojeSP().slice(0, 7);
 
@@ -49,7 +47,6 @@ export const veDash = u => {
   return abas.includes("pecasdash") || abas.includes("fila") || (u.areas || []).includes("pecas");
 };
 const podeVer = (u, p) => veTodas(u) || (podeEnviar(u) && p.remetente?.login === u.login) || (p.aprovadores || []).some(a => a.login === u.login);
-const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const prefixoDe = u => `pecas/${nomeSeguro(u.login).toLowerCase()}/`;
 
 // ---------- Contadores mensais (atualizados no momento de cada evento, numa só instrução: sem perder contagem) ----------

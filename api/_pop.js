@@ -11,13 +11,10 @@ import { perfilDe, AREAS, MODULOS, PERFIS } from "./_modules.js";
 import { listar, ler, gravar, apagar, criarSeNovo, novoId, txt } from "./_mdados.js";
 import { perguntarJSON, ErroIA, MSG_IA } from "./_ia.js";
 import { FUNCOES_POP, V1, V2 } from "./_pop_base.js";
+import { corpo, exigirMetodo as so, quem, negado } from "./_http.js";
 
 const M = "administrativo";
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
-const negado = (res, msg) => res.status(403).json({ code: "sem_acesso", msg: msg || "Sem permissão." });
 const ehMestre = u => perfilDe(u) === "mestre";
 const ehGestao = u => ["mestre", "gestao"].includes(perfilDe(u));
 const FUNCOES = Object.keys(FUNCOES_POP);

@@ -6,10 +6,9 @@ import { ehGestao, sql } from "./_lib.js";
 import { listar, ler, gravar, criarSeNovo, txt } from "./_mdados.js";
 import { decodificar, guardar, enviar, extensao } from "./_arquivos.js";
 import { PERFIS, perfilDe } from "./_modules.js";
+import { corpo, exigirMetodo as so } from "./_http.js";
 
 const M = "politicas";
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
 const agora = () => new Date().toISOString();
 const idLeitura = (n, login) => `v${n}__${login}`;
 

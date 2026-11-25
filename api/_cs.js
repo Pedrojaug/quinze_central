@@ -6,11 +6,9 @@ import { googleConfigurado, lerRespostas, lerArquivoDrive, ErroGoogle } from "./
 import crypto from "node:crypto";
 import { perguntarJSON, iaDisponivel, ErroIA, MSG_IA } from "./_ia.js";
 import { hojeSP } from "./_datas.js";
+import { corpo, exigirMetodo as so, quem } from "./_http.js";
 
 const M = "cs";
-const corpo = req => (req.body && typeof req.body === "object" ? req.body : {});
-const so = (req, res, metodo) => { if (req.method !== metodo) { res.status(405).json({ code: "method" }); return false; } return true; };
-const quem = u => ({ login: u.login, nome: u.nome || u.login });
 const agora = () => new Date().toISOString();
 const mesValido = m => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m || ""));
 const podeEditar = (u, item) => ehGestao(u) || item?.criadoPor?.login === u.login;

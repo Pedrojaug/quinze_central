@@ -63,10 +63,13 @@ test("QZ.api e QZ.criarApi montam query, enviam POST e padronizam erros HTTP", a
   assert.equal(chamadas[0].url, "/api/m?r=cs/listar&limite=20");
   assert.equal(chamadas[0].init.method, "GET");
 
+  await csApi("respostas&de=2026-01&ate=2026-11", undefined, { query: { cli: "c1" } });
+  assert.equal(chamadas[1].url, "/api/m?r=cs/respostas&de=2026-01&ate=2026-11&cli=c1");
+
   await csApi("salvar", { nome: "Teste" });
-  assert.equal(chamadas[1].url, "/api/m?r=cs/salvar");
-  assert.equal(chamadas[1].init.method, "POST");
-  assert.equal(chamadas[1].init.body, '{"nome":"Teste"}');
+  assert.equal(chamadas[2].url, "/api/m?r=cs/salvar");
+  assert.equal(chamadas[2].init.method, "POST");
+  assert.equal(chamadas[2].init.body, '{"nome":"Teste"}');
 
   await assert.rejects(() => csApi("erro400"), err => err.status === 400 && err.code === "dados_invalidos" && err.message === "Campo obrigatório");
   await assert.rejects(() => csApi("falha429"), err => err.status === 429 && /Muitas requisições/i.test(err.message));

@@ -2,24 +2,10 @@
 // Tudo pela rota /api/m?r=pec/... (o servidor confere quem envia, quem decide e quem vê).
 // Os arquivos vão do navegador direto para o armazenamento, com um token de envio gerado pelo servidor para cada arquivo.
   window.__qzPec = true;
-  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const brHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+  const { esc, brHora, hojeSP: hojeSp, somarDias: somarDiasIso } = QZ.fmt;
   const brDia = iso => (iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "");
   const mesBr = m => (m ? ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"][+m.slice(5, 7) - 1] + " de " + m.slice(0, 4) : "");
   const mb = n => (n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
-
-  const hojeSp = () => {
-    try {
-      return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-    } catch {
-      return new Date().toISOString().slice(0, 10);
-    }
-  };
-  const somarDiasIso = (iso, n) => {
-    const [y, m, d] = String(iso).split("-").map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d + n, 12));
-    return dt.toISOString().slice(0, 10);
-  };
   const diaSpDeIso = iso => {
     if (!iso) return "";
     try {
@@ -71,13 +57,7 @@
     for (const h of p.historico || []) if (h.em) datas.push(diaSpDeIso(h.em));
     return datas.some(dia => (!de || dia >= de) && (!ate || dia <= ate));
   };
-  async function api(r, body) {
-    const res = await fetch("/api/m?r=pec/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || (res.status === 403 ? "Sem permissão." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status });
-    return j;
-  }
+  const api = QZ.criarApi("pec");
   let base = null;
   let ultVersaoPecas = "";
   const carregarBase = async () => (base ||= await api("inicio"));

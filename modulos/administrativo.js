@@ -5,18 +5,17 @@
   if (window.__qzAdm) return; window.__qzAdm = true;
 
   // ---------- Ajudas ----------
-  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const br = iso => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
-  const brHora = iso => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+  const { esc, br, brHora } = QZ.fmt;
   const brl = v => (v == null || v === "" ? "" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
   const pct = v => (v == null ? "" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + "%");
   const kb = n => (n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
   async function api(r, body) {
-    const res = await fetch("/api/m?r=adm/" + r, { method: body ? "POST" : "GET", credentials: "same-origin",
-      headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(j.msg || MSG[j.code] || (res.status === 404 ? "Rota ou recurso não encontrado (404)." : res.status === 413 ? "Arquivo muito grande para o servidor (413)." : res.status === 504 ? "Tempo limite esgotado ao processar (504)." : "Não deu para concluir. Tente de novo.")), { code: j.code, status: res.status, dados: j });
-    return j;
+    try { return await QZ.api("adm", r, body); }
+    catch (e) {
+      const d = e.dados || {};
+      const msg = d.msg || MSG[e.code] || (e.status === 404 ? "Rota ou recurso não encontrado (404)." : e.status === 413 ? "Arquivo muito grande para o servidor (413)." : e.status === 504 ? "Tempo limite esgotado ao processar (504)." : e.message);
+      throw Object.assign(new Error(msg), { code: e.code, status: e.status, dados: d });
+    }
   }
   const MSG = { sem_acesso: "Sem permissão.", arquivo_grande: "O arquivo passa de 3 MB.", tipo_invalido: "Tipo de arquivo não aceito (use PDF, Word, imagem).",
     pdf_invalido: "O arquivo não parece ser um PDF válido.", sem_arquivo: "Anexe o arquivo.", arquivo_vazio: "O arquivo está vazio." };
