@@ -11,6 +11,39 @@ export async function listar(modulo, colecao) {
   const r = await sql`SELECT id, data FROM docs WHERE parent = ${parent} AND NOT deleted ORDER BY seq`;
   return r.map(x => ({ ...x.data, id: x.id }));
 }
+export function montarPaginacao(itens = [], { limite = 50, offset = 0 } = {}) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const lim = Math.min(500, Math.max(1, parseInt(limite, 10) || 50));
+  const off = Math.max(0, parseInt(offset, 10) || 0);
+  const fatia = lista.slice(off, off + lim);
+  return {
+    itens: fatia,
+    total: lista.length,
+    limite: lim,
+    offset: off,
+    temMais: off + fatia.length < lista.length,
+  };
+}
+export async function listarPaginado(modulo, colecao, { limite = 50, offset = 0, ordem = "desc" } = {}) {
+  const parent = `m/${modulo}/${colecao}`;
+  const lim = Math.min(200, Math.max(1, parseInt(limite, 10) || 50));
+  const off = Math.max(0, parseInt(offset, 10) || 0);
+  const [contagem, linhas] = await Promise.all([
+    sql`SELECT count(*)::int AS total FROM docs WHERE parent = ${parent} AND NOT deleted`,
+    ordem === "asc"
+      ? sql`SELECT id, data FROM docs WHERE parent = ${parent} AND NOT deleted ORDER BY seq ASC LIMIT ${lim} OFFSET ${off}`
+      : sql`SELECT id, data FROM docs WHERE parent = ${parent} AND NOT deleted ORDER BY seq DESC LIMIT ${lim} OFFSET ${off}`,
+  ]);
+  const total = Number(contagem[0]?.total) || 0;
+  const itens = linhas.map(x => ({ ...x.data, id: x.id }));
+  return {
+    itens,
+    total,
+    limite: lim,
+    offset: off,
+    temMais: off + itens.length < total,
+  };
+}
 export async function ler(modulo, colecao, id) {
   if (!idValido(id)) return null;
   const r = await sql`SELECT data FROM docs WHERE path = ${`m/${modulo}/${colecao}/${id}`} AND NOT deleted`;
