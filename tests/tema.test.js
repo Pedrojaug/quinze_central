@@ -76,14 +76,14 @@ test("QZ.tema.aplicar, alternar e iniciar atualizam DOM, meta, botões, localSto
   assert.equal(mock.doc.documentElement.dataset.theme, "light");
   assert.equal(mock.meta.content, "light");
   assert.equal(mock.btn.attrs["aria-pressed"], "false");
-  assert.match(mock.btn.textContent, /Escuro/);
+  assert.match(mock.btn.textContent, /Tema: Claro/);
 
   mock.btn.click();
   assert.equal(mock.doc.documentElement.dataset.theme, "dark");
   assert.equal(mock.meta.content, "dark");
   assert.equal(mock.storageMap.get("qz-theme"), "dark");
   assert.equal(mock.btn.attrs["aria-pressed"], "true");
-  assert.match(mock.btn.textContent, /Claro/);
+  assert.match(mock.btn.textContent, /Tema: Escuro/);
 
   const aposAlternar = tema.alternar({ doc: mock.doc, storage: mock.storage });
   assert.equal(aposAlternar, "light");

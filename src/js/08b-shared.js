@@ -132,8 +132,8 @@
       const escuro = t === "dark";
       doc.querySelectorAll("[data-qz-theme-toggle]").forEach(btn => {
         btn.setAttribute("aria-pressed", String(escuro));
-        btn.textContent = escuro ? "☀️ Claro" : "🌙 Escuro";
-        const rotulo = escuro ? "Mudar para modo claro" : "Mudar para modo escuro";
+        btn.textContent = escuro ? "🌙 Tema: Escuro" : "☀️ Tema: Claro";
+        const rotulo = escuro ? "Tema atual: Escuro. Clique para mudar para Claro" : "Tema atual: Claro. Clique para mudar para Escuro";
         btn.title = rotulo;
         btn.setAttribute("aria-label", rotulo);
       });
