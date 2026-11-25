@@ -121,8 +121,58 @@
       return `<div class="qz-pag"><span class="muted">Mostrando ${mostrando} de ${total}</span>${temMais ? `<button type="button" class="btn small" data-qz-mais>Carregar mais</button>` : ""}</div>`;
     }
 
+    const TEMA_KEY = "qz-theme";
+    const normalizarTema = v => (v === "dark" ? "dark" : "light");
+    const lerTema = (storage = typeof window !== "undefined" ? window.localStorage : null) => {
+      try { return normalizarTema(storage?.getItem?.(TEMA_KEY)); } catch { return "light"; }
+    };
+    const atualTema = (doc = typeof document !== "undefined" ? document : null) => normalizarTema(doc?.documentElement?.dataset?.theme);
+    function atualizarBotoesTema(t, doc) {
+      if (!doc?.querySelectorAll) return;
+      const escuro = t === "dark";
+      doc.querySelectorAll("[data-qz-theme-toggle]").forEach(btn => {
+        btn.setAttribute("aria-pressed", String(escuro));
+        btn.textContent = escuro ? "☀️ Claro" : "🌙 Escuro";
+        const rotulo = escuro ? "Mudar para modo claro" : "Mudar para modo escuro";
+        btn.title = rotulo;
+        btn.setAttribute("aria-label", rotulo);
+      });
+    }
+    function aplicarTema(tema, { salvar = true, doc = typeof document !== "undefined" ? document : null, storage = typeof window !== "undefined" ? window.localStorage : null } = {}) {
+      const t = normalizarTema(tema);
+      if (doc?.documentElement) {
+        doc.documentElement.dataset.theme = t;
+        const meta = doc.querySelector?.('meta[name="color-scheme"]');
+        if (meta) meta.content = t;
+      }
+      if (salvar) {
+        try { storage?.setItem?.(TEMA_KEY, t); } catch {}
+      }
+      atualizarBotoesTema(t, doc);
+      return t;
+    }
+    const alternarTema = (opts = {}) => aplicarTema(atualTema(opts.doc) === "dark" ? "light" : "dark", opts);
+    function iniciarTema({ doc = typeof document !== "undefined" ? document : null, win = typeof window !== "undefined" ? window : null, storage = win?.localStorage } = {}) {
+      const t = aplicarTema(lerTema(storage), { salvar: false, doc, storage });
+      if (doc?.querySelectorAll) {
+        doc.querySelectorAll("[data-qz-theme-toggle]").forEach(btn => {
+          if (btn.dataset?.qzTemaBound === "1") return;
+          if (btn.dataset) btn.dataset.qzTemaBound = "1";
+          btn.addEventListener?.("click", () => alternarTema({ doc, storage }));
+        });
+      }
+      if (win?.addEventListener && !win._qzTemaStorageBound) {
+        win._qzTemaStorageBound = true;
+        win.addEventListener("storage", ev => {
+          if (!ev || ev.key === TEMA_KEY) aplicarTema(normalizarTema(ev?.newValue), { salvar: false, doc, storage });
+        });
+      }
+      return t;
+    }
+
     QZ.fmt = { esc, br, brCurta, brHora, mesBr, brl, hojeSP, somarDias, copiar };
     QZ.api = api;
     QZ.criarApi = criarApi;
     QZ.ui = { carregando, vazio, erroBox, badge, armarConfirmacao, renderPaginacao };
+    QZ.tema = { KEY: TEMA_KEY, normalizar: normalizarTema, ler: lerTema, atual: atualTema, aplicar: aplicarTema, alternar: alternarTema, iniciar: iniciarTema };
   })();

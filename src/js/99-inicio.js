@@ -1,4 +1,5 @@
   // ---------- Conexão ----------
+  QZ.tema?.iniciar();
   renderAll();
   openTabFromHash();
   loadMe();
