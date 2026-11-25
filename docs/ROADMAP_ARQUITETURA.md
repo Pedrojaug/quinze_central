@@ -48,9 +48,9 @@ Este documento define o plano diretor de preparação técnica da **Central Quin
 - [x] Substituir o cache busting por janela de tempo em `src/js/08-modulos.js` por hash determinístico gerado pelo `build.js`.
 - [x] Atualizar `modulos/_modelo.js` para refletir o novo padrão oficial (`QZ.api` + `QZ.fmt` + `QZ.ui` + `/api/m`, sem depender de `ctx.dados()`).
 
-### Fase 3 — Contratos & Rede de Segurança
-- [ ] Criar testes unitários de contrato e integração para `api/m.js`, `api/_http.js`, utilitários `QZ` e rotas críticas de `api/_*.js` com mock de `sql`.
-- [ ] Atualizar `AGENTS.md` e `docs/ARQUITETURA.md` documentando o novo padrão obrigatório para módulos, `api/_http.js` e tabelas SQL via `migrations/`.
+### Fase 3 — Contratos & Rede de Segurança *(Concluída)*
+- [x] Criar testes unitários de contrato e integração para `api/m.js`, `api/_http.js`, utilitários `QZ` e rotas críticas de `api/_*.js` com mock de `sql`.
+- [x] Atualizar `AGENTS.md` e `docs/ARQUITETURA.md` documentando o novo padrão obrigatório para módulos, `api/_http.js` e tabelas SQL via `migrations/`.
 
 ### Fase 4 — Fatiamento Sob Demanda (Durante as Expansões)
 - [ ] **Não refatorar preventivamente módulos estáveis sem ticket/expansão.**
@@ -59,4 +59,4 @@ Este documento define o plano diretor de preparação técnica da **Central Quin
 ---
 
 ## 3. Critério para Liberar Expansões Grandes
-As novas adições e expansões de grande porte ficam liberadas para iniciar com segurança assim que as **Fases 0, 1, 2 e 3** estiverem concluídas, validadas pelo CI (`npm run check && npm test`) e em produção.
+As **Fases 0, 1, 2 e 3** estão concluídas, validadas pelo CI (`npm run check && npm test`) e prontas em produção — **as novas adições e expansões estão liberadas para iniciar com segurança.**

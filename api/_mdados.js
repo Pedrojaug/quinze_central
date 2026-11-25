@@ -24,15 +24,15 @@ export function montarPaginacao(itens = [], { limite = 50, offset = 0 } = {}) {
     temMais: off + fatia.length < lista.length,
   };
 }
-export async function listarPaginado(modulo, colecao, { limite = 50, offset = 0, ordem = "desc" } = {}) {
+export async function listarPaginado(modulo, colecao, { limite = 50, offset = 0, ordem = "desc" } = {}, db = sql) {
   const parent = `m/${modulo}/${colecao}`;
   const lim = Math.min(200, Math.max(1, parseInt(limite, 10) || 50));
   const off = Math.max(0, parseInt(offset, 10) || 0);
   const [contagem, linhas] = await Promise.all([
-    sql`SELECT count(*)::int AS total FROM docs WHERE parent = ${parent} AND NOT deleted`,
+    db`SELECT count(*)::int AS total FROM docs WHERE parent = ${parent} AND NOT deleted`,
     ordem === "asc"
-      ? sql`SELECT id, data FROM docs WHERE parent = ${parent} AND NOT deleted ORDER BY seq ASC LIMIT ${lim} OFFSET ${off}`
-      : sql`SELECT id, data FROM docs WHERE parent = ${parent} AND NOT deleted ORDER BY seq DESC LIMIT ${lim} OFFSET ${off}`,
+      ? db`SELECT id, data FROM docs WHERE parent = ${parent} AND NOT deleted ORDER BY seq ASC LIMIT ${lim} OFFSET ${off}`
+      : db`SELECT id, data FROM docs WHERE parent = ${parent} AND NOT deleted ORDER BY seq DESC LIMIT ${lim} OFFSET ${off}`,
   ]);
   const total = Number(contagem[0]?.total) || 0;
   const itens = linhas.map(x => ({ ...x.data, id: x.id }));
@@ -103,16 +103,16 @@ export function normalizarClientesCarteira(rows = []) {
 }
 
 // Clientes da Carteira (do mês alvo ou do mês mais recente com clientes), excluindo inativos e retirados.
-export async function clientesCarteiraComMes(mesAlvo = null) {
+export async function clientesCarteiraComMes(mesAlvo = null, db = sql) {
   if (mesAlvo && /^\d{4}-\d{2}$/.test(mesAlvo)) {
-    const rows = await sql`SELECT id, data FROM docs WHERE parent = ${`meses/${mesAlvo}/clientes`} AND NOT deleted`;
+    const rows = await db`SELECT id, data FROM docs WHERE parent = ${`meses/${mesAlvo}/clientes`} AND NOT deleted`;
     if (rows.length > 0) return { mes: mesAlvo, clientes: normalizarClientesCarteira(rows) };
   }
-  const parents = await sql`SELECT DISTINCT parent FROM docs WHERE parent LIKE 'meses/%/clientes' AND NOT deleted`;
+  const parents = await db`SELECT DISTINCT parent FROM docs WHERE parent LIKE 'meses/%/clientes' AND NOT deleted`;
   const mesesDisponiveis = parents.map(p => String(p.parent || "").split("/")[1]).filter(Boolean);
   const mes = escolherMesCarteira(mesesDisponiveis, mesAlvo);
   if (!mes) return { mes: null, clientes: [] };
-  const rows = await sql`SELECT id, data FROM docs WHERE parent = ${`meses/${mes}/clientes`} AND NOT deleted`;
+  const rows = await db`SELECT id, data FROM docs WHERE parent = ${`meses/${mes}/clientes`} AND NOT deleted`;
   return { mes, clientes: normalizarClientesCarteira(rows) };
 }
 export async function clientesCarteira(mesAlvo = null) {
