@@ -43,25 +43,29 @@ export async function carregarModulo(chave) {
   return prom;
 }
 
-export default async function handler(req, res) {
-  const r = String(req.query.r || "");
-  const i = r.indexOf("/");
-  const chave = i > 0 ? r.slice(0, i) : r;
-  const def = MODULOS_DEF[chave];
-  const acao = i > 0 ? r.slice(i + 1) : "";
-  if (!def || !/^[a-zA-Z0-9_.-]{1,40}$/.test(acao)) return res.status(404).json({ code: "rota" });
-  try {
-    const h = await carregarModulo(chave);
-    // Rotas sem sessão: .ics das férias (token secreto) e rotinas diárias (CRON_SECRET).
-    if (h?.publicas && h.publicas[acao]) return await h.publicas[acao](req, res);
-    const u = await requireSession(req, res);
-    if (!u) return;
-    if (def.area && !(u.areas || []).includes(def.area)) return res.status(403).json({ code: "sem_acesso" });
-    const fn = h?.rotas?.[acao];
-    if (!fn) return res.status(404).json({ code: "rota" });
-    return await fn(u, req, res);
-  } catch (e) {
-    console.error(`[m] ${r}:`, e && e.message ? e.message.slice(0, 200) : "erro");
-    if (!res.headersSent) return res.status(500).json({ code: "erro" });
-  }
+export function criarHandler({ exigirSessao = requireSession, resolverModulo = carregarModulo } = {}) {
+  return async function handler(req, res) {
+    const r = String(req.query?.r || "");
+    const i = r.indexOf("/");
+    const chave = i > 0 ? r.slice(0, i) : r;
+    const def = MODULOS_DEF[chave];
+    const acao = i > 0 ? r.slice(i + 1) : "";
+    if (!def || !/^[a-zA-Z0-9_.-]{1,40}$/.test(acao)) return res.status(404).json({ code: "rota" });
+    try {
+      const h = await resolverModulo(chave);
+      // Rotas sem sessão: .ics das férias (token secreto) e rotinas diárias (CRON_SECRET).
+      if (h?.publicas && h.publicas[acao]) return await h.publicas[acao](req, res);
+      const u = await exigirSessao(req, res);
+      if (!u) return;
+      if (def.area && !(u.areas || []).includes(def.area)) return res.status(403).json({ code: "sem_acesso" });
+      const fn = h?.rotas?.[acao];
+      if (!fn) return res.status(404).json({ code: "rota" });
+      return await fn(u, req, res);
+    } catch (e) {
+      console.error(`[m] ${r}:`, e && e.message ? e.message.slice(0, 200) : "erro");
+      if (!res.headersSent) return res.status(500).json({ code: "erro" });
+    }
+  };
 }
+
+export default criarHandler();
