@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light">
 <title>Meu POP · Central Quinze</title>
 <meta name="robots" content="noindex, nofollow">
+<script>(function(){try{var t=localStorage.getItem("qz-theme")==="dark"?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;}catch(e){}})();</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%230660FF%27 stroke-width=%275%27/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/app.css">
@@ -20,6 +21,7 @@
   .mp-tabs button[aria-pressed="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
   .mp-sub{font-size:13px;color:var(--ink2)}
   @media print{
+    :root,:root[data-theme="dark"]{color-scheme:light;--paper:#fff;--card:#fff;--surface:#FAFBFD;--surface-2:#F8FAFC;--input-bg:#fff;--muted-bg:#EEF1F6;--ink:#141C2C;--ink2:#586275;--line:#DFE4EC;--line2:#EDF0F5;--blue:#0660FF;--blue-dk:#0049CC;--blue-soft:#E6EFFF;--green:#1B6B3A;--green-soft:#E6F6EC;--amber:#6B4E00;--amber-soft:#FFF8E6;--warn:#8A5A00;--warn-soft:#FFF4DE;--danger:#8A1C1C;--danger-soft:#FDE2E2;--purple:#55308F;--purple-soft:#F1ECFB}
     .mp-top .btn,.mp-tabs,.nao-imprime{display:none !important}
     body{background:#fff}.po-card{border:0 !important;padding:0 !important}
     .mp-pop{display:block !important;page-break-after:always}
@@ -30,6 +32,7 @@
 <body>
 <main class="mp">
   <div class="mp-top"><h1>Meu POP</h1><span class="sp"></span>
+    <button class="btn" type="button" id="qzThemeBtn" aria-pressed="false" title="Alternar modo escuro">🌙 Escuro</button>
     <a class="btn" href="/?modulos=1">Voltar aos módulos</a>
     <button class="btn primary" type="button" id="imprimir">Imprimir / salvar em PDF</button></div>
   <p class="mp-sub" id="quem">Carregando…</p>
@@ -41,6 +44,25 @@
 <script>
 (async function(){
   const $ = s => document.querySelector(s);
+  const paintTheme = t => {
+    const dark = t === "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    const m = document.querySelector('meta[name="color-scheme"]');
+    if (m) m.content = dark ? "dark" : "light";
+    const b = $("#qzThemeBtn");
+    if (b) {
+      b.setAttribute("aria-pressed", String(dark));
+      b.textContent = dark ? "☀️ Claro" : "🌙 Escuro";
+      b.title = dark ? "Mudar para modo claro" : "Mudar para modo escuro";
+    }
+  };
+  paintTheme(document.documentElement.dataset.theme);
+  $("#qzThemeBtn")?.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    try { localStorage.setItem("qz-theme", next); } catch {}
+    paintTheme(next);
+  });
+  window.addEventListener("storage", ev => { if (!ev || ev.key === "qz-theme") paintTheme(ev?.newValue); });
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   let r;
   try { r = await fetch("/api/m?r=pop/meu", { credentials: "same-origin" }); } catch { $("#quem").textContent = "Sem conexão com o servidor."; return; }

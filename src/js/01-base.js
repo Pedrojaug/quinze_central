@@ -156,7 +156,7 @@
     const at = {}; A.forEach(c => { const k = c.atendimento || "Sem atendimento"; at[k] ||= {A:0,B:0,C:0,D:0}; at[k][c.nivel] = (at[k][c.nivel]||0)+1; });
     const atRows = Object.entries(at).map(([n,v])=>({n,v,t:Object.values(v).reduce((a,b)=>a+b,0)})).sort((a,b)=>(a.n==="Sem atendimento")-(b.n==="Sem atendimento")||b.t-a.t);
     const cmax = Math.max(1,...atRows.flatMap(r=>Object.values(r.v)));
-    const cell = (n,l) => n ? `<td class="h" style="background:color-mix(in srgb, ${LV[l]} ${Math.round(12+n/cmax*48)}%, white);${n/cmax>.55?"color:#fff;font-weight:700":""}">${n}</td>` : `<td class="muted">·</td>`;
+    const cell = (n,l) => n ? `<td class="h" style="background:color-mix(in srgb, ${LV[l]} ${Math.round(12+n/cmax*48)}%, var(--card));${n/cmax>.55?"color:#fff;font-weight:700":""}">${n}</td>` : `<td class="muted">·</td>`;
     const tl = {A:0,B:0,C:0,D:0}; atRows.forEach(r=>["A","B","C","D"].forEach(l=>tl[l]+=r.v[l]||0));
     $("#matrix").innerHTML = `<tr><th>Atendimento</th><th>A</th><th>B</th><th>C</th><th>D</th><th>Total</th></tr>` +
       atRows.map(r=>`<tr><td>${esc(r.n)}</td>${["A","B","C","D"].map(l=>cell(r.v[l]||0,l)).join("")}<td><b>${r.t}</b></td></tr>`).join("") +

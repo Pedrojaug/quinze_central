@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light">
 <title>Central Quinze</title>
 <meta name="robots" content="noindex, nofollow">
+<script>(function(){try{var t=localStorage.getItem("qz-theme")==="dark"?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;}catch(e){}})();</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%230660FF%27 stroke-width=%275%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,7 +45,7 @@
         <button role="tab" data-tab="team" aria-selected="false">Equipe e ajustes</button>
         <button role="tab" data-tab="users" aria-selected="false" hidden>Usuários</button>
       </nav>
-      <div style="display:flex;align-items:center;gap:12px"><div class="qz-notif-wrap" id="qzNotifWrap" hidden><button class="lockbtn qz-notif-btn" id="qzNotifBtn" type="button" title="Notificações e menções em peças">🔔 <span id="qzNotifLabel">Notificações</span><span class="qz-notif-badge" id="qzNotifBadge" hidden>0</span></button><div class="qz-notif-pop" id="qzNotifPop" hidden></div></div><a class="lockbtn" id="trocaModulo" href="/?modulos=1" title="Voltar para a tela de módulos" style="color:var(--blue-dk);border-color:#BFD3FF">Trocar de módulo</a><a class="lockbtn" href="/pop" title="Procedimento operacional padrão da sua função">Meu POP</a><a class="lockbtn" href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp</a><button class="lockbtn" id="lockBtn" type="button"></button><div class="sync"><span class="dot" id="syncDot"></span><span id="syncTxt">Conectando</span></div><button class="lockbtn qz-profile-btn" id="whoamiBtn" type="button" title="Editar meu perfil (foto e nome)"><span class="qz-hdr-av" id="whoamiAv"></span><span id="whoami" style="font-weight:600;color:var(--ink)"></span></button><a class="lockbtn" href="/api/logout" title="Sair da conta">Sair</a></div>
+      <div style="display:flex;align-items:center;gap:12px"><div class="qz-notif-wrap" id="qzNotifWrap" hidden><button class="lockbtn qz-notif-btn" id="qzNotifBtn" type="button" title="Notificações e menções em peças">🔔 <span id="qzNotifLabel">Notificações</span><span class="qz-notif-badge" id="qzNotifBadge" hidden>0</span></button><div class="qz-notif-pop" id="qzNotifPop" hidden></div></div><a class="lockbtn" id="trocaModulo" href="/?modulos=1" title="Voltar para a tela de módulos" style="color:var(--blue-dk);border-color:var(--blue-bd)">Trocar de módulo</a><a class="lockbtn" href="/pop" title="Procedimento operacional padrão da sua função">Meu POP</a><a class="lockbtn" href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp</a><button class="lockbtn" id="lockBtn" type="button"></button><button class="lockbtn qz-theme-btn" id="qzThemeBtn" type="button" data-qz-theme-toggle aria-pressed="false" title="Mudar para modo escuro">🌙 Escuro</button><div class="sync"><span class="dot" id="syncDot"></span><span id="syncTxt">Conectando</span></div><button class="lockbtn qz-profile-btn" id="whoamiBtn" type="button" title="Editar meu perfil (foto e nome)"><span class="qz-hdr-av" id="whoamiAv"></span><span id="whoami" style="font-weight:600;color:var(--ink)"></span></button><a class="lockbtn" href="/api/logout" title="Sair da conta">Sair</a></div>
     </div>
   </div>
 </header>
@@ -62,7 +63,7 @@
     <button class="btn primary" data-open-newmonth>Criar carteira</button>
   </div>
 
-  <p id="atalhoPecas" hidden style="margin:0 0 12px;padding:9px 14px;border:1px solid #BFD3FF;background:#F0F5FF;border-radius:10px;font-size:13.5px;color:var(--blue-dk)">
+  <p id="atalhoPecas" hidden style="margin:0 0 12px;padding:9px 14px;border:1px solid var(--blue-bd);background:var(--blue-soft);border-radius:10px;font-size:13.5px;color:var(--blue-dk)">
     🎬 <b>Aprovação de peças:</b> Acompanhe a <a href="/app?m=pecas#fila" style="color:var(--blue);font-weight:600;text-decoration:underline">Fila de aprovação de peças →</a> ou veja o <a href="/app?m=pecas#pecasdash" style="color:var(--blue);font-weight:600;text-decoration:underline">Dashboard mensal →</a>
   </p>
 
@@ -223,7 +224,7 @@
   </section>
 
   <section id="tab-team" hidden>
-    <div class="banner" id="teamLock" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--blue-soft);color:var(--blue-dk);border-color:#C9DAFF">
+    <div class="banner" id="teamLock" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--blue-soft);color:var(--blue-dk);border-color:var(--blue-bd)">
       <span>Equipe e ajustes em modo somente leitura. Clique em Desbloquear para adicionar ou remover pessoas e mudar os ajustes.</span>
       <button class="btn primary small" type="button" id="teamUnlock">Desbloquear</button>
     </div>

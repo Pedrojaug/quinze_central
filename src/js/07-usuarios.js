@@ -114,10 +114,10 @@
         }
 
         const badgeTipoNotif = m => {
-          if (m.tipo === "alteracao_solicitada") return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#E5EFFC;color:#1D4F91">🛠️ Alteração solicitada</span>`;
-          if (m.tipo === "reprovada") return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#FDE8E8;color:#A12020">❌ Reprovada</span>`;
-          if (m.souRemetente) return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#EAF2FF;color:#0B57D0">💬 Comentário na sua peça</span>`;
-          return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:#FEF3C7;color:#92400E">🔔 Menção (@)</span>`;
+          if (m.tipo === "alteracao_solicitada") return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--blue-soft);color:var(--blue-dk)">🛠️ Alteração solicitada</span>`;
+          if (m.tipo === "reprovada") return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--danger-soft);color:var(--danger)">❌ Reprovada</span>`;
+          if (m.souRemetente) return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--blue-soft);color:var(--blue-dk)">💬 Comentário na sua peça</span>`;
+          return `<span style="font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--amber-soft);color:var(--amber)">🔔 Menção (@)</span>`;
         };
 
         pop.innerHTML = `<div class="qz-notif-pop-head">
@@ -251,7 +251,7 @@
   function renderAvatarContent(el, { nome, login, avatar }){
     if (!el) return;
     if (avatar && /^data:image\//.test(avatar)) {
-      el.style.background = "#E2E8F0";
+      el.style.background = "var(--muted-bg)";
       el.innerHTML = `<img src="${esc(avatar)}" alt="${esc(nome || login || "")}">`;
     } else {
       const [c1, c2] = userColorPair(login || nome);
@@ -530,7 +530,7 @@
 
       const [c1, c2] = userColorPair(u.login || u.nome);
       const avHtml = u.avatar && /^data:image\//.test(u.avatar)
-        ? `<div class="usr-avatar" title="${esc(u.nome || u.login)}" style="padding:0;overflow:hidden;border-color:#CBD5E1"><img src="${esc(u.avatar)}" alt="${esc(u.nome || u.login)}"></div>`
+        ? `<div class="usr-avatar" title="${esc(u.nome || u.login)}" style="padding:0;overflow:hidden;border-color:var(--line-strong)"><img src="${esc(u.avatar)}" alt="${esc(u.nome || u.login)}"></div>`
         : `<div class="usr-avatar" title="${esc(u.nome || u.login)}" style="background:linear-gradient(135deg,${c1} 0%,${c2} 100%);color:#fff;border-color:transparent">${esc(userInitials(u.nome, u.login))}</div>`;
 
       return `<tr data-usr="${esc(u.login)}" class="${u.ativo ? "" : "out"}">

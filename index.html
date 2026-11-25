@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light">
 <meta name="robots" content="noindex, nofollow">
 <title>Central Quinze</title>
+<script>(function(){try{var t=localStorage.getItem("qz-theme")==="dark"?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;}catch(e){}})();</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%230660FF%27 stroke-width=%275%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,12 +14,22 @@
 <style>
 /* Layout: painel azul da marca à esquerda (tese), cartão de acesso à direita; empilha no celular */
 :root{
-  --blue:#0660FF; --blue-dk:#0049CC; --blue-soft:#E6EFFF;
-  --paper:#F4F6FA; --card:#FFFFFF; --ink:#141C2C; --ink2:#586275; --line:#DFE4EC;
+  --blue:#0660FF; --blue-dk:#0049CC; --blue-hover:#0049CC; --blue-soft:#E6EFFF;
+  --paper:#F4F6FA; --card:#FFFFFF; --surface:#FAFBFD; --input-bg:#FFFFFF; --muted-bg:#EEF0F3;
+  --ink:#141C2C; --ink2:#586275; --line:#DFE4EC;
   --danger:#C0271A; --danger-soft:#FDECEA; --ok:#0E8A7B;
+  --amber:#6B4E00; --amber-soft:#FFF8E6; --amber-bd:#F2DDA4;
   --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
   --body:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif;
   color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --blue:#3B82F6; --blue-dk:#7CB3FF; --blue-hover:#1D4ED8; --blue-soft:rgba(59,130,246,.16);
+  --paper:#0B1120; --card:#131B2E; --surface:#182238; --input-bg:#0E1626; --muted-bg:#1E293B;
+  --ink:#E6EDF7; --ink2:#94A3B8; --line:#26334D;
+  --danger:#F87171; --danger-soft:rgba(239,68,68,.16); --ok:#2DD4BF;
+  --amber:#FBBF24; --amber-soft:rgba(245,158,11,.15); --amber-bd:rgba(245,158,11,.42);
+  color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -30,6 +41,7 @@ button,input{font:inherit;color:inherit}
 .page{min-height:100%;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
 .brand{position:relative;overflow:hidden;background:var(--blue);color:#fff;padding:48px clamp(24px,6vw,88px);display:flex;flex-direction:column;justify-content:space-between;gap:48px;
   padding-top:calc(48px + env(safe-area-inset-top,0px))}
+:root[data-theme="dark"] .brand{background:linear-gradient(155deg,#0D3A8F 0%,#0A1D47 100%)}
 .brand::before,.brand::after{content:"";position:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.14);pointer-events:none}
 .brand::before{width:640px;height:640px;right:-260px;bottom:-240px;box-shadow:0 0 0 70px rgba(255,255,255,.04),0 0 0 140px rgba(255,255,255,.03)}
 .brand::after{width:260px;height:260px;right:150px;bottom:250px;border-color:rgba(255,255,255,.10)}
@@ -43,26 +55,30 @@ button,input{font:inherit;color:inherit}
 .inside b{display:block;font:700 16px var(--display)}
 .inside span{font-size:13px;opacity:.82}
 
-.side{display:flex;align-items:center;justify-content:center;padding:48px 24px;padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
+.side{position:relative;display:flex;align-items:center;justify-content:center;padding:48px 24px;padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
+.theme-toggle{position:absolute;top:16px;right:16px;border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:20px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.theme-toggle:hover{border-color:var(--blue);color:var(--ink)}
 .card{width:100%;max-width:400px}
 .card h2{font:700 28px/1.15 var(--display);margin:0 0 6px;letter-spacing:-.01em}
 .card .lead{color:var(--ink2);margin:0 0 28px}
 label{display:block;font-size:14px;font-weight:600;margin:0 0 6px}
 .field{margin-bottom:16px}
-input{width:100%;min-height:48px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 14px}
+input{width:100%;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg);padding:10px 14px}
 input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blue-soft)}
 .pw{position:relative}
 .pw input{padding-right:76px}
 .pw button{position:absolute;right:6px;top:6px;bottom:6px;border:0;background:none;color:var(--ink2);font-size:13px;font-weight:600;padding:0 10px;border-radius:7px;cursor:pointer}
 .pw button:hover{background:var(--paper)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:0;border-radius:10px;background:var(--blue);color:#fff;font-weight:600;font-size:16px;cursor:pointer;text-decoration:none}
-.btn:hover{background:var(--blue-dk)}
+.btn:hover{background:var(--blue-hover)}
+:root[data-theme="dark"] .btn{background:#2563EB}
+:root[data-theme="dark"] .btn:hover{background:#1D4ED8}
 .btn:disabled{opacity:.6;cursor:default}
 .err{background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:16px}
 .foot{color:var(--ink2);font-size:13px;margin-top:22px}
 
-.aviso{display:block;margin:-6px 0 16px;padding:10px 14px;border-radius:10px;background:#FFF8E6;border:1px solid #F2DDA4;color:#6B4E00;font-size:14px;text-decoration:none}
-.aviso b{color:#6B4E00;white-space:nowrap}
+.aviso{display:block;margin:-6px 0 16px;padding:10px 14px;border-radius:10px;background:var(--amber-soft);border:1px solid var(--amber-bd);color:var(--amber);font-size:14px;text-decoration:none}
+.aviso b{color:var(--amber);white-space:nowrap}
 .apps{display:flex;flex-direction:column;gap:12px;margin-bottom:22px}
 .app{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s}
 .app:hover{border-color:var(--blue);box-shadow:0 0 0 4px var(--blue-soft)}
@@ -71,10 +87,10 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
 .app b{display:block;font:700 18px/1.2 var(--display)}
 .app small{display:block;color:var(--ink2);font-size:14px;margin-top:2px}
 .app .go{color:var(--blue);font-size:20px}
-.app.soon{cursor:default;background:#FAFBFD}
+.app.soon{cursor:default;background:var(--surface)}
 .app.soon:hover{border-color:var(--line);box-shadow:none}
-.app.soon .ic{background:#EEF0F3;color:var(--ink2)}
-.app .badge{font-size:12px;font-weight:600;color:var(--ink2);background:#EEF0F3;border-radius:20px;padding:3px 10px;white-space:nowrap}
+.app.soon .ic{background:var(--muted-bg);color:var(--ink2)}
+.app .badge{font-size:12px;font-weight:600;color:var(--ink2);background:var(--muted-bg);border-radius:20px;padding:3px 10px;white-space:nowrap}
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-8px 0 18px}
 .quick a{text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center}
 .quick a:hover{border-color:var(--blue);color:var(--blue-dk)}
@@ -87,7 +103,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
   .brand::after{display:none}
   .thesis p{font-size:16px}
   .inside{grid-template-columns:1fr 1fr 1fr;gap:10px}
-  .side{align-items:flex-start;padding-top:32px}
+  .side{align-items:flex-start;padding-top:56px}
 }
 @media (max-width:520px){
   .brand img{width:150px}
@@ -113,6 +129,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
   </section>
 
   <main class="side">
+    <button class="theme-toggle" type="button" id="qzThemeBtn" aria-pressed="false" title="Mudar para modo escuro">🌙 Escuro</button>
     <div class="card" id="loginBox">
       <h2>Entrar</h2>
       <p class="lead">Use seu e-mail da Quinze e a senha do e-mail, ou o usuário e a senha que a gestão te passou.</p>
@@ -141,7 +158,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     <div class="card" id="homeBox" hidden>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:14px">
-          <div id="homeAv" style="width:72px;height:72px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 24px var(--display);overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(15,23,42,.18);border:2.5px solid #fff"></div>
+          <div id="homeAv" style="width:72px;height:72px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 24px var(--display);overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px rgba(15,23,42,.18);border:2.5px solid var(--card)"></div>
           <h2 id="hello" style="margin:0">Olá!</h2>
         </div>
         <button class="out" type="button" id="myProfile" style="margin:0;font-size:13.5px">Editar perfil</button>
@@ -164,8 +181,8 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
       <p class="lead">Personalize sua foto e seu nome de exibição na Central Quinze.</p>
       <form id="frmHomeProfile" novalidate>
         <div class="err" id="profHomeErr" role="alert" hidden></div>
-        <div style="display:flex;align-items:center;gap:18px;padding:16px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:16px">
-          <div id="profHomeAv" style="width:112px;height:112px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 36px var(--display);overflow:hidden;flex-shrink:0;box-shadow:0 5px 16px rgba(15,23,42,.18);border:3px solid #fff"></div>
+        <div style="display:flex;align-items:center;gap:18px;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:16px">
+          <div id="profHomeAv" style="width:112px;height:112px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font:700 36px var(--display);overflow:hidden;flex-shrink:0;box-shadow:0 5px 16px rgba(15,23,42,.18);border:3px solid var(--card)"></div>
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;font-size:14px;margin-bottom:6px">Foto de perfil</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -186,6 +203,25 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
 <script>
 (function(){
   const $ = s => document.querySelector(s);
+  const paintTheme = t => {
+    const dark = t === "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    const m = document.querySelector('meta[name="color-scheme"]');
+    if (m) m.content = dark ? "dark" : "light";
+    const b = $("#qzThemeBtn");
+    if (b) {
+      b.setAttribute("aria-pressed", String(dark));
+      b.textContent = dark ? "☀️ Claro" : "🌙 Escuro";
+      b.title = dark ? "Mudar para modo claro" : "Mudar para modo escuro";
+    }
+  };
+  paintTheme(document.documentElement.dataset.theme);
+  $("#qzThemeBtn")?.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    try { localStorage.setItem("qz-theme", next); } catch {}
+    paintTheme(next);
+  });
+  window.addEventListener("storage", ev => { if (!ev || ev.key === "qz-theme") paintTheme(ev?.newValue); });
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const qs = new URLSearchParams(location.search);
   const next = qs.get("next");
