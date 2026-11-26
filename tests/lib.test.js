@@ -9,6 +9,9 @@ const {
   AVATARES_PARENT,
   mesclarAvataresDocs,
   hashConfereTimingSafe,
+  MAX_ERROS_LOGIN_IP,
+  MAX_ERROS_LOGIN_USUARIO,
+  excedeuLimiteLogin,
 } = await import("../api/_lib.js");
 
 test("mesclarAvataresDocs combina mapa legado e docs individuais corretamente", () => {
@@ -58,4 +61,16 @@ test("hashConfereTimingSafe valida SHA-256 hex com timingSafeEqual", () => {
   assert.equal(hashConfereTimingSafe("", hashValido), false);
   assert.equal(hashConfereTimingSafe("segredo-teste-123", ""), false);
   assert.equal(hashConfereTimingSafe("segredo-teste-123", "hash-invalido"), false);
+});
+
+test("excedeuLimiteLogin aplica 50 erros por IP compartilhado e 10 erros por usuário", () => {
+  assert.equal(MAX_ERROS_LOGIN_IP, 50);
+  assert.equal(MAX_ERROS_LOGIN_USUARIO, 10);
+
+  assert.equal(excedeuLimiteLogin(49, 9, "eduardo"), false);
+  assert.equal(excedeuLimiteLogin(50, 0, "eduardo"), true);
+  assert.equal(excedeuLimiteLogin(10, 10, "eduardo"), true);
+  assert.equal(excedeuLimiteLogin(10, 0, "eduardo"), false);
+  assert.equal(excedeuLimiteLogin(49, 15, ""), false);
+  assert.equal(excedeuLimiteLogin(50, 0, ""), true);
 });
