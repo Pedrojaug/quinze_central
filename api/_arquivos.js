@@ -4,6 +4,7 @@
 // O endereço do arquivo nunca vai para a página: o download passa pela rota do módulo, que confere a permissão.
 import fs from "node:fs";
 import path from "node:path";
+import { etagArquivo, aplicarHeadersMidia, responder304SeIgual } from "./_pecas_cache.js";
 
 export const MAX_ARQUIVO = 3 * 1024 * 1024;   // 3 MB (o envio vai em base64 e a Vercel aceita até 4,5 MB por requisição)
 const TIPOS = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
@@ -104,22 +105,36 @@ async function _getBlob(chave) {
 }
 
 // Envia o arquivo na resposta (download ou visualização embutida).
-export async function enviar(res, chave, nomeDownload, inline) {
+export async function enviar(res, chave, nomeDownload, inline, opts = {}) {
+  const { req = null, cacheavel = false } = opts || {};
   const disp = `${inline ? "inline" : "attachment"}; filename="${nomeSeguro(nomeDownload)}"`;
+  const etag = cacheavel ? etagArquivo(chave) : "";
+  if (cacheavel && req && responder304SeIgual(req, res, { etag })) return res;
   if (local()) {
     const f = path.join(dirLocal(), chave);
     if (!chave || !fs.existsSync(f)) return res.status(404).json({ code: "sem_arquivo" });
-    res.setHeader("content-type", MIME_POR_EXT[extensao(chave)] || "application/octet-stream");
-    res.setHeader("content-disposition", disp);
+    const contentType = MIME_POR_EXT[extensao(chave)] || "application/octet-stream";
+    if (cacheavel) {
+      aplicarHeadersMidia(res, { contentType, disposition: disp, etag });
+    } else {
+      res.setHeader("content-type", contentType);
+      res.setHeader("content-disposition", disp);
+      res.setHeader("cache-control", "private, no-store");
+    }
     res.statusCode = 200;
     return res.end(fs.readFileSync(f));
   }
   const r = await _getBlob(chave);
   if (!r || r.statusCode !== 200) return res.status(404).json({ code: "sem_arquivo" });
   const buf = Buffer.from(await new Response(r.stream).arrayBuffer());
-  res.setHeader("content-type", r.blob.contentType || "application/octet-stream");
-  res.setHeader("content-disposition", disp);
-  res.setHeader("cache-control", "private, no-store");
+  const contentType = r.blob.contentType || "application/octet-stream";
+  if (cacheavel) {
+    aplicarHeadersMidia(res, { contentType, disposition: disp, etag });
+  } else {
+    res.setHeader("content-type", contentType);
+    res.setHeader("content-disposition", disp);
+    res.setHeader("cache-control", "private, no-store");
+  }
   res.statusCode = 200;
   return res.end(buf);
 }
@@ -200,8 +215,9 @@ export async function linkTemporario(chave, minutos = 10) {
   if (access === "public") return null;
   const { issueSignedToken, presignUrl } = await import("@vercel/blob");
   const agora = Date.now();
-  if (!delegacao || delegacao.validUntil < agora + 15 * 60000)
-    delegacao = await issueSignedToken({ token: blobToken(), pathname: "*", operations: ["get"], validUntil: agora + 60 * 60000 });
+  const margemMs = Math.max(15, Number(minutos) + 15) * 60000;
+  if (!delegacao || delegacao.validUntil < agora + margemMs)
+    delegacao = await issueSignedToken({ token: blobToken(), pathname: "*", operations: ["get"], validUntil: agora + 6 * 60 * 60000 });
   try {
     const r = await presignUrl(delegacao, { operation: "get", pathname: chave, access, validUntil: agora + minutos * 60000 });
     return r.presignedUrl;

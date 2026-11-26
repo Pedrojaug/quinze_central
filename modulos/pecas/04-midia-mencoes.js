@@ -36,16 +36,16 @@
         itensVisualizaveis.push({ expirado: true, a });
         continue;
       }
-      const u = arqUrl(p, v, a);
+      const urlFull = arqUrl(p, v, a, false);
       if (a.tipo === "application/pdf") {
-        itensVisualizaveis.push({ pdf: true, a, url: u });
+        itensVisualizaveis.push({ pdf: true, a, url: urlFull });
       } else {
         itensVisualizaveis.push({
           img: true,
           nome: a.nome,
-          thumbUrl: u,
-          fullUrl: u,
-          extUrl: u,
+          thumbUrl: arqUrl(p, v, a, true),
+          fullUrl: urlFull,
+          extUrl: urlFull,
           extLabel: "Abrir original ↗",
           linkFootLabel: "Abrir ↗",
         });
@@ -66,7 +66,7 @@
         itensVisualizaveis.push({
           img: true,
           nome: nomeDrive || "Imagem (Google Drive)",
-          thumbUrl: urlImagemDrive(fid, 1200),
+          thumbUrl: urlImagemDrive(fid, 720),
           fullUrl: urlImagemDrive(fid, 2400),
           fallbackImgUrl: urlProxyDrive(p.id, fid),
           drivePreview: previewUrl,
@@ -90,7 +90,7 @@
       if (a.expirado) return `<div class="pc-th exp" title="${esc(a.nome)}">vídeo expirado</div>`;
       const u = arqUrl(p, v, a);
       return `<div class="pc-reel-card">
-        <video controls preload="metadata" src="${u}"></video>
+        <video controls preload="none" src="${u}"></video>
         <div class="pc-reel-foot">
           <span title="${esc(a.nome)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎬 <b>${esc(a.nome)}</b></span>
           <div class="pc-reel-actions">

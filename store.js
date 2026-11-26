@@ -49,7 +49,7 @@ window.QZ_SITE = true;
       try { await pull(); failing = 0; }
       catch (e) { if (++failing === 3) listeners.forEach(l => l.err && l.err(e)); }
       schedule();
-    }, document.hidden ? 20000 : 12000);
+    }, document.hidden ? 120000 : 30000);
   }
   function start() { if (!ready) ready = pull().then(schedule); return ready; }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && ready) { pull().catch(() => { }); schedule(); } });

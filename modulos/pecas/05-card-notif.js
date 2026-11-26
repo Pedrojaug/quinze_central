@@ -101,10 +101,89 @@
     if (exibindo >= total) return "";
     const faltam = total - exibindo;
     const prox = Math.min(LIMITE_PAGINA_PECAS, faltam);
-    return `<div class="pc-card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    return `<div class="pc-card pc-paginacao-rodape" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <span class="pc-sub">Exibindo <b>${exibindo}</b> de <b>${total}</b> materiais</span>
       <button class="btn primary" type="button" data-x="mostrar-mais">Mostrar mais ${prox} (${faltam} restante${faltam > 1 ? "s" : ""})</button>
     </div>`;
+  }
+
+  function assinaturaMidiaPeca(p) {
+    const atual = p?.versoes?.[p.versoes.length - 1];
+    if (!atual) return "";
+    const arqs = (atual.arquivos || []).map(a => `${a.i}:${a.nome}:${a.expirado ? 1 : 0}:${a.temThumb ? 1 : 0}`).join(",");
+    const lnks = (atual.links || []).join(",");
+    const meta = Object.entries(atual.linksMeta || {})
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([k, m]) => `${k}=${m?.tipo || ""}:${m?.nome || ""}`)
+      .join(",");
+    return `${atual.n}|${arqs}|${lnks}|${meta}`;
+  }
+
+  function assinaturaCardPeca(p, extraSig = "") {
+    atualizarMapaPerfis();
+    const autores = new Set([p?.remetente?.login, ...(p?.aprovadores || []).map(a => a?.login), ...(p?.historico || []).map(h => h?.por?.login)].filter(Boolean));
+    const avSig = [...autores].sort().map(lg => {
+      const info = mapaPerfisUsuarios[lg];
+      return `${lg}:${info?.nome || ""}:${(info?.avatar || "").length}`;
+    }).join(",");
+    const histSig = (p?.historico || []).map(h => `${h.id || h.em}:${h.tipo}:${(h.mencoes || []).length}:${(h.vistoPor || []).join(",")}`).join(";");
+    return `${p?.id}|${p?.titulo}|${p?.clienteNome}|${p?.tipoMidia}|${p?.status}|${p?.versao}|${p?.atualizadoEm || ""}|${assinaturaMidiaPeca(p)}|${histSig}|${avSig}|${extraSig}`;
+  }
+
+  function renderizarListaPecasIncremental(container, visiveis, { montarCard, extraSigFn, rodapeHtml = "", vazioHtml = "" }) {
+    if (!container) return;
+    if (!Array.isArray(visiveis) || !visiveis.length) {
+      container.innerHTML = vazioHtml;
+      return;
+    }
+    container.querySelectorAll(":scope > .pc-vazio, :scope > .pc-paginacao-rodape").forEach(el => el.remove());
+    const mapaExistentes = new Map();
+    container.querySelectorAll(":scope > .pc-card[data-id]").forEach(c => {
+      mapaExistentes.set(c.dataset.id, c);
+    });
+    const novosNos = [];
+    for (const p of visiveis) {
+      const cardSig = assinaturaCardPeca(p, extraSigFn ? extraSigFn(p) : "");
+      const mediaSig = assinaturaMidiaPeca(p);
+      const existente = mapaExistentes.get(p.id);
+      if (existente && existente.dataset.cardSig === cardSig) {
+        existente._pecaRef = p;
+        mapaExistentes.delete(p.id);
+        novosNos.push(existente);
+        continue;
+      }
+      const tpl = document.createElement("template");
+      tpl.innerHTML = montarCard(p).trim();
+      const novoCard = tpl.content.firstElementChild;
+      if (!novoCard) continue;
+      if (existente) {
+        if (existente.dataset.mediaSig === mediaSig) {
+          const mediaAntiga = existente.querySelector(".pc-media-pane");
+          const mediaNova = novoCard.querySelector(".pc-media-pane");
+          if (mediaAntiga && mediaNova) mediaNova.replaceWith(mediaAntiga);
+        }
+        mapaExistentes.delete(p.id);
+        existente.replaceWith(novoCard);
+      }
+      novoCard.dataset.cardSig = cardSig;
+      novoCard.dataset.mediaSig = mediaSig;
+      novoCard._pecaRef = p;
+      novosNos.push(novoCard);
+    }
+    for (const sobrando of mapaExistentes.values()) sobrando.remove();
+    novosNos.forEach((node, idx) => {
+      const atualNaPos = container.children[idx] || null;
+      if (atualNaPos !== node) container.insertBefore(node, atualNaPos);
+    });
+    if (rodapeHtml) {
+      const tplRod = document.createElement("template");
+      tplRod.innerHTML = rodapeHtml.trim();
+      const rodEl = tplRod.content.firstElementChild;
+      if (rodEl) {
+        rodEl.classList.add("pc-paginacao-rodape");
+        container.appendChild(rodEl);
+      }
+    }
   }
 
   // ---------- Badge de notificação nas abas Fila de aprovação e Envio e sincronização em tempo real ----------

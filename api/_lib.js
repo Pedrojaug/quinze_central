@@ -290,11 +290,16 @@ export async function conferirSenha(login, senha) {
                       FROM app_users WHERE lower(username) = ${login}`;
   return !!(r[0] && (r[0].ok || r[0].ok_padrao));
 }
-// Bloqueio por excesso de erros: 10 senhas erradas em 15 minutos, por endereço e por usuário.
+// Bloqueio por excesso de erros em 15 minutos: 100 erros por IP compartilhado e 10 erros por usuário.
+export const MAX_ERROS_LOGIN_IP = 100;
+export const MAX_ERROS_LOGIN_USUARIO = 10;
+export function excedeuLimiteLogin(errosIp, errosUsuario, login) {
+  return errosIp >= MAX_ERROS_LOGIN_IP || (!!login && errosUsuario >= MAX_ERROS_LOGIN_USUARIO);
+}
 export async function bloqueado(ip, login) {
   const [{ n, m }] = await sql`SELECT count(*) FILTER (WHERE ip = ${ip})::int AS n, count(*) FILTER (WHERE login = ${login || ""})::int AS m
                                FROM login_attempts WHERE NOT ok AND at > now() - interval '15 minutes' AND (ip = ${ip} OR login = ${login || ""})`;
-  return n >= 10 || (!!login && m >= 10);
+  return excedeuLimiteLogin(n, m, login);
 }
 export async function registrarTentativa(ip, login, ok) {
   await sql`INSERT INTO login_attempts (ip, login, ok) VALUES (${ip}, ${login || null}, ${ok})`;

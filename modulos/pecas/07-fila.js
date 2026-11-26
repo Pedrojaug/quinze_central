@@ -73,8 +73,12 @@
         return;
       }
       let r;
-      try { await carregarBase(); r = await api("pecas"); } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      try {
+        await carregarBase();
+        r = await api(ultVersaoAvatares ? `pecas&av=${encodeURIComponent(ultVersaoAvatares)}` : "pecas");
+      } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       if (r.versao) ultVersaoPecas = r.versao;
+      if (r.avVersao) ultVersaoAvatares = r.avVersao;
       if (r.perfis) atualizarMapaPerfis(r.perfis);
       aplicarDados(r.pecas, { silencioso });
     }
@@ -83,35 +87,38 @@
         .sort((a, b) => fv("st") === "pendente" ? a.atualizadoEm.localeCompare(b.atualizadoEm) : b.atualizadoEm.localeCompare(a.atualizadoEm));
       const visiveis = l.slice(0, limite);
       if (box("notif-mencoes")) box("notif-mencoes").innerHTML = renderPainelNotificacoesMencoes(lista);
-      box("lista").innerHTML = l.length ? visiveis.map(p => {
-        const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
-        const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
-        const podeDecidirEsta = !ehBloqueado && (base.podeDecidir || base.ehGestao || souAprovador);
-        const souRemetente = !!(p.minha || (base && p.remetente && p.remetente.login === base.login));
-        const podeEditarEsta = !ehBloqueado && (souRemetente || base.podeDecidir || base.ehGestao || base.funcao === "mestre");
+      renderizarListaPecasIncremental(box("lista"), visiveis, {
+        montarCard: p => {
+          const souAprovador = (p.aprovadores || []).some(a => a.login === base.login);
+          const ehBloqueado = ["social", "atendimento"].includes(base && base.funcao);
+          const podeDecidirEsta = !ehBloqueado && (base.podeDecidir || base.ehGestao || souAprovador);
+          const souRemetente = !!(p.minha || (base && p.remetente && p.remetente.login === base.login));
+          const podeEditarEsta = !ehBloqueado && (souRemetente || base.podeDecidir || base.ehGestao || base.funcao === "mestre");
 
-        let acoesHtml = "";
-        if (podeDecidirEsta && p.status === "pendente") {
-          acoesHtml = `<div class="pc-dec">
-          <textarea data-c="com" data-dec-coment="${esc(p.id)}" placeholder="Comentário / parecer (obrigatório para reprovar ou pedir alteração · use @ para marcar alguém)"></textarea>
-          <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
-          <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
-          <span class="pc-sub" data-c="msg"></span></div></div>`;
-        } else if (podeEditarEsta && p.status === "aprovada") {
-          acoesHtml = `<div class="pc-bar" style="margin-top:10px">
-            <button class="btn" type="button" data-x="editar-peca" data-id="${esc(p.id)}" style="display:inline-flex;align-items:center;gap:6px">✏️ Editar material aprovado (Nova versão v${p.versao + 1})</button>
-          </div>`;
-        }
-        return cartao(p, acoesHtml);
-      }).join("") + rodapePaginacao(l.length, visiveis.length)
-        : `<div class="pc-card pc-vazio">${
+          let acoesHtml = "";
+          if (podeDecidirEsta && p.status === "pendente") {
+            acoesHtml = `<div class="pc-dec">
+            <textarea data-c="com" data-dec-coment="${esc(p.id)}" placeholder="Comentário / parecer (obrigatório para reprovar ou pedir alteração · use @ para marcar alguém)"></textarea>
+            <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
+            <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
+            <span class="pc-sub" data-c="msg"></span></div></div>`;
+          } else if (podeEditarEsta && p.status === "aprovada") {
+            acoesHtml = `<div class="pc-bar" style="margin-top:10px">
+              <button class="btn" type="button" data-x="editar-peca" data-id="${esc(p.id)}" style="display:inline-flex;align-items:center;gap:6px">✏️ Editar material aprovado (Nova versão v${p.versao + 1})</button>
+            </div>`;
+          }
+          return cartao(p, acoesHtml);
+        },
+        extraSigFn: () => `${base?.login || ""}:${base?.funcao || ""}:${base?.podeDecidir ? 1 : 0}:${base?.ehGestao ? 1 : 0}`,
+        rodapeHtml: rodapePaginacao(l.length, visiveis.length),
+        vazioHtml: `<div class="pc-card pc-vazio">${
             lista.length
               ? (fv("st") === "pendente" && !fv("f-per") && !fv("cli") && !fv("rem") && !fv("f-mencao")
                   ? `Não há peças pendentes de aprovação no momento. <div style="margin-top:10px"><button class="btn small" type="button" data-x="ver-todas">Ver todas as peças da fila (${lista.length})</button></div>`
                   : `Nenhuma peça encontrada com esses filtros. <div style="margin-top:10px"><button class="btn small" type="button" data-x="limpar-filtros-fila">Limpar filtros</button></div>`)
               : "Nenhuma peça na fila."
-          }</div>`;
-      el.querySelectorAll(".pc-card[data-id]").forEach(c => { c._pecaRef = lista.find(q => q.id === c.dataset.id) || null; });
+          }</div>`,
+      });
       resolverMetadadosDrivePendentes(visiveis, el);
     }
     el.addEventListener("click", async ev => {

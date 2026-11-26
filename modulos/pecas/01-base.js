@@ -60,8 +60,16 @@
   const api = QZ.criarApi("pec");
   let base = null;
   let ultVersaoPecas = "";
-  const carregarBase = async () => (base ||= await api("inicio"));
-  const arqUrl = (p, v, a) => `/api/m?r=pec/peca.arquivo&id=${encodeURIComponent(p.id)}&v=${v.n}&i=${a.i}`;
+  let ultVersaoAvatares = "";
+  const carregarBase = async () => {
+    if (!base) {
+      base = await api("inicio");
+      if (base?.avVersao) ultVersaoAvatares = base.avVersao;
+    }
+    return base;
+  };
+  const arqUrl = (p, v, a, thumb = false) =>
+    `/api/m?r=pec/peca.arquivo&id=${encodeURIComponent(p.id)}&v=${v.n}&i=${a.i}${thumb && a?.temThumb ? "&thumb=1" : ""}`;
   const ST = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada", alteracao_solicitada: "Alteração solicitada" };
   const ACAO = { envio: "enviou", reenvio: "reenviou", edicao_aprovada: "editou material aprovado", edicao: "editou material", aprovada: "aprovou", reprovada: "reprovou", alteracao_solicitada: "pediu alteração", comentario: "comentou" };
 

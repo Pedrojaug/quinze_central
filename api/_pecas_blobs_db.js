@@ -2,6 +2,7 @@
 // Importa _lib.js apenas sob demanda para manter os testes unitários independentes de DATABASE_URL.
 import crypto from "node:crypto";
 import { nomeSeguro } from "./_arquivos.js";
+import { etagArquivo, aplicarHeadersMidia, responder304SeIgual } from "./_pecas_cache.js";
 
 export const BLOBS_DB_PARENT = "m/pecas/blobs";
 
@@ -66,14 +67,17 @@ export async function lerBlobDoBanco(chave, sqlImpl) {
   };
 }
 
-export async function enviarBlobDoBanco(res, chave, nomeDownload, inline = true, sqlImpl) {
+export async function enviarBlobDoBanco(res, chave, nomeDownload, inline = true, sqlImpl = undefined, req = null) {
+  const etag = etagArquivo(chave);
+  if (req && responder304SeIgual(req, res, { etag })) return res;
   const item = await lerBlobDoBanco(chave, sqlImpl);
   if (!item) return res.status(404).json({ code: "sem_arquivo" });
   const disp = `${inline ? "inline" : "attachment"}; filename="${nomeSeguro(nomeDownload || item.nome)}"`;
-  res.setHeader("content-type", item.tipo || "application/octet-stream");
-  res.setHeader("content-disposition", disp);
-  res.setHeader("cache-control", "private, max-age=3600");
-  res.setHeader("x-content-type-options", "nosniff");
+  aplicarHeadersMidia(res, {
+    contentType: item.tipo || "application/octet-stream",
+    disposition: disp,
+    etag,
+  });
   res.statusCode = 200;
   return res.end(item.buf);
 }
