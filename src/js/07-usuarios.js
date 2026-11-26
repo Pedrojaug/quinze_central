@@ -48,6 +48,7 @@
     $("#lockBtn").hidden = modAtual !== "atendimento";
     atualizarBotaoPerfilHeader();
     iniciarModalMeuPerfil();
+    iniciarMenuUsuarioHeader();
     const st = $("#syncTxt"); if (st && ME.nome) st.title = ME.login;
     if (semAcesso) { $("#subtitle").textContent = "Sem acesso a este módulo"; showSections(currentTab()); return; }
     const defTab = hashTab || (modAtual === "atendimento" && allowed.has("tarefas") ? "tarefas" : "");
@@ -154,6 +155,10 @@
       btn._notifBound = true;
       btn.addEventListener("click", ev => {
         ev.stopPropagation();
+        const umPop = document.getElementById("qzUserMenuPop");
+        const umBtn = document.getElementById("qzUserMenuBtn");
+        if (umPop) umPop.hidden = true;
+        if (umBtn) umBtn.setAttribute("aria-expanded", "false");
         pop.hidden = !pop.hidden;
         if (!pop.hidden) atualizarNotificacoes(true);
       });
@@ -303,6 +308,35 @@
         img.src = reader.result;
       };
       reader.readAsDataURL(file);
+    });
+  }
+
+  function iniciarMenuUsuarioHeader(){
+    const wrap = document.getElementById("qzUserMenuWrap");
+    const btn = document.getElementById("qzUserMenuBtn");
+    const pop = document.getElementById("qzUserMenuPop");
+    if (!wrap || !btn || !pop || btn._umBound) return;
+    btn._umBound = true;
+    const fechar = () => {
+      pop.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    };
+    btn.addEventListener("click", ev => {
+      ev.stopPropagation();
+      const np = document.getElementById("qzNotifPop");
+      if (np) np.hidden = true;
+      const abrir = pop.hidden;
+      pop.hidden = !abrir;
+      btn.setAttribute("aria-expanded", abrir ? "true" : "false");
+    });
+    pop.addEventListener("click", ev => {
+      if (ev.target.closest("#whoamiBtn") || ev.target.closest("a.qz-um-item")) fechar();
+    });
+    document.addEventListener("click", ev => {
+      if (!pop.hidden && !wrap.contains(ev.target)) fechar();
+    });
+    document.addEventListener("keydown", ev => {
+      if (ev.key === "Escape" && !pop.hidden) { fechar(); btn.focus(); }
     });
   }
 

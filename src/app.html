@@ -18,7 +18,7 @@
   <div class="wrap">
     <div class="head-row">
       <div class="brand">
-        <a href="/" title="Página inicial" style="display:block"><img src="/logo.png" alt="Quinze" width="150" height="34"></a>
+        <a href="/" title="Página inicial" style="display:block"><img src="/logo.png" alt="Quinze" width="124" height="28"></a>
         <span class="sep" aria-hidden="true"></span>
         <div>
           <h1 id="modTitle">Carteira de clientes</h1>
@@ -33,10 +33,31 @@
           <button class="btn primary" id="btnNewMonth" type="button">+ Nova carteira</button>
           <button class="btn danger" id="btnDelMonth" type="button" hidden title="Remover a carteira mensal selecionada">Remover carteira</button>
         </div>
-        <button class="qz-theme-btn" id="qzThemeBtn" type="button" data-qz-theme-toggle aria-pressed="false" title="Tema atual: Claro. Clique para mudar para Escuro">☀️ Tema: Claro</button>
+        <button class="lockbtn" id="lockBtn" type="button"></button>
+        <a class="qz-hdr-btn qz-hdr-mod" id="trocaModulo" href="/?modulos=1" title="Voltar para a tela de módulos">Trocar de módulo</a>
+        <div class="qz-notif-wrap" id="qzNotifWrap" hidden>
+          <button class="qz-hdr-btn qz-icon-btn qz-notif-btn" id="qzNotifBtn" type="button" title="Notificações e menções em peças" aria-label="Notificações">🔔<span class="sr-only" id="qzNotifLabel">Notificações</span><span class="qz-notif-badge" id="qzNotifBadge" hidden>0</span></button>
+          <div class="qz-notif-pop" id="qzNotifPop" hidden></div>
+        </div>
+        <div class="qz-um-wrap" id="qzUserMenuWrap">
+          <button class="qz-hdr-btn qz-user-trigger" id="qzUserMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false" title="Menu da conta">
+            <span class="qz-hdr-av" id="whoamiAv"></span>
+            <span class="qz-user-name" id="whoami"></span>
+            <span class="qz-um-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="qz-um-pop" id="qzUserMenuPop" role="menu" hidden>
+            <div class="qz-um-status"><div class="sync"><span class="dot" id="syncDot"></span><span id="syncTxt">Conectando</span></div></div>
+            <button class="qz-um-item" id="whoamiBtn" type="button" role="menuitem" title="Editar meu perfil (foto e nome)">👤 Meu perfil</button>
+            <button class="qz-um-item" id="qzThemeBtn" type="button" role="menuitem" data-qz-theme-toggle aria-pressed="false" title="Tema atual: Claro. Clique para mudar para Escuro">☀️ Tema: Claro</button>
+            <a class="qz-um-item" href="/pop" role="menuitem" title="Procedimento operacional padrão da sua função">📋 Meu POP</a>
+            <a class="qz-um-item" href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener" role="menuitem">💬 CRM WhatsApp</a>
+            <div class="qz-um-sep" role="separator"></div>
+            <a class="qz-um-item qz-um-logout" href="/api/logout" role="menuitem" title="Sair da conta">🚪 Sair</a>
+          </div>
+        </div>
       </div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <div class="head-tabs-row">
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="dash" aria-selected="true">Dashboard</button>
         <button role="tab" data-tab="cli" aria-selected="false">Clientes</button>
@@ -48,7 +69,6 @@
         <button role="tab" data-tab="team" aria-selected="false">Equipe e ajustes</button>
         <button role="tab" data-tab="users" aria-selected="false" hidden>Usuários</button>
       </nav>
-      <div style="display:flex;align-items:center;gap:12px"><div class="qz-notif-wrap" id="qzNotifWrap" hidden><button class="lockbtn qz-notif-btn" id="qzNotifBtn" type="button" title="Notificações e menções em peças">🔔 <span id="qzNotifLabel">Notificações</span><span class="qz-notif-badge" id="qzNotifBadge" hidden>0</span></button><div class="qz-notif-pop" id="qzNotifPop" hidden></div></div><a class="lockbtn" id="trocaModulo" href="/?modulos=1" title="Voltar para a tela de módulos" style="color:var(--blue-dk);border-color:var(--blue-bd)">Trocar de módulo</a><a class="lockbtn" href="/pop" title="Procedimento operacional padrão da sua função">Meu POP</a><a class="lockbtn" href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp</a><button class="lockbtn" id="lockBtn" type="button"></button><div class="sync"><span class="dot" id="syncDot"></span><span id="syncTxt">Conectando</span></div><button class="lockbtn qz-profile-btn" id="whoamiBtn" type="button" title="Editar meu perfil (foto e nome)"><span class="qz-hdr-av" id="whoamiAv"></span><span id="whoami" style="font-weight:600;color:var(--ink)"></span></button><a class="lockbtn" href="/api/logout" title="Sair da conta">Sair</a></div>
     </div>
   </div>
 </header>
