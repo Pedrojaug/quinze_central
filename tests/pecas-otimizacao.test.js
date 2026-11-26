@@ -229,6 +229,11 @@ test("bundles compilados em public/ carregam miniaturas, render incremental e po
   assert.equal(modPecas.includes("&thumb=1"), true);
   assert.equal(modPecas.includes("&av="), true);
   assert.equal(modPecas.includes("document.hidden ? 60000 : 20000"), true);
+  assert.equal(modPecas.includes(".pc-stamps"), true);
+  assert.equal(modPecas.includes(".pc-stamp.aprovar"), true);
+  assert.equal(modPecas.includes(".pc-stamp.alterar"), true);
+  assert.equal(modPecas.includes(".pc-stamp.reprovar"), true);
+  assert.equal(modPecas.includes('closest("[data-d]")'), true);
 
   const pubStore = fs.readFileSync(pubStorePath, "utf8");
   assert.equal(pubStore.includes("document.hidden ? 120000 : 30000"), true);

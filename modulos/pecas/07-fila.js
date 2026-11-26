@@ -98,10 +98,30 @@
           let acoesHtml = "";
           if (podeDecidirEsta && p.status === "pendente") {
             acoesHtml = `<div class="pc-dec">
-            <textarea data-c="com" data-dec-coment="${esc(p.id)}" placeholder="Comentário / parecer (obrigatório para reprovar ou pedir alteração · use @ para marcar alguém)"></textarea>
-            <div class="pc-bar" style="margin-top:8px"><button class="btn primary" type="button" data-d="aprovada">Aprovar</button>
-            <button class="btn" type="button" data-d="alteracao_solicitada">Pedir alteração</button><button class="btn" type="button" data-d="reprovada" style="color:var(--danger)">Reprovar</button>
-            <span class="pc-sub" data-c="msg"></span></div></div>`;
+            <div class="pc-dec-head">
+              <b>Carimbo de decisão</b>
+              <span class="pc-sub">Parecer obrigatório para pedir alteração ou reprovar · use @ para marcar alguém</span>
+            </div>
+            <textarea data-c="com" data-dec-coment="${esc(p.id)}" placeholder="Escreva aqui o comentário ou parecer da aprovação…"></textarea>
+            <div class="pc-stamps">
+              <button class="pc-stamp aprovar" type="button" data-d="aprovada">
+                <span class="pc-stamp-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.8-5.2"/></svg></span>
+                <span class="pc-stamp-lbl">Aprovar</span>
+                <span class="pc-stamp-sub">Liberar material</span>
+              </button>
+              <button class="pc-stamp alterar" type="button" data-d="alteracao_solicitada">
+                <span class="pc-stamp-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                <span class="pc-stamp-lbl">Alteração</span>
+                <span class="pc-stamp-sub">Solicitar ajuste</span>
+              </button>
+              <button class="pc-stamp reprovar" type="button" data-d="reprovada">
+                <span class="pc-stamp-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg></span>
+                <span class="pc-stamp-lbl">Reprovar</span>
+                <span class="pc-stamp-sub">Recusar peça</span>
+              </button>
+            </div>
+            <div class="pc-dec-msg" data-c="msg" role="alert"></div>
+            </div>`;
           } else if (podeEditarEsta && p.status === "aprovada") {
             acoesHtml = `<div class="pc-bar" style="margin-top:10px">
               <button class="btn" type="button" data-x="editar-peca" data-id="${esc(p.id)}" style="display:inline-flex;align-items:center;gap:6px">✏️ Editar material aprovado (Nova versão v${p.versao + 1})</button>
@@ -245,8 +265,9 @@
         render();
         return;
       }
-      const d = ev.target.dataset.d; if (!d) return;
-      const card = ev.target.closest("[data-id]"), taDec = card.querySelector('[data-c="com"]'), com = taDec.value.trim(), msg = card.querySelector('[data-c="msg"]');
+      const btnDec = ev.target.closest("[data-d]"); if (!btnDec) return;
+      const d = btnDec.dataset.d;
+      const card = btnDec.closest("[data-id]"), taDec = card.querySelector('[data-c="com"]'), com = taDec.value.trim(), msg = card.querySelector('[data-c="msg"]');
       if (d !== "aprovada" && !com) { msg.textContent = "Escreva o comentário."; taDec.focus(); return; }
       const mencoes = coletarMencoesDoTextarea(taDec);
       card.querySelectorAll("[data-d]").forEach(b => { b.disabled = true; });
