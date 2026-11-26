@@ -290,8 +290,8 @@ export async function conferirSenha(login, senha) {
                       FROM app_users WHERE lower(username) = ${login}`;
   return !!(r[0] && (r[0].ok || r[0].ok_padrao));
 }
-// Bloqueio por excesso de erros em 15 minutos: 50 erros por IP compartilhado e 10 erros por usuário.
-export const MAX_ERROS_LOGIN_IP = 50;
+// Bloqueio por excesso de erros em 15 minutos: 100 erros por IP compartilhado e 10 erros por usuário.
+export const MAX_ERROS_LOGIN_IP = 100;
 export const MAX_ERROS_LOGIN_USUARIO = 10;
 export function excedeuLimiteLogin(errosIp, errosUsuario, login) {
   return errosIp >= MAX_ERROS_LOGIN_IP || (!!login && errosUsuario >= MAX_ERROS_LOGIN_USUARIO);
