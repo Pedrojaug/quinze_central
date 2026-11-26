@@ -1,0 +1,31 @@
+services:
+  quinze-central:
+    build: .
+    container_name: quinze-central
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ARQUIVOS_DIR=/data/arquivos
+    volumes:
+      - quinze_arquivos:/data/arquivos
+    networks:
+      - default
+      - root_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=root_default"
+      - "traefik.http.routers.quinze-central.rule=Host(`${APP_HOST:-quinze-central.inteligentte.com.br}`)"
+      - "traefik.http.routers.quinze-central.entrypoints=websecure"
+      - "traefik.http.routers.quinze-central.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.quinze-central.loadbalancer.server.port=3000"
+
+networks:
+  default:
+  root_default:
+    external: true
+
+volumes:
+  quinze_arquivos:

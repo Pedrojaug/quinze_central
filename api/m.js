@@ -45,6 +45,9 @@ export async function carregarModulo(chave) {
 
 export function criarHandler({ exigirSessao = requireSession, resolverModulo = carregarModulo } = {}) {
   return async function handler(req, res) {
+    if (typeof res.setHeader === "function") {
+      res.setHeader("Cache-Control", "no-store");
+    }
     const r = String(req.query?.r || "");
     const i = r.indexOf("/");
     const chave = i > 0 ? r.slice(0, i) : r;

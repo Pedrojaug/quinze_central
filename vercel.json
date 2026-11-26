@@ -65,7 +65,7 @@
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/api/(doc|sync|login|logout|me|senha|users|health|ics)",
       "headers": [
         {
           "key": "Cache-Control",

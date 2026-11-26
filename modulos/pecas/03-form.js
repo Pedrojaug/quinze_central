@@ -85,6 +85,55 @@
     }
   }
 
+  async function gerarMiniaturaImagem(file) {
+    const ehImagemEstatica = /\.(jpe?g|jfif|png|webp)$/i.test(file?.name || "") ||
+      /^image\/(jpeg|png|webp)$/i.test(String(file?.type || ""));
+    if (!ehImagemEstatica || !file || file.size <= 120 * 1024) return null;
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, erro) => {
+        const el = new Image();
+        el.onload = () => ok(el);
+        el.onerror = () => erro(new Error("Falha ao ler imagem para miniatura."));
+        el.src = url;
+      });
+      const wOrig = img.naturalWidth || img.width || 1;
+      const hOrig = img.naturalHeight || img.height || 1;
+      const escala = Math.min(1, 720 / Math.max(wOrig, hOrig));
+      const w = Math.max(1, Math.round(wOrig * escala));
+      const h = Math.max(1, Math.round(hOrig * escala));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const stem = String(file.name || "thumb").replace(/\.[^.]+$/, "") || "thumb";
+      let blob = await new Promise(res => canvas.toBlob(res, "image/webp", 0.78));
+      let ext = "webp";
+      if (!blob || blob.size > 150 * 1024) {
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        for (const q of [0.78, 0.68]) {
+          const jb = await new Promise(res => canvas.toBlob(res, "image/jpeg", q));
+          if (jb && (!blob || jb.size < blob.size)) {
+            blob = jb;
+            ext = "jpg";
+          }
+          if (blob && blob.size <= 150 * 1024) break;
+        }
+      }
+      if (!blob || !blob.size || blob.size > 180 * 1024 || blob.size >= file.size * 0.85) return null;
+      return new File([blob], `th-${stem}.${ext}`, { type: blob.type || (ext === "webp" ? "image/webp" : "image/jpeg") });
+    } catch {
+      return null;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   function enviarDiretoUmaTentativa(url, headers, tipo, storeId, file, attempt, onProg) {
     return new Promise((ok, erro) => {
       const xhr = new XMLHttpRequest();
@@ -321,7 +370,23 @@
         p => { a.prog = p; pintar(a); },
         s => { a.statusTxt = s; pintar(a); }
       ).then(
-        r => { a.chave = r.chave; a.nomeFinal = r.nome || a.file.name; a.prog = 1; a.statusTxt = ""; pintar(a); },
+        async r => {
+          a.chave = r.chave;
+          a.nomeFinal = r.nome || a.file.name;
+          a.prog = 0.96;
+          a.statusTxt = "miniatura…";
+          pintar(a);
+          try {
+            const thumbFile = await gerarMiniaturaImagem(a.file);
+            if (thumbFile) {
+              const rThumb = await enviarArquivo(thumbFile, () => {}, () => {});
+              if (rThumb?.chave) a.thumbChave = rThumb.chave;
+            }
+          } catch {}
+          a.prog = 1;
+          a.statusTxt = "";
+          pintar(a);
+        },
         e => { a.erro = e?.message || "Falha no envio do arquivo."; a.statusTxt = ""; pintar(a); }
       );
     };
@@ -381,7 +446,17 @@
       if (arquivos.some(a => a.erro)) return msg("Algum arquivo falhou. Remova-o ou envie de novo.");
       const links = $("links").value.split(/\s+/).map(s => s.trim()).filter(Boolean);
       if (!arquivos.length && !links.length) return msg("Anexe pelo menos um arquivo ou informe o link do Reels/Google Drive.");
-      const corpo = { obs: $("obs").value, mencoes: coletarMencoesDoTextarea($("obs")), arquivos: arquivos.map(a => ({ chave: a.chave, nome: a.nomeFinal || a.file.name })), links, tipoMidia };
+      const corpo = {
+        obs: $("obs").value,
+        mencoes: coletarMencoesDoTextarea($("obs")),
+        arquivos: arquivos.map(a => ({
+          chave: a.chave,
+          ...(a.thumbChave ? { thumbChave: a.thumbChave } : {}),
+          nome: a.nomeFinal || a.file.name,
+        })),
+        links,
+        tipoMidia,
+      };
       if (nova) {
         const aprovadores = [...alvo.querySelectorAll('[data-f="aprovador"]:checked')].map(cb => cb.value);
         const tituloFinal = $("titulo").value.trim() || tituloPadraoCliente($("cliente").value);

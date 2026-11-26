@@ -17,6 +17,7 @@ import { RETENCAO_DIAS, DIA, processarRetencaoPeca, limparVencidos } from "./_pe
 import { extrairDriveFileId, inspecionarLinksDrive, baixarImagemDrive } from "./_pecas_drive.js";
 import { TIPOS_PECAS, MAX_BYTES_DIRETO, MAX_BYTES_SERVIDOR, extensaoPeca, montarChavePeca, validarUploadBase64 } from "./_pecas_upload.js";
 import { ehChaveBanco, guardarBlobNoBanco, infoBlobNoBanco, enviarBlobDoBanco, apagarBlobsDoBanco } from "./_pecas_blobs_db.js";
+import { CACHE_DRIVE_PROXY, CACHE_REDIRECT_ASSINADO_SEG, etagArquivo, aplicarHeadersMidia, responder304SeIgual, versaoAvatares } from "./_pecas_cache.js";
 import { corpo, exigirMetodo as so, quem, negado } from "./_http.js";
 
 export { diaSP, horaSP, resumoDinamico, resumoPorIntervalo, resumoPorMes, calcularPicosHorario, RETENCAO_DIAS, processarRetencaoPeca, limparVencidos };
@@ -110,11 +111,12 @@ function publica(p, u) {
   return { id: p.id, titulo: p.titulo, clienteId: p.clienteId, clienteNome: p.clienteNome, remetente: p.remetente, aprovadores: p.aprovadores || [], status: p.status, versao: p.versao, tipoMidia: p.tipoMidia || "online",
     criadoEm: p.criadoEm, atualizadoEm: p.atualizadoEm, minha: p.remetente?.login === u.login,
     versoes: p.versoes.map(v => ({ n: v.n, enviadaEm: v.enviadaEm, expiraEm: expira(v), obs: v.obs, links: v.links, linksMeta: v.linksMeta || {},
-      arquivos: v.arquivos.map((a, i) => ({ i, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho, expirado: !!a.expirado })) })),
+      arquivos: v.arquivos.map((a, i) => ({ i, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho, expirado: !!a.expirado, temThumb: Boolean(a.thumbChave) })) })),
     historico: p.historico };
 }
 
 // ---------- Validação de arquivos e links enviados ----------
+const EXT_THUMB_VALIDA = new Set(["jpg", "jpeg", "jfif", "png", "webp"]);
 async function conferirArquivos(u, lista) {
   const arr = Array.isArray(lista) ? lista : [];
   if (arr.length > MAX_ARQUIVOS) return { erro: `No máximo ${MAX_ARQUIVOS} arquivos por peça.` };
@@ -125,7 +127,18 @@ async function conferirArquivos(u, lista) {
     if (!chave.startsWith(pre) || chave.includes("..") || !/^[A-Za-z0-9._\/-]{1,300}$/.test(chave) || !TIPOS_PECAS[ext]) return { erro: "Arquivo inválido. Envie de novo." };
     const info = ehChaveBanco(chave) ? await infoBlobNoBanco(chave) : await infoArquivo(chave);
     if (!info) return { erro: `O arquivo "${txt(a?.nome, 80)}" não chegou ao armazenamento. Envie de novo.` };
-    out.push({ chave, nome: txt(a?.nome, 160) || chave.split("/").pop(), tipo: TIPOS_PECAS[ext], tamanho: info.tamanho });
+    const item = { chave, nome: txt(a?.nome, 160) || chave.split("/").pop(), tipo: TIPOS_PECAS[ext], tamanho: info.tamanho };
+    const thumbBruta = String(a?.thumbChave || "");
+    if (thumbBruta) {
+      const extThumb = extensaoPeca(thumbBruta);
+      if (thumbBruta.startsWith(pre) && !thumbBruta.includes("..") && /^[A-Za-z0-9._\/-]{1,300}$/.test(thumbBruta) && EXT_THUMB_VALIDA.has(extThumb)) {
+        try {
+          const infoThumb = ehChaveBanco(thumbBruta) ? await infoBlobNoBanco(thumbBruta) : await infoArquivo(thumbBruta);
+          if (infoThumb) item.thumbChave = thumbBruta;
+        } catch {}
+      }
+    }
+    out.push(item);
   }
   return { arquivos: out };
 }
@@ -171,9 +184,10 @@ async function inicio(u, req, res) {
     funcao: perfilDe(x),
     podeDecidir: podeDecidir(x),
   }));
+  const { avVersao } = await obterVersoesPecas();
   return res.json({ podeEnviar: podeEnviar(u), podeDecidir: podeDecidir(u), veTodas: veTodas(u), veDash: veDash(u), ehGestao: ehGestao(u), login: u.login, nome: u.nome || u.login, avatar: u.avatar || null, funcao: perfilDe(u),
     clientes: podeEnviar(u) ? await clientesCarteira() : [], seqClientes: podeEnviar(u) ? await lerSeqClientes() : {}, usuarios, equipe, maxArquivos: MAX_ARQUIVOS, maxLinks: MAX_LINKS, maxMB: MAX_BYTES / 1048576,
-    maxMBServidor: MAX_BYTES_SERVIDOR / 1048576, retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual() });
+    maxMBServidor: MAX_BYTES_SERVIDOR / 1048576, retencaoDias: RETENCAO_DIAS, status: STATUS, mes: mesAtual(), avVersao });
 }
 
 // Token para o navegador enviar UM arquivo direto ao armazenamento.
@@ -414,6 +428,10 @@ async function pecaComentar(u, req, res) {
 // Notificações leves para o cabeçalho global e o módulo de peças: menções não lidas para o usuário logado + total de pendentes
 async function notificacoes(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return res.json({ mencoes: [], pendentes: 0 });
+  const { versao } = await obterVersoesPecas();
+  if (versao && req.query.v && String(req.query.v) === versao) {
+    return res.json({ semAlteracao: true, versao });
+  }
   const lista = (await listar(M, "pecas")).filter(p => !p.arquivada && podeVer(u, p));
   const pendentes = lista.filter(p => p.status === "pendente").length;
   const mencoes = [];
@@ -421,7 +439,7 @@ async function notificacoes(u, req, res) {
     mencoes.push(...mencoesNaoLidasPara(p, u.login));
   }
   mencoes.sort((a, b) => (b.em || "").localeCompare(a.em || ""));
-  return res.json({ mencoes, pendentes });
+  return res.json({ mencoes, pendentes, versao });
 }
 
 // Marcar menção(ões) como lida(s) pelo usuário logado (por peça, por evento específico ou todas)
@@ -471,7 +489,12 @@ async function pecaExcluir(u, req, res) {
   if (!p) return res.status(404).json({ code: "nao_encontrado", msg: "Peça não encontrada." });
   const chaves = [];
   for (const v of p.versoes || []) {
-    for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
+    for (const a of v.arquivos || []) {
+      if (a.chave && !a.expirado) {
+        chaves.push(a.chave);
+        if (a.thumbChave) chaves.push(a.thumbChave);
+      }
+    }
   }
   await removerChavesArmazenamento(chaves);
   await apagar(M, "pecas", p.id);
@@ -506,7 +529,12 @@ async function filaApagar(u, req, res) {
   const chaves = [];
   for (const p of alvos) {
     for (const v of p.versoes || []) {
-      for (const a of v.arquivos || []) if (a.chave && !a.expirado) chaves.push(a.chave);
+      for (const a of v.arquivos || []) {
+        if (a.chave && !a.expirado) {
+          chaves.push(a.chave);
+          if (a.thumbChave) chaves.push(a.thumbChave);
+        }
+      }
     }
     await apagar(M, "pecas", p.id);
   }
@@ -528,7 +556,7 @@ export function versaoListaPecas({ pecasSeq = 0, pecasCnt = 0, avAt = "", usrAt 
   return crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16);
 }
 
-async function obterVersaoListaPecas() {
+async function obterVersoesPecas() {
   try {
     const r = await sql`
       SELECT
@@ -539,36 +567,53 @@ async function obterVersaoListaPecas() {
         coalesce((SELECT count(*) FROM usuarios WHERE ativo), 0)::text AS usr_cnt
     `;
     const row = r[0];
-    if (!row) return null;
-    return versaoListaPecas({
-      pecasSeq: row.pecas_seq,
-      pecasCnt: row.pecas_cnt,
-      avAt: row.av_at,
-      usrAt: row.usr_at,
-      usrCnt: row.usr_cnt,
-    });
+    if (!row) return { versao: null, avVersao: null };
+    return {
+      versao: versaoListaPecas({
+        pecasSeq: row.pecas_seq,
+        pecasCnt: row.pecas_cnt,
+        avAt: row.av_at,
+        usrAt: row.usr_at,
+        usrCnt: row.usr_cnt,
+      }),
+      avVersao: versaoAvatares({
+        avAt: row.av_at,
+        usrAt: row.usr_at,
+        usrCnt: row.usr_cnt,
+      }),
+    };
   } catch {
-    return null;
+    return { versao: null, avVersao: null };
   }
+}
+
+async function obterVersaoListaPecas() {
+  const { versao } = await obterVersoesPecas();
+  return versao;
 }
 
 async function pecas(u, req, res) {
   if (!veTodas(u) && !podeEnviar(u)) return negado(res);
-  const versao = await obterVersaoListaPecas();
+  const { versao, avVersao } = await obterVersoesPecas();
   if (versao && req.query.v && String(req.query.v) === versao) {
-    return res.json({ semAlteracao: true, versao });
+    return res.json({ semAlteracao: true, versao, avVersao });
   }
-  const [todasPecas, todosUsers] = await Promise.all([listar(M, "pecas"), usuariosAtivos()]);
+  const pularPerfis = Boolean(avVersao && req.query.av && String(req.query.av) === avVersao);
+  const todasPecas = await listar(M, "pecas");
   const lista = todasPecas.filter(p => !p.arquivada && podeVer(u, p))
     .sort((a, b) => (b.atualizadoEm || "").localeCompare(a.atualizadoEm || ""));
+  if (pularPerfis) {
+    return res.json({ pecas: lista.map(p => publica(p, u)), perfisSemAlteracao: true, versao, avVersao });
+  }
+  const todosUsers = await usuariosAtivos();
   const perfis = {};
   for (const x of todosUsers) {
     if (x.login) perfis[x.login] = { nome: x.nome || x.login, avatar: x.avatar || null, funcao: perfilDe(x) };
   }
-  return res.json({ pecas: lista.map(p => publica(p, u)), perfis, versao });
+  return res.json({ pecas: lista.map(p => publica(p, u)), perfis, versao, avVersao });
 }
 
-// Visualização de um arquivo: confere a permissão e manda para um link temporário (ou envia o arquivo, no teste local).
+// Visualização de um arquivo: confere a permissão e manda para um link temporário (ou envia com ETag/cache imutável).
 async function pecaArquivo(u, req, res) {
   const q = req.query;
   const p = await ler(M, "pecas", String(q.id || ""));
@@ -577,11 +622,20 @@ async function pecaArquivo(u, req, res) {
   const a = v && v.arquivos[Number(q.i)];
   if (!a) return res.status(404).json({ code: "nao_encontrado" });
   if (a.expirado) return res.status(410).json({ code: "expirado", msg: "Arquivo expirado." });
-  if (ehChaveBanco(a.chave)) return enviarBlobDoBanco(res, a.chave, a.nome, true);
+  const usarThumb = q.thumb === "1" && Boolean(a.thumbChave);
+  const chaveAlvo = usarThumb ? a.thumbChave : a.chave;
+  const nomeAlvo = usarThumb ? `thumb-${a.nome}` : a.nome;
+  if (ehChaveBanco(chaveAlvo)) return enviarBlobDoBanco(res, chaveAlvo, nomeAlvo, true, undefined, req);
   let url = null;
-  try { url = await linkTemporario(a.chave); } catch (e) { console.error("[pecas] link temporário:", String(e?.message || e).slice(0, 120)); }
-  if (url) { res.statusCode = 302; res.setHeader("location", url); res.setHeader("cache-control", "private, no-store"); return res.end(); }
-  return enviar(res, a.chave, a.nome, true);
+  try { url = await linkTemporario(chaveAlvo, 60); } catch (e) { console.error("[pecas] link temporário:", String(e?.message || e).slice(0, 120)); }
+  if (url) {
+    res.statusCode = 302;
+    res.setHeader("location", url);
+    res.setHeader("cache-control", `private, max-age=${CACHE_REDIRECT_ASSINADO_SEG}`);
+    res.setHeader("vary", "Cookie");
+    return res.end();
+  }
+  return enviar(res, chaveAlvo, nomeAlvo, true, { req, cacheavel: true });
 }
 
 // Inspeciona tipo de arquivos do Google Drive em lote (útil para peças enviadas antes de linksMeta).
@@ -608,12 +662,12 @@ async function driveArquivo(u, req, res) {
   if (!p || !podeVer(u, p)) return res.status(p ? 403 : 404).json({ code: p ? "sem_acesso" : "nao_encontrado" });
   const pertence = (p.versoes || []).some(v => (v.links || []).some(l => extrairDriveFileId(l) === fid));
   if (!pertence) return res.status(404).json({ code: "nao_encontrado" });
+  const etag = etagArquivo(`drive:${fid}`);
+  if (responder304SeIgual(req, res, { etag, cacheControl: CACHE_DRIVE_PROXY })) return;
   const img = await baixarImagemDrive(fid, 4 * 1024 * 1024);
   if (!img) return res.status(404).json({ code: "nao_encontrado" });
   res.statusCode = 200;
-  res.setHeader("content-type", img.tipo);
-  res.setHeader("cache-control", "private, max-age=3600");
-  res.setHeader("x-content-type-options", "nosniff");
+  aplicarHeadersMidia(res, { contentType: img.tipo, etag, cacheControl: CACHE_DRIVE_PROXY });
   return res.end(img.buf);
 }
 

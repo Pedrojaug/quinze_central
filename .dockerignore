@@ -1,0 +1,9 @@
+.git
+node_modules
+public
+.env
+.env.*
+!.env.example
+tests
+*.log
+.vercel

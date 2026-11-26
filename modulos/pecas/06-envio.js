@@ -36,8 +36,12 @@
         return;
       }
       let r;
-      try { await carregarBase(); r = await api("pecas"); } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+      try {
+        await carregarBase();
+        r = await api(ultVersaoAvatares ? `pecas&av=${encodeURIComponent(ultVersaoAvatares)}` : "pecas");
+      } catch (e) { if (!silencioso) box("lista").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       if (r.versao) ultVersaoPecas = r.versao;
+      if (r.avVersao) ultVersaoAvatares = r.avVersao;
       if (r.perfis) atualizarMapaPerfis(r.perfis);
       aplicarDados(r.pecas, { silencioso });
     }
@@ -46,10 +50,12 @@
       const l = lista.filter(p => (!fv("st") || p.status === fv("st")) && (!fMidia || (p.tipoMidia || "online") === fMidia) && (!fv("cli") || p.clienteId === fv("cli")));
       const visiveis = l.slice(0, limite);
       if (box("notif-mencoes")) box("notif-mencoes").innerHTML = renderPainelNotificacoesMencoes(lista);
-      box("lista").innerHTML = l.length ? visiveis.map(p => cartao(p, ["aprovada", "reprovada", "alteracao_solicitada"].includes(p.status)
-        ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : "")).join("") + rodapePaginacao(l.length, visiveis.length)
-        : `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`;
-      el.querySelectorAll(".pc-card[data-id]").forEach(c => { c._pecaRef = lista.find(q => q.id === c.dataset.id) || null; });
+      renderizarListaPecasIncremental(box("lista"), visiveis, {
+        montarCard: p => cartao(p, ["aprovada", "reprovada", "alteracao_solicitada"].includes(p.status)
+          ? `<div class="pc-bar"><button class="btn primary" type="button" data-x="reenviar" data-id="${esc(p.id)}">${p.status === "aprovada" ? "✏️ Editar material (Nova versão v" + (p.versao + 1) + ")" : "Enviar nova versão (v" + (p.versao + 1) + ")"}</button></div><div data-box="re-${esc(p.id)}"></div>` : ""),
+        rodapeHtml: rodapePaginacao(l.length, visiveis.length),
+        vazioHtml: `<div class="pc-card pc-vazio">${lista.length ? "Nenhuma peça com esses filtros." : "Você ainda não enviou peças (ou as enviadas já passaram de " + (base?.retencaoDias || 7) + " dias)."}</div>`,
+      });
       resolverMetadadosDrivePendentes(visiveis, el);
     }
     el.addEventListener("click", async ev => {

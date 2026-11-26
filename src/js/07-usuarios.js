@@ -73,12 +73,16 @@
 
     const brDataHora = iso => iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 
-    async function atualizarNotificacoes(){
-      if (document.hidden) return;
+    let ultVersaoNotif = "";
+    async function atualizarNotificacoes(forcar = false){
+      if (document.hidden && !forcar) return;
       try {
-        const r = await fetch("/api/m?r=pec/notificacoes", { credentials: "same-origin" });
+        const qs = !forcar && ultVersaoNotif ? "&v=" + encodeURIComponent(ultVersaoNotif) : "";
+        const r = await fetch("/api/m?r=pec/notificacoes" + qs, { credentials: "same-origin" });
         if (!r.ok) return;
         const d = await r.json();
+        if (d.versao) ultVersaoNotif = d.versao;
+        if (d.semAlteracao) return;
         const mencoes = Array.isArray(d.mencoes) ? d.mencoes : [];
         const pendentes = Number(d.pendentes) || 0;
 
@@ -144,21 +148,21 @@
       } catch {}
     }
 
-    window.QZ_atualizarNotificacoesGlobais = atualizarNotificacoes;
+    window.QZ_atualizarNotificacoesGlobais = () => atualizarNotificacoes(true);
 
     if (!btn._notifBound) {
       btn._notifBound = true;
       btn.addEventListener("click", ev => {
         ev.stopPropagation();
         pop.hidden = !pop.hidden;
-        if (!pop.hidden) atualizarNotificacoes();
+        if (!pop.hidden) atualizarNotificacoes(true);
       });
       pop.addEventListener("click", async ev => {
         const bTodas = ev.target.closest("[data-notif-ler-todas]");
         if (bTodas) {
           ev.preventDefault();
           await fetch("/api/m?r=pec/mencao.ler", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ todas: true }) }).catch(() => {});
-          await atualizarNotificacoes();
+          await atualizarNotificacoes(true);
           return;
         }
         const bVisto = ev.target.closest("[data-notif-visto]");
@@ -166,7 +170,7 @@
           ev.preventDefault();
           const pid = bVisto.dataset.notifVisto;
           await fetch("/api/m?r=pec/mencao.ler", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ pecaId: pid }) }).catch(() => {});
-          await atualizarNotificacoes();
+          await atualizarNotificacoes(true);
           return;
         }
         const bAbrir = ev.target.closest("[data-notif-abrir]");
@@ -194,9 +198,9 @@
       });
     }
 
-    atualizarNotificacoes();
+    atualizarNotificacoes(true);
     clearInterval(notifTimer);
-    notifTimer = setInterval(atualizarNotificacoes, 12000);
+    notifTimer = setInterval(atualizarNotificacoes, 30000);
   }
   async function usrApi(method, body, q){
     const r = await fetch("/api/users" + (q || ""), {method, credentials:"same-origin", headers:{"content-type":"application/json"}, body: body ? JSON.stringify(body) : undefined});

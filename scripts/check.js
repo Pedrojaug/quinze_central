@@ -8,7 +8,7 @@ import { listarMigrations } from "./migrate.js";
 
 const RAIZ = process.cwd();
 const PASTAS_JS = ["api", "modulos", "src/js", "scripts", "tests"];
-const ARQUIVOS_RAIZ = ["build.js", "store.js"];
+const ARQUIVOS_RAIZ = ["build.js", "server.js", "store.js"];
 
 export const ENDPOINTS_API_PERMITIDOS = new Set([
   "doc.js",

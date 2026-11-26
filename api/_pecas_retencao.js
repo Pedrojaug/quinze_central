@@ -16,11 +16,13 @@ export function processarRetencaoPeca(p, limiteMs, emIso) {
       if (a.expirado) continue;
       if (venceu) {
         vencidos.push(a.chave);
+        if (a.thumbChave) vencidos.push(a.thumbChave);
         a.expirado = true;
         a.expiradoEm = emIso;
         alterou = true;
       } else if (a.chave) {
         emUso.push(a.chave);
+        if (a.thumbChave) emUso.push(a.thumbChave);
       }
     }
   }

@@ -11,8 +11,11 @@
     if (!temAbaMontada) return;
     syncEmAndamento = true;
     try {
-      const r = await api(ultVersaoPecas ? "pecas&v=" + encodeURIComponent(ultVersaoPecas) : "pecas");
+      const qs = (ultVersaoPecas ? `&v=${encodeURIComponent(ultVersaoPecas)}` : "")
+        + (ultVersaoAvatares ? `&av=${encodeURIComponent(ultVersaoAvatares)}` : "");
+      const r = await api(`pecas${qs}`);
       if (r.versao) ultVersaoPecas = r.versao;
+      if (r.avVersao) ultVersaoAvatares = r.avVersao;
       if (r.semAlteracao) return;
       const todas = r.pecas || [];
       if (r.perfis) atualizarMapaPerfis(r.perfis);
@@ -39,6 +42,7 @@
       }
     }
     ultVersaoPecas = "";
+    ultVersaoAvatares = "";
     sincronizarPecasTempoReal();
   };
 
@@ -47,7 +51,7 @@
     timerPollPecas = setTimeout(async () => {
       await sincronizarPecasTempoReal();
       agendarPollPecas();
-    }, document.hidden ? 20000 : 8000);
+    }, document.hidden ? 60000 : 20000);
   }
 
   document.addEventListener("visibilitychange", () => {
