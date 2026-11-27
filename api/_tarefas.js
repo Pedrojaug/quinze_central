@@ -1,4 +1,4 @@
-// 01 Atendimento > Minhas tarefas e relatório diário das 20h no WhatsApp (instrução 07).
+// 01 Atendimento > Meu to-do e relatório diário das 20h no WhatsApp (instrução 07).
 // Dados em m/atendimento/<colecao>/<id>, servidos só por aqui (fora da sincronização geral: o módulo Atendimento
 // também é aberto ao social media, que não deve ver tarefas). Permissões conferidas aqui:
 //   atendimento: vê e edita só as suas tarefas
@@ -92,7 +92,7 @@ async function sincronizar() { for (const fn of SINCRONIZADORES) { try { await f
 
 // ---------- Rotas: tarefas ----------
 async function inicio(u, req, res) {
-  if (!usaTarefas(u)) return negado(res, "Minhas tarefas é do Atendimento, da Coordenação, do Mestre e da gestão.");
+  if (!usaTarefas(u)) return negado(res, "Meu to-do é do Atendimento, da Coordenação, do Mestre e da gestão.");
   const pessoas = veTodas(u) ? await pessoasTarefas() : [quem(u)];
   return res.json({ login: u.login, nome: u.nome || u.login, veTodas: veTodas(u), pessoas,
     clientes: await clientesCarteira(), hoje: hojeLocal(), prioridades: PRIORIDADES });
@@ -253,7 +253,7 @@ export async function montarRelatorio(hoje = hojeLocal()) {
     blocos.push(linhas.join("\n"));
   }
   if (!pessoas.length) blocos.push("Nenhum atendimento cadastrado.");
-  const cabecalho = `*Resumo do dia — ${br(hoje)}*`;
+  const cabecalho = `*Meu to-do — Resumo do dia (${br(hoje)})*\n_Lista pessoal, não é tarefa de produção_`;
   const rodape = `*Total da equipe:* ✅ ${feitasEquipe} feita${feitasEquipe === 1 ? "" : "s"} · ⏳ ${pendEquipe} pendente${pendEquipe === 1 ? "" : "s"}${atrasEquipe ? ` (${atrasEquipe} atrasada${atrasEquipe === 1 ? "" : "s"})` : ""}`;
   const partes = dividir(cabecalho, blocos, rodape);
   return { hoje, partes, totais: { feitas: feitasEquipe, pendentes: pendEquipe, atrasadas: atrasEquipe, pessoas: pessoas.length } };

@@ -46,16 +46,15 @@ export const PERFIS = {
 };
 const TODOS = ["mestre", "gestao", "atendimento", "coordenador", "social", "diretor_arte"];
 const GESTAO = ["mestre", "gestao"];
+const ATEND_SEM_DA = ["mestre", "gestao", "atendimento", "coordenador", "social"];
 
 export const AREAS = [
   { id: "atendimento", nome: "Atendimento", ordem: 10, entrada: "tarefas", funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
-    descricao: "Carteira de clientes, onboarding, propostas e agenda" },
+    descricao: "Carteira, onboarding, propostas, agenda, meu to-do, NPS e reclamações" },
   { id: "pecas", nome: "Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: false, entrada: "fila",
     descricao: "Envio de peças, fila de aprovação, números do mês e dados consolidados" },
   { id: "administrativo", nome: "Administrativo", ordem: 30, funcoes: GESTAO, restrito: true,
-    descricao: "Contratos, assinaturas, pessoal, férias e usuários" },
-  { id: "cs", nome: "CS / Sucesso do Cliente", ordem: 40, funcoes: TODOS, entrada: "npsmedia",
-    descricao: "Importação de pesquisas (CSV/Planilha), médias NPS e reclamações" },
+    descricao: "Contratos, pessoal, férias, equipe, usuários e POP" },
   { id: "financeiro", nome: "Financeiro", ordem: 60, funcoes: GESTAO, restrito: true,
     descricao: "Contas a receber e a pagar, fluxo de caixa e resultados" },
 ];
@@ -77,8 +76,8 @@ export const MODULOS = [
 
   // Instruções 07 e 08: dados em m/atendimento/..., só pela /api/m (o módulo também abre para o social media,
   // que não vê tarefas nem pendências; a rota confere o perfil).
-  { id: "tarefas", modulo: "atendimento", nome: "Minhas tarefas", ordem: 15, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/tarefas.js", colecoes: [],
-    card: { titulo: "Minhas tarefas", texto: "To-do do dia e relatório das 20h" } },
+  { id: "tarefas", modulo: "atendimento", nome: "Meu to-do", ordem: 15, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/tarefas.js", colecoes: [],
+    card: { titulo: "Meu to-do", texto: "Lista pessoal, não é tarefa de produção · relatório das 20h" } },
   { id: "pendencias", modulo: "atendimento", nome: "Pendências de clientes", ordem: 16, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/pendencias.js", colecoes: [],
     card: { titulo: "Pendências de clientes", texto: "Envios aguardando retorno do cliente" } },
   { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: ["mestre", "gestao", "coordenador"], arquivo: "/modulos/tarefas.js", colecoes: [] },
@@ -91,8 +90,8 @@ export const MODULOS = [
     colecoes: ["producao/"] },
 
   // Administrativo: dados sensíveis em m/administrativo/..., só pela /api/m (com auditoria).
+  // Assinatura de documentos foi arquivada: dados preservados sem expor aba no menu.
   { id: "contratos", modulo: "administrativo", nome: "Contratos", ordem: 10, funcoes: GESTAO, arquivo: "/modulos/administrativo.js", colecoes: [] },
-  { id: "assinaturas", modulo: "administrativo", nome: "Assinatura de documentos", ordem: 20, funcoes: GESTAO, arquivo: "/modulos/administrativo.js", colecoes: [] },
   { id: "pessoal", modulo: "administrativo", nome: "Pessoal", ordem: 30, funcoes: GESTAO, arquivo: "/modulos/administrativo.js", colecoes: [] },
   { id: "ferias", modulo: "administrativo", nome: "Férias", ordem: 40, funcoes: GESTAO, arquivo: "/modulos/administrativo.js", colecoes: [] },
   // Instrução 10: "Equipe e ajustes" saiu do Atendimento (mesmo id e dados) e fica ao lado de Usuários, no grupo "Equipe".
@@ -103,9 +102,9 @@ export const MODULOS = [
   // Instrução 09: POPs em m/administrativo/pops e pop_versoes, só pela /api/m?r=pop/... (edição só do Mestre).
   { id: "pop", modulo: "administrativo", nome: "POP operacional", ordem: 60, funcoes: GESTAO, arquivo: "/modulos/pop.js", colecoes: [] },
 
-  // CS: dados em m/cs/..., só pela /api/m (a edição de reclamações depende de quem registrou).
-  { id: "npsmedia", modulo: "cs", nome: "NPS Média", ordem: 10, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
-  { id: "reclamacoes", modulo: "cs", nome: "Reclamações", ordem: 20, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
+  // NPS Média e Reclamações (antes em 04 CS): dados continuam em m/cs/..., servidos só pela /api/m (diretor de arte sem acesso).
+  { id: "npsmedia", modulo: "atendimento", nome: "NPS Média", ordem: 60, funcoes: ATEND_SEM_DA, arquivo: "/modulos/cs.js", colecoes: [] },
+  { id: "reclamacoes", modulo: "atendimento", nome: "Reclamações", ordem: 70, funcoes: ATEND_SEM_DA, arquivo: "/modulos/cs.js", colecoes: [] },
 
   // Financeiro: dados em m/financeiro/..., só pela /api/m (com log de criação, alteração e exclusão).
   { id: "receber", modulo: "financeiro", nome: "Contas a receber", ordem: 10, funcoes: GESTAO, arquivo: "/modulos/financeiro.js", colecoes: [] },
@@ -122,7 +121,7 @@ export const COLECOES_RESTRITAS = [
   { caminho: "rh/", ler: GESTAO, gravar: GESTAO },
 ];
 
-export const SO_API = AREAS.map(a => `m/${a.id}/`);
+export const SO_API = [...new Set([...AREAS.map(a => `m/${a.id}/`), "m/cs/", "m/politicas/"])];
 export const soApi = path => SO_API.some(p => path === p.replace(/\/$/, "") || path.startsWith(p));
 
 // ---------------------------------------------------------------------------

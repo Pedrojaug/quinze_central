@@ -21,7 +21,7 @@ export const MODULOS_DEF = {
   pen: { area: "atendimento", carregar: () => import("./_pendencias.js") },
   pec: { area: "pecas", carregar: () => import("./_pecas.js") },
   adm: { area: "administrativo", carregar: () => import("./_adm.js") },
-  cs: { area: "cs", carregar: () => import("./_cs.js") },
+  cs: { area: "atendimento", carregar: () => import("./_cs.js") },
   fin: { area: "financeiro", carregar: () => import("./_fin.js") },
   sup: { area: null, carregar: () => import("./_suporte.js") },
 };

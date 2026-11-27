@@ -7,10 +7,10 @@
   let FUNC_TABS = {}, PERFIS = {}, ESCOLHAS = [], AREAS_ALL = [], SENHA_MIN = 8;
   const FUNC_HINT = {
     gestao: "Gestão acessa todos os módulos, inclusive Administrativo e Financeiro, e cadastra usuários.",
-    atendimento: "Atendimento acessa todo o módulo Atendimento (inclusive as abas criadas depois), Aprovação de peças e CS.",
-    coordenador: "Coordenador acessa Aprovação de peças e CS. Não vê o Atendimento.",
-    social: "Social media vê só Clientes dentro do Atendimento, mais Aprovação de peças e CS.",
-    diretor_arte: "Diretor de arte acessa Aprovação de peças e CS. Não vê o Atendimento.",
+    atendimento: "Atendimento acessa todo o módulo Atendimento (incluindo Meu to-do, NPS Média e Reclamações) e Aprovação de peças.",
+    coordenador: "Coordenador acessa Meu to-do, Pendências, Relatório das 20h, NPS Média e Reclamações no Atendimento, mais Aprovação de peças.",
+    social: "Social media vê Clientes, NPS Média e Reclamações no Atendimento, mais Aprovação de peças.",
+    diretor_arte: "Diretor de arte acessa apenas Aprovação de peças.",
     personalizado: "Marque os módulos e as abas que a pessoa pode acessar. Administrativo e Financeiro são só da Gestão.",
   };
 

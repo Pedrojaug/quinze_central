@@ -1,4 +1,4 @@
-// 01 Atendimento > Minhas tarefas e Relatório das 20h (instrução 07).
+// 01 Atendimento > Meu to-do e Relatório das 20h (instrução 07).
 // Tudo pela rota /api/m?r=tar/... (o servidor confere de quem é cada tarefa e quem configura o relatório).
 (function () {
   if (window.__qzTar) return; window.__qzTar = true;
@@ -70,7 +70,7 @@
   }
 
   // ======================================================================
-  // MINHAS TAREFAS
+  // MEU TO-DO
   // ======================================================================
   function minhas(ctx) {
     const el = ctx.el;
@@ -90,7 +90,7 @@
     async function montar() {
       try { await carregarBase(true); } catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       const g = base.veTodas;
-      el.innerHTML = `<div class="tr-h"><div><h2>Minhas tarefas</h2><div class="tr-sub">${g ? "Tarefas da equipe. Filtre por pessoa ou crie uma tarefa para alguém." : "Sua lista do dia. Tarefa atrasada continua aqui até ser concluída."}</div></div><span class="sp"></span>
+      el.innerHTML = `<div class="tr-h"><div><h2>Meu to-do</h2><div class="tr-sub">${g ? "Lista pessoal, não é tarefa de produção. Filtre por pessoa ou crie um item para alguém." : "Lista pessoal, não é tarefa de produção. Itens atrasados continuam aqui até serem concluídos."}</div></div><span class="sp"></span>
         ${g ? `<label class="tr-sub">Pessoa <select data-x="pessoa">${opPessoas("", "Todas as pessoas")}</select></label>` : ""}
         <div class="tr-seg" role="group"><button type="button" data-v="hoje" aria-pressed="true">Hoje</button><button type="button" data-v="todas" aria-pressed="false">Todas</button><button type="button" data-v="concluidas" aria-pressed="false">Concluídas</button></div></div>
         <form class="tr-card" data-x="add"><div class="tr-add${g ? " gestao" : ""}">
@@ -279,7 +279,7 @@
       catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
       ultimaPrevia = p; ultimoHistorico = h.historico || []; histAberto = null;
       const cfg = c.config;
-      el.innerHTML = `<div class="tr-h"><div><h2>Relatório das 20h</h2><div class="tr-sub">Uma mensagem no WhatsApp com o que cada atendimento fez no dia e o que ficou pendente.</div></div></div>
+      el.innerHTML = `<div class="tr-h"><div><h2>Relatório das 20h</h2><div class="tr-sub">Resumo diário no WhatsApp do Meu to-do (lista pessoal, não é tarefa de produção) e pendências.</div></div></div>
         ${c.whatsapp ? "" : `<div class="note warn" style="margin-bottom:12px"><b>Envio automático via API aguardando credenciais na Vercel</b> (faltam <code>WHATSAPP_API_URL</code> e <code>WHATSAPP_TOKEN</code>).<br>O envio manual está liberado: use o botão <b>Copiar relatório</b> abaixo para colar no WhatsApp a qualquer momento.</div>`}
         ${c.producao ? "" : `<div class="note" style="margin-bottom:12px">Este é um ambiente de teste: o envio automático vai só para o número de teste, nunca para o destino real.</div>`}
         <form class="tr-card" data-x="cfg"><h3 style="margin:0 0 10px;font-size:15px">Configuração</h3><div class="tr-grid">

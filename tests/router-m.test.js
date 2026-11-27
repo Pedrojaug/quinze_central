@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { MODULOS_DEF, carregarModulo, criarHandler } from "../api/m.js";
+import { podeVerCs } from "../api/_cs.js";
 import { AREAS, MODULOS } from "../api/_modules.js";
 import {
   ENDPOINTS_API_PERMITIDOS,
@@ -36,6 +37,17 @@ test("MODULOS_DEF e carregarModulo carregam módulos sob demanda com cache", asy
   const onb = await carregarModulo("onb");
   assert.equal(typeof onb.rotas, "object");
   assert.equal(typeof onb.rotas.excluir, "function");
+
+  assert.equal(MODULOS_DEF.cs.area, "atendimento");
+  const adm = await carregarModulo("adm");
+  assert.equal("assinaturas" in adm.rotas, false);
+  assert.equal("assinatura.salvar" in adm.rotas, false);
+
+  assert.equal(podeVerCs({ funcao: "diretor_arte", abas: ["npsmedia", "reclamacoes"] }, "npsmedia"), false);
+  assert.equal(podeVerCs({ funcao: "mestre", abas: [] }, "npsmedia"), true);
+  assert.equal(podeVerCs({ funcao: "atendimento", abas: ["npsmedia"] }, "npsmedia"), true);
+  assert.equal(podeVerCs({ funcao: "social", abas: ["reclamacoes"] }, "reclamacoes"), true);
+  assert.equal(podeVerCs({ funcao: "personalizado", abas: ["cli"] }, "npsmedia"), false);
 });
 
 test("integridade de contrato entre MODULOS_DEF, api/_modules.js e arquivos em modulos/", async () => {
