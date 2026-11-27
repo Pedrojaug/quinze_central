@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEV_LOGIN_PADRAO,
+  DEV_LOGINS_PADRAO,
   MAX_BYTES_ANEXO,
   calcularKpis,
   decodificarPrint,
@@ -18,15 +19,20 @@ import {
 } from "../api/_suporte_regras.js";
 
 test("ehDev e listarLoginsDev reconhecem conta dev padrão e DEV_LOGINS customizado", () => {
-  assert.deepEqual(listarLoginsDev({}), [DEV_LOGIN_PADRAO]);
+  assert.equal(DEV_LOGIN_PADRAO, "inteligentte");
+  assert.deepEqual(listarLoginsDev({}), DEV_LOGINS_PADRAO);
+  assert.equal(ehDev({ login: "inteligentte" }, {}), true);
+  assert.equal(ehDev({ login: "INTELIGENTTE" }, {}), true);
   assert.equal(ehDev({ login: "equipe.inteligentte" }, {}), true);
   assert.equal(ehDev({ login: "EQUIPE.INTELIGENTTE" }, {}), true);
   assert.equal(ehDev({ login: "felipe.da" }, {}), false);
   assert.equal(ehDev({ login: "eduardo" }, {}), false);
+  assert.equal(ehDev({ login: "marcilio" }, {}), false);
 
   const envCustom = { DEV_LOGINS: "eduardo, dev.extra@quinze.com" };
   assert.equal(ehDev({ login: "eduardo" }, envCustom), true);
   assert.equal(ehDev({ login: "dev.extra@quinze.com" }, envCustom), true);
+  assert.equal(ehDev({ login: "inteligentte" }, envCustom), false);
   assert.equal(ehDev({ login: "equipe.inteligentte" }, envCustom), false);
 });
 
