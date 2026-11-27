@@ -1,4 +1,4 @@
-// 03 Administrativo (só mestre e gestão): contratos, assinatura de documentos, pessoal e férias.
+// 03 Administrativo (só mestre e gestão): contratos, pessoal e férias (assinatura de documentos arquivada).
 // Dados em m/administrativo/<colecao>/<id>, servidos só por aqui (nunca pela sincronização geral).
 // Toda consulta ou alteração de Pessoal vai para a tabela auditoria.
 import crypto from "node:crypto";
@@ -712,14 +712,12 @@ async function feriasIcs(req, res) {
 }
 
 // Toda rota daqui exige gestão (o módulo já é só mestre/gestão; conferido de novo por segurança).
+// As rotas de assinatura de documentos foram arquivadas (dados preservados sem exposição HTTP).
 const gestao = fn => (u, req, res) => (ehGestao(u) ? fn(u, req, res) : res.status(403).json({ code: "sem_acesso" }));
 export const rotas = Object.fromEntries(Object.entries({
   contratos, "contrato.salvar": contratoSalvar, "contrato.excluir": contratoExcluir, "contrato.arquivo": contratoArquivo,
   "contrato.reajustar": contratoReajustar, "contrato.renovar": contratoRenovar, igpm,
   "contratos.importar": contratosImportar, "contrato.conferir": contratoConferir, "contrato.lerIA": contratoLerIA,
-  assinaturas, "assinatura.salvar": assinaturaSalvar, "assinatura.assinado": assinaturaAssinado,
-  "assinatura.arquivo": assinaturaArquivo, "assinatura.excluir": assinaturaExcluir, "assinatura.validar": assinaturaValidar,
-  "assinatura.drive": assinaturaDrive, "assinatura.drive_lote": assinaturaDriveLote,
   pessoal, "pessoa.salvar": pessoaSalvar, "pessoa.excluir": pessoaExcluir, auditoria,
   ferias, "ferias.salvar": feriasSalvar, "ferias.excluir": feriasExcluir, "ics.link": icsLink,
 }).map(([k, f]) => [k, gestao(f)]));

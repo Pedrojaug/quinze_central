@@ -1,12 +1,13 @@
-// 04 CS / Sucesso do Cliente (todos os perfis): NPS Média e Reclamações.
-// Dados em m/cs/<colecao>/<id>, servidos só por aqui. A IA roda no servidor (api/_ia.js).
+// 01 Atendimento > NPS Média e Reclamações (antes em 04 CS).
+// Dados continuam em m/cs/<colecao>/<id>, servidos só por aqui. A IA roda no servidor (api/_ia.js).
 import { ehGestao } from "./_lib.js";
+import { perfilDe } from "./_modules.js";
 import { listar, ler, gravar, apagar, criarSeNovo, novoId, idValido, clientesCarteira, usuariosAtivos, txt, dataIso } from "./_mdados.js";
 import { googleConfigurado, lerRespostas, lerArquivoDrive, ErroGoogle } from "./_google.js";
 import crypto from "node:crypto";
 import { perguntarJSON, iaDisponivel, ErroIA, MSG_IA } from "./_ia.js";
 import { hojeSP } from "./_datas.js";
-import { corpo, exigirMetodo as so, quem } from "./_http.js";
+import { corpo, exigirMetodo as so, quem, negado } from "./_http.js";
 
 const M = "cs";
 const agora = () => new Date().toISOString();
@@ -682,10 +683,26 @@ async function reclamacaoExcluir(u, req, res) {
   return res.json({ ok: true });
 }
 
+// Guarda por aba e perfil: diretor de arte não acessa NPS nem Reclamações; demais perfis precisam da aba liberada.
+export const podeVerCs = (u, aba) => {
+  if (!u) return false;
+  const p = perfilDe(u);
+  if (p === "diretor_arte") return false;
+  if (p === "mestre") return true;
+  return (u.abas || []).includes(aba);
+};
+const exigirAba = (aba, msg, fn) => (u, req, res) => (podeVerCs(u, aba) ? fn(u, req, res) : negado(res, msg));
+
 export const rotas = {
-  respostas, "respostas.importar": respostasImportar, "resposta.registrar": respostaRegistrar, "resposta.excluir": respostaExcluir,
-  "relatorio.gerar": relatorioGerar,
-  reclamacoes, "reclamacao.salvar": reclamacaoSalvar, "reclamacao.excluir": reclamacaoExcluir,
-  "forms.sync": formsSync, "planilha.ler": planilhaLer,
+  respostas: exigirAba("npsmedia", "Sem acesso a NPS Média.", respostas),
+  "respostas.importar": exigirAba("npsmedia", "Sem acesso a NPS Média.", respostasImportar),
+  "resposta.registrar": exigirAba("npsmedia", "Sem acesso a NPS Média.", respostaRegistrar),
+  "resposta.excluir": exigirAba("npsmedia", "Sem acesso a NPS Média.", respostaExcluir),
+  "relatorio.gerar": exigirAba("npsmedia", "Sem acesso a NPS Média.", relatorioGerar),
+  reclamacoes: exigirAba("reclamacoes", "Sem acesso a Reclamações.", reclamacoes),
+  "reclamacao.salvar": exigirAba("reclamacoes", "Sem acesso a Reclamações.", reclamacaoSalvar),
+  "reclamacao.excluir": exigirAba("reclamacoes", "Sem acesso a Reclamações.", reclamacaoExcluir),
+  "forms.sync": exigirAba("npsmedia", "Sem acesso a NPS Média.", formsSync),
+  "planilha.ler": exigirAba("npsmedia", "Sem acesso a NPS Média.", planilhaLer),
 };
 export const publicas = { "forms.cron": formsCron };

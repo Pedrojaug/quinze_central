@@ -1,4 +1,4 @@
-// 03 Administrativo: Contratos, Assinatura de documentos, Pessoal e Férias (só mestre e gestão).
+// 03 Administrativo: Contratos, Pessoal e Férias (só mestre e gestão; assinatura de documentos arquivada).
 // Os dados não passam pela sincronização: tudo vem e vai pela rota /api/m?r=adm/..., que confere a permissão.
 // Um arquivo só para as quatro abas (o carregador chama este script uma vez por aba; o guarda evita duplicar).
 (function () {
@@ -681,8 +681,8 @@
     return carregar;
   }
 
-  // ---------- Registro das quatro abas ----------
-  const MONTAR = { contratos, assinaturas, pessoal, ferias };
+  // ---------- Registro das abas ativas ----------
+  const MONTAR = { contratos, pessoal, ferias };
   Object.entries(MONTAR).forEach(([id, montar]) => {
     let recarregar = null;
     // Os dados só são buscados quando a aba está aberta (assim a auditoria de Pessoal registra só consultas de verdade).

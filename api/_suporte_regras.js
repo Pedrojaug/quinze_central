@@ -19,7 +19,7 @@ export const AREAS_SUPORTE = [
   { id: "atendimento", rotulo: "Atendimento" },
   { id: "pecas", rotulo: "Aprovação de peças" },
   { id: "administrativo", rotulo: "Administrativo" },
-  { id: "cs", rotulo: "CS / Sucesso do Cliente" },
+  { id: "cs", rotulo: "NPS e Reclamações (Atendimento)" },
   { id: "financeiro", rotulo: "Financeiro" },
   { id: "pop", rotulo: "Meu POP" },
   { id: "perfil_acesso", rotulo: "Perfil / Login / Acesso" },

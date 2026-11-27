@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   ALL_TABS,
   AREAS,
+  MODULOS,
   perfilDe,
   podeEnviarPecas,
   abasDe,
@@ -56,9 +57,33 @@ test("abasDe e areasDe para mestre, social e personalizado", () => {
   assert.equal(abasSocial.includes("npsmedia"), true);
   assert.equal(abasSocial.includes("reclamacoes"), true);
   assert.equal(abasSocial.includes("etica"), false);
+  assert.equal(abasSocial.includes("assinaturas"), false);
+  assert.equal(ALL_TABS.includes("assinaturas"), false);
+  assert.equal(abasDe(mestre).includes("assinaturas"), false);
   assert.equal(AREAS.some(a => a.id === "politicas"), false);
+  assert.equal(AREAS.some(a => a.id === "cs"), false);
   assert.equal(areasSocial.includes("administrativo"), false);
   assert.equal(areasSocial.includes("financeiro"), false);
+
+  const tarMod = MODULOS.find(m => m.id === "tarefas");
+  assert.equal(tarMod?.nome, "Meu to-do");
+  assert.equal(tarMod?.card?.titulo, "Meu to-do");
+  assert.match(tarMod?.card?.texto || "", /Lista pessoal, não é tarefa de produção/);
+
+  const npsMod = MODULOS.find(m => m.id === "npsmedia");
+  const reclMod = MODULOS.find(m => m.id === "reclamacoes");
+  assert.equal(npsMod?.modulo, "atendimento");
+  assert.equal(reclMod?.modulo, "atendimento");
+
+  for (const perfil of ["mestre", "gestao", "atendimento", "coordenador", "social"]) {
+    const abas = abasDe({ funcao: perfil });
+    assert.equal(abas.includes("npsmedia"), true, `${perfil} deve ver npsmedia`);
+    assert.equal(abas.includes("reclamacoes"), true, `${perfil} deve ver reclamacoes`);
+  }
+  const da = { funcao: "diretor_arte" };
+  assert.equal(abasDe(da).includes("npsmedia"), false);
+  assert.equal(abasDe(da).includes("reclamacoes"), false);
+  assert.deepEqual(areasDe(da), ["pecas"]);
 
   const pers = {
     funcao: "personalizado",
@@ -102,6 +127,8 @@ test("podeCaminho e soApi protegem coleções restritas e rotas só-API", () => 
   assert.equal(soApi("m/pecas/pecas/1"), true);
   assert.equal(soApi("m/financeiro/x"), true);
   assert.equal(soApi("m/administrativo/y"), true);
+  assert.equal(soApi("m/cs/respostas/1"), true);
+  assert.equal(soApi("m/politicas/etica/1"), true);
   assert.equal(soApi("meses/2026-11/clientes/c1"), false);
   assert.equal(soApi("config/geral"), false);
 
