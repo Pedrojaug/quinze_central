@@ -48,17 +48,15 @@ const TODOS = ["mestre", "gestao", "atendimento", "coordenador", "social", "dire
 const GESTAO = ["mestre", "gestao"];
 
 export const AREAS = [
-  { id: "atendimento", nome: "01 Atendimento", ordem: 10, entrada: "tarefas", funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
+  { id: "atendimento", nome: "Atendimento", ordem: 10, entrada: "tarefas", funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"],
     descricao: "Carteira de clientes, onboarding, propostas e agenda" },
-  { id: "pecas", nome: "02 Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: false, entrada: "fila",
+  { id: "pecas", nome: "Aprovação de peças", ordem: 20, funcoes: TODOS, restrito: false, entrada: "fila",
     descricao: "Envio de peças, fila de aprovação, números do mês e dados consolidados" },
-  { id: "administrativo", nome: "03 Administrativo", ordem: 30, funcoes: GESTAO, restrito: true,
+  { id: "administrativo", nome: "Administrativo", ordem: 30, funcoes: GESTAO, restrito: true,
     descricao: "Contratos, assinaturas, pessoal, férias e usuários" },
-  { id: "cs", nome: "04 CS / Sucesso do Cliente", ordem: 40, funcoes: TODOS, entrada: "npsmedia",
+  { id: "cs", nome: "CS / Sucesso do Cliente", ordem: 40, funcoes: TODOS, entrada: "npsmedia",
     descricao: "Importação de pesquisas (CSV/Planilha), médias NPS e reclamações" },
-  { id: "politicas", nome: "05 Políticas da empresa", ordem: 50, funcoes: TODOS,
-    descricao: "Código de ética e documentos da Quinze" },
-  { id: "financeiro", nome: "06 Financeiro", ordem: 60, funcoes: GESTAO, restrito: true,
+  { id: "financeiro", nome: "Financeiro", ordem: 60, funcoes: GESTAO, restrito: true,
     descricao: "Contas a receber e a pagar, fluxo de caixa e resultados" },
 ];
 
@@ -84,7 +82,7 @@ export const MODULOS = [
   { id: "pendencias", modulo: "atendimento", nome: "Pendências de clientes", ordem: 16, funcoes: ["mestre", "gestao", "coordenador", "atendimento"], arquivo: "/modulos/pendencias.js", colecoes: [],
     card: { titulo: "Pendências de clientes", texto: "Envios aguardando retorno do cliente" } },
   { id: "relatorio20h", modulo: "atendimento", nome: "Relatório das 20h", ordem: 95, funcoes: ["mestre", "gestao", "coordenador"], arquivo: "/modulos/tarefas.js", colecoes: [] },
-  // 02 Aprovação de peças: dados em m/pecas/..., só pela /api/m.
+  // Aprovação de peças: dados em m/pecas/..., só pela /api/m.
   { id: "envio", modulo: "pecas", nome: "Envio", ordem: 10, funcoes: ["mestre", "gestao", "coordenador", "diretor_arte"], arquivo: "/modulos/pecas.js", colecoes: [] },
   { id: "fila", modulo: "pecas", nome: "Fila de aprovação", ordem: 20, funcoes: TODOS, livre: true, arquivo: "/modulos/pecas.js", colecoes: [] },
   { id: "pecasdash", modulo: "pecas", nome: "Dashboard mensal", ordem: 30, funcoes: ["mestre", "gestao", "coordenador", "atendimento", "social"], livre: true, arquivo: "/modulos/pecas.js", colecoes: [] },
@@ -92,7 +90,7 @@ export const MODULOS = [
   { id: "prod", modulo: "pecas", nome: "Dados consolidados", ordem: 40, funcoes: ["mestre", "gestao", "atendimento"], livre: true,
     colecoes: ["producao/"] },
 
-  // 03 Administrativo: dados sensíveis em m/administrativo/..., só pela /api/m (com auditoria).
+  // Administrativo: dados sensíveis em m/administrativo/..., só pela /api/m (com auditoria).
   { id: "contratos", modulo: "administrativo", nome: "Contratos", ordem: 10, funcoes: GESTAO, arquivo: "/modulos/administrativo.js", colecoes: [] },
   { id: "assinaturas", modulo: "administrativo", nome: "Assinatura de documentos", ordem: 20, funcoes: GESTAO, arquivo: "/modulos/administrativo.js", colecoes: [] },
   { id: "pessoal", modulo: "administrativo", nome: "Pessoal", ordem: 30, funcoes: GESTAO, arquivo: "/modulos/administrativo.js", colecoes: [] },
@@ -105,20 +103,17 @@ export const MODULOS = [
   // Instrução 09: POPs em m/administrativo/pops e pop_versoes, só pela /api/m?r=pop/... (edição só do Mestre).
   { id: "pop", modulo: "administrativo", nome: "POP operacional", ordem: 60, funcoes: GESTAO, arquivo: "/modulos/pop.js", colecoes: [] },
 
-  // 04 CS: dados em m/cs/..., só pela /api/m (a edição de reclamações depende de quem registrou).
+  // CS: dados em m/cs/..., só pela /api/m (a edição de reclamações depende de quem registrou).
   { id: "npsmedia", modulo: "cs", nome: "NPS Média", ordem: 10, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
   { id: "reclamacoes", modulo: "cs", nome: "Reclamações", ordem: 20, funcoes: TODOS, arquivo: "/modulos/cs.js", colecoes: [] },
-  // 05 Políticas: dados em m/politicas/..., só pela /api/m (a lista de leituras é só da gestão).
-  { id: "etica", modulo: "politicas", nome: "Código de ética", ordem: 10, funcoes: TODOS, arquivo: "/modulos/politicas.js", colecoes: [] },
 
-  // 06 Financeiro: dados em m/financeiro/..., só pela /api/m (com log de criação, alteração e exclusão).
+  // Financeiro: dados em m/financeiro/..., só pela /api/m (com log de criação, alteração e exclusão).
   { id: "receber", modulo: "financeiro", nome: "Contas a receber", ordem: 10, funcoes: GESTAO, arquivo: "/modulos/financeiro.js", colecoes: [] },
   { id: "pagar", modulo: "financeiro", nome: "Contas a pagar", ordem: 20, funcoes: GESTAO, arquivo: "/modulos/financeiro.js", colecoes: [] },
   { id: "fluxo", modulo: "financeiro", nome: "Fluxo de caixa", ordem: 30, funcoes: GESTAO, arquivo: "/modulos/financeiro.js", colecoes: [] },
   { id: "findash", modulo: "financeiro", nome: "Dashboard financeiro", ordem: 40, funcoes: GESTAO, arquivo: "/modulos/financeiro.js", colecoes: [] },
 
-  // Novas abas entram aqui. Exemplo:
-  // { id: "avisos", modulo: "politicas", nome: "Mural de avisos", ordem: 10, arquivo: "/modulos/avisos.js", funcoes: TODOS },
+  // Novas abas entram aqui.
 ];
 
 export const COLECOES_RESTRITAS = [

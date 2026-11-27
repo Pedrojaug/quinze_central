@@ -7,10 +7,10 @@
   let FUNC_TABS = {}, PERFIS = {}, ESCOLHAS = [], AREAS_ALL = [], SENHA_MIN = 8;
   const FUNC_HINT = {
     gestao: "Gestão acessa todos os módulos, inclusive Administrativo e Financeiro, e cadastra usuários.",
-    atendimento: "Atendimento acessa todo o módulo Atendimento (inclusive as abas criadas depois), Aprovação de peças, CS e Políticas.",
-    coordenador: "Coordenador acessa Aprovação de peças, CS e Políticas. Não vê o Atendimento.",
-    social: "Social media vê só Clientes dentro do Atendimento, mais Aprovação de peças, CS e Políticas.",
-    diretor_arte: "Diretor de arte acessa Aprovação de peças, CS e Políticas. Não vê o Atendimento.",
+    atendimento: "Atendimento acessa todo o módulo Atendimento (inclusive as abas criadas depois), Aprovação de peças e CS.",
+    coordenador: "Coordenador acessa Aprovação de peças e CS. Não vê o Atendimento.",
+    social: "Social media vê só Clientes dentro do Atendimento, mais Aprovação de peças e CS.",
+    diretor_arte: "Diretor de arte acessa Aprovação de peças e CS. Não vê o Atendimento.",
     personalizado: "Marque os módulos e as abas que a pessoa pode acessar. Administrativo e Financeiro são só da Gestão.",
   };
 
@@ -46,6 +46,10 @@
     const atalho = document.getElementById("atalhoProd"); if (atalho) atalho.hidden = !(ME.abas || []).includes("prod") || modAtual !== "atendimento";
     const atalhoPec = document.getElementById("atalhoPecas"); if (atalhoPec) atalhoPec.hidden = !(ME.areas || []).some(a => a.id === "pecas") || modAtual !== "atendimento";
     $("#lockBtn").hidden = modAtual !== "atendimento";
+    const devMenu = document.getElementById("qzMenuDev");
+    if (devMenu) devMenu.hidden = !ME.isDev;
+    const supMenu = document.getElementById("qzMenuSuporte");
+    if (supMenu) supMenu.href = `/suporte?origem=${encodeURIComponent(modAtual || "")}&url=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
     atualizarBotaoPerfilHeader();
     iniciarModalMeuPerfil();
     iniciarMenuUsuarioHeader();
@@ -325,6 +329,8 @@
       ev.stopPropagation();
       const np = document.getElementById("qzNotifPop");
       if (np) np.hidden = true;
+      const supLink = document.getElementById("qzMenuSuporte");
+      if (supLink) supLink.href = `/suporte?origem=${encodeURIComponent(modAtual || "")}&url=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
       const abrir = pop.hidden;
       pop.hidden = !abrir;
       btn.setAttribute("aria-expanded", abrir ? "true" : "false");
@@ -421,7 +427,11 @@
         if (!r.ok) throw new Error(j.error || "Não foi possível salvar seu perfil.");
         ME.nome = j.nome || novoNome;
         ME.avatar = j.avatar || null;
-        atualizarBotaoPerfilHeader();
+        const devMenu = document.getElementById("qzMenuDev");
+    if (devMenu) devMenu.hidden = !ME.isDev;
+    const supMenu = document.getElementById("qzMenuSuporte");
+    if (supMenu) supMenu.href = `/suporte?origem=${encodeURIComponent(modAtual || "")}&url=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
+    atualizarBotaoPerfilHeader();
         if (window.QZ_atualizarPerfilLocalPecas) {
           window.QZ_atualizarPerfilLocalPecas({ login: ME.login, nome: ME.nome, avatar: ME.avatar });
         }

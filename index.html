@@ -93,6 +93,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
 .app .badge{font-size:12px;font-weight:600;color:var(--ink2);background:var(--muted-bg);border-radius:20px;padding:3px 10px;white-space:nowrap}
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-8px 0 18px}
 .quick a{text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center}
+.quick a.full{grid-column:1 / -1}
 .quick a:hover{border-color:var(--blue);color:var(--blue-dk)}
 .out{background:none;border:0;color:var(--ink2);font-weight:600;cursor:pointer;padding:6px 0;margin-right:16px;text-decoration:underline;text-underline-offset:3px}
 
@@ -164,13 +165,14 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
         <button class="out" type="button" id="myProfile" style="margin:0;font-size:13.5px">Editar perfil</button>
       </div>
       <p class="lead" id="homeLead">Escolha o módulo.</p>
-      <a class="aviso" id="avisoEtica" href="/app?m=politicas#etica" hidden>Leitura pendente: o código de ética tem uma versão que você ainda não leu. <b>Ler agora →</b></a>
       <div class="apps" id="apps"></div>
       <div class="quick">
         <a href="/pop">Meu POP</a>
         <a href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp ↗</a>
         <a href="https://webmail-seguro.com.br/" target="_blank" rel="noopener">Webmail ↗</a>
         <a href="https://appsocial.mlabs.io/" target="_blank" rel="noopener">mLabs ↗</a>
+        <a id="homeSupLink" href="/suporte?origem=inicio_navegacao&url=%2F">Suporte</a>
+        <a id="homeDevLink" href="/dev" hidden>Painel Dev</a>
       </div>
       <button class="out" type="button" id="myPwd" hidden>Trocar minha senha</button>
       <button class="out" type="button" id="out">Sair</button>
@@ -235,7 +237,6 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     pecas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2.5"/><path d="M7 14l3-3 3 3 2-2 3 3"/><path d="M8 21h8"/></svg>',
     administrativo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21 20c0-2.6-1.6-4.8-4-5.6"/></svg>',
     cs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
-    politicas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
     financeiro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   };
   let ME = null;
@@ -269,7 +270,9 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     paintAv($("#homeAv"), ME.nome, ME.login, ME.avatar);
     $("#homeLead").textContent = areas.length ? "Escolha o módulo." : "Você ainda não tem módulos liberados. Fale com a gestão.";
     $("#myPwd").hidden = ME.auth !== "senha";
-    $("#avisoEtica").hidden = !(ME.pendencias && ME.pendencias.etica);
+    const isDev = !!ME.isDev;
+    $("#homeDevLink").hidden = !isDev;
+    $("#homeSupLink").classList.toggle("full", !isDev);
     $("#apps").innerHTML = areas.map(a => a.emBreve
       ? `<div class="app soon" aria-disabled="true"><span class="ic">${ICON[a.id] || esc(a.nome.charAt(0))}</span><span><b>${esc(a.nome)}</b><small>${esc(a.descricao || "")}</small></span><span class="badge">Em breve</span></div>`
       : `<a class="app" href="${esc(a.entrada)}"><span class="ic">${ICON[a.id] || esc(a.nome.charAt(0))}</span><span><b>${esc(a.nome)}</b><small data-sum="${esc(a.id)}">${esc(a.descricao || "")}</small></span><span class="go" aria-hidden="true">→</span></a>`).join("");

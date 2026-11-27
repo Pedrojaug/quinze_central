@@ -1,4 +1,4 @@
-// Rota única dos módulos 01 Atendimento (tarefas, relatório, pendências), 02 Aprovação de peças, 03 Administrativo, 04 CS, 05 Políticas e 06 Financeiro: /api/m?r=<modulo>/<acao>
+// Rota única dos módulos Atendimento (tarefas, relatório, pendências), Aprovação de peças, Administrativo, CS, Financeiro e Suporte: /api/m?r=<modulo>/<acao>
 // (uma função só, para caber no limite de funções do plano da Vercel).
 // A permissão é sempre conferida aqui no servidor: primeiro o módulo (perfil), depois a ação.
 // Os módulos usam import() com literais estáticos para o empacotador da Vercel incluir todos no bundle mantendo lazy-loading.
@@ -22,8 +22,8 @@ export const MODULOS_DEF = {
   pec: { area: "pecas", carregar: () => import("./_pecas.js") },
   adm: { area: "administrativo", carregar: () => import("./_adm.js") },
   cs: { area: "cs", carregar: () => import("./_cs.js") },
-  pol: { area: "politicas", carregar: () => import("./_pol.js") },
   fin: { area: "financeiro", carregar: () => import("./_fin.js") },
+  sup: { area: null, carregar: () => import("./_suporte.js") },
 };
 
 const cacheModulos = new Map();

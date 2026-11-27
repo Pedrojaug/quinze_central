@@ -1,6 +1,6 @@
 import { session, sql, forgetUser, salvarAvatarUsuario, ehGestao, conferirSenhaMestre, clientIp, bloqueado, registrarTentativa } from "./_lib.js";
 import { publico, areasPublicas, PERFIS } from "./_modules.js";
-import { eticaPendente } from "./_pol.js";
+import { ehDev } from "./_suporte_regras.js";
 
 const AVATAR_DATA_RE = /^data:image\/(webp|jpeg|jpg|png);base64,[A-Za-z0-9+/=]{20,120000}$/;
 
@@ -58,11 +58,11 @@ export default async function handler(req, res) {
     });
   }
 
-  let pendencias = {};
-  try { if (!u.trocarSenha && await eticaPendente(u)) pendencias.etica = true; } catch { /* aviso é opcional */ }
+  const pendencias = {};
   return res.status(200).json({
     login: u.login, nome: u.nome, avatar: u.avatar || null, papel: u.papel, funcao: u.funcao, perfil: PERFIS[u.funcao] || u.funcao,
     auth: u.auth, trocarSenha: u.trocarSenha, podeEnviarPecas: u.podeEnviarPecas,
+    isDev: ehDev(u),
     abas: u.trocarSenha ? [] : u.abas,
     modulos: u.trocarSenha ? [] : publico(u.abas),
     areas: u.trocarSenha ? [] : areasPublicas(u.areas, u.abas),

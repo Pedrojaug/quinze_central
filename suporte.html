@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Suporte · Central Quinze</title>
+<meta name="robots" content="noindex, nofollow">
+<script>(function(){try{var t=localStorage.getItem("qz-theme")==="dark"?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;}catch(e){}})();</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2712%27 fill=%27none%27 stroke=%27%230660FF%27 stroke-width=%275%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="head-row">
+      <div class="brand">
+        <a href="/?modulos=1" title="Voltar para a Central" style="display:block"><img src="/logo.png" alt="Quinze" width="124" height="28"></a>
+        <span class="sep" aria-hidden="true"></span>
+        <div>
+          <h1>Suporte da Central</h1>
+          <div class="sub" id="supQuem">Carregando sua sessão…</div>
+        </div>
+      </div>
+      <div class="head-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <a class="btn small primary" id="supBtnDev" href="/dev" hidden style="text-decoration:none">⚙️ Painel Dev →</a>
+        <button class="qz-theme-btn" type="button" id="qzThemeBtn" aria-pressed="false" title="Tema atual: Claro. Clique para mudar para Escuro">☀️ Tema: Claro</button>
+        <a class="btn small" href="/?modulos=1" style="text-decoration:none">← Voltar aos módulos</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap sup-wrap" id="supApp">
+  <div class="sup-loading">Carregando painel de suporte…</div>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+<script src="/modulos/suporte.js"></script>
+</body>
+</html>
