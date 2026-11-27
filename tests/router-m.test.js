@@ -24,12 +24,12 @@ function criarResMock() {
 test("MODULOS_DEF e carregarModulo carregam módulos sob demanda com cache", async () => {
   assert.deepEqual(
     Object.keys(MODULOS_DEF).sort(),
-    ["adm", "cs", "fin", "onb", "pec", "pen", "pol", "pop", "tar"]
+    ["adm", "cs", "fin", "onb", "pec", "pen", "pop", "sup", "tar"]
   );
   assert.equal(await carregarModulo("inexistente"), null);
 
-  const p1 = await carregarModulo("pol");
-  const p2 = await carregarModulo("pol");
+  const p1 = await carregarModulo("sup");
+  const p2 = await carregarModulo("sup");
   assert.equal(p1, p2);
   assert.equal(typeof p1.rotas, "object");
 

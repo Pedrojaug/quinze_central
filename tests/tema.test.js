@@ -100,7 +100,7 @@ test("QZ.tema.aplicar, alternar e iniciar atualizam DOM, meta, botões, localSto
 });
 
 test("Páginas HTML contêm anti-FOUC e src/app.css define paleta dark azul-ardósia preservando .sheet clara", () => {
-  for (const arq of ["src/app.html", "index.html", "pop.html"]) {
+  for (const arq of ["src/app.html", "index.html", "pop.html", "suporte.html", "dev.html"]) {
     const html = fs.readFileSync(path.join(process.cwd(), arq), "utf8");
     assert.match(html, /localStorage\.getItem\(["']qz-theme["']\)/, `${arq} deve conter snippet anti-FOUC`);
   }

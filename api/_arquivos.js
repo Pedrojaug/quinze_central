@@ -1,4 +1,4 @@
-// Guarda arquivos (contratos, documentos assinados, código de ética).
+// Guarda arquivos (contratos, documentos assinados e peças).
 // Na Vercel: Vercel Blob privado (BLOB_READ_WRITE_TOKEN, criado pela própria Vercel ao ligar o Blob).
 // Sem o token (testes locais): pasta local ARQUIVOS_DIR.
 // O endereço do arquivo nunca vai para a página: o download passa pela rota do módulo, que confere a permissão.

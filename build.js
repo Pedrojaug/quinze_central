@@ -66,4 +66,14 @@ const html = fs.readFileSync("src/app.html", "utf8")
   .replace('src="/store.js"', `src="/store.js?v=${buildHash}"`)
   .replace("<!--APP_JS-->", `<script>\n(function(){\nwindow.__QZ_BUILD = "${buildHash}";\n${js}\n})();\n</script>`);
 fs.writeFileSync(path.join(OUT, "app.html"), html);
+
+for (const page of ["suporte.html", "dev.html"]) {
+  if (!fs.existsSync(page)) continue;
+  const pageHtml = fs.readFileSync(page, "utf8")
+    .replace('href="/app.css"', `href="/app.css?v=${buildHash}"`)
+    .replace('src="/modulos/suporte.js"', `src="/modulos/suporte.js?v=${buildHash}"`)
+    .replace('src="/modulos/dev.js"', `src="/modulos/dev.js?v=${buildHash}"`);
+  fs.writeFileSync(path.join(OUT, page), pageHtml);
+}
+
 console.log(`public/ pronto [${buildHash}]: app.html com ${partes.length} partes (${Math.round(html.length / 1024)} KB)${modulosCompilados.length ? ` | módulos: ${modulosCompilados.join(", ")}` : ""}`);

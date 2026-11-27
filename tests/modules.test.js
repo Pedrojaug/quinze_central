@@ -55,7 +55,8 @@ test("abasDe e areasDe para mestre, social e personalizado", () => {
   assert.equal(abasSocial.includes("pecasdash"), true);
   assert.equal(abasSocial.includes("npsmedia"), true);
   assert.equal(abasSocial.includes("reclamacoes"), true);
-  assert.equal(abasSocial.includes("etica"), true);
+  assert.equal(abasSocial.includes("etica"), false);
+  assert.equal(AREAS.some(a => a.id === "politicas"), false);
   assert.equal(areasSocial.includes("administrativo"), false);
   assert.equal(areasSocial.includes("financeiro"), false);
 
