@@ -56,8 +56,9 @@ button,input{font:inherit;color:inherit}
 .inside span{font-size:13px;opacity:.82}
 
 .side{position:relative;display:flex;align-items:center;justify-content:center;padding:48px 24px;padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
-.theme-toggle{position:absolute;top:20px;right:20px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(15,23,42,.08);transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
-.theme-toggle:hover{border-color:var(--blue);background:var(--blue-soft);color:var(--blue-dk);box-shadow:0 0 0 3px var(--blue-soft)}
+.top-tools{position:absolute;top:20px;right:20px;display:flex;align-items:center;gap:8px;z-index:2}
+.theme-toggle,.tool-pill{position:relative;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(15,23,42,.08);transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
+.theme-toggle:hover,.tool-pill:hover{border-color:var(--blue);background:var(--blue-soft);color:var(--blue-dk);box-shadow:0 0 0 3px var(--blue-soft)}
 .card{width:100%;max-width:400px}
 .card h2{font:700 28px/1.15 var(--display);margin:0 0 6px;letter-spacing:-.01em}
 .card .lead{color:var(--ink2);margin:0 0 28px}
@@ -91,37 +92,67 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
 .app.soon:hover{border-color:var(--line);box-shadow:none}
 .app.soon .ic{background:var(--muted-bg);color:var(--ink2)}
 .app .badge{font-size:12px;font-weight:600;color:var(--ink2);background:var(--muted-bg);border-radius:20px;padding:3px 10px;white-space:nowrap}
-.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-8px 0 18px}
-.quick a,.quick button{text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;position:relative;transition:border-color .15s,color .15s}
-.quick .full{grid-column:1 / -1}
-.quick a:hover,.quick button:hover{border-color:var(--blue);color:var(--blue-dk)}
-.nov-dot{position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:#E03131;box-shadow:0 0 0 2px var(--card)}
-dialog.nov-dlg{width:min(520px,calc(100vw - 28px));max-height:min(82vh,660px);padding:0;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);box-shadow:0 20px 50px rgba(15,23,42,.28);overflow:hidden}
+.quick-lbl{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink2);margin:2px 0 8px}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 18px}
+.quick a{text-align:center;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:6px;transition:border-color .15s,color .15s}
+.quick a:hover{border-color:var(--blue);color:var(--blue-dk)}
+.home-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px;margin-top:4px}
+.foot-links{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.foot-link{background:none;border:0;color:var(--ink2);font-weight:600;font-size:13.5px;cursor:pointer;padding:4px 0;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:color .15s}
+.foot-link:hover{color:var(--blue-dk);text-decoration:underline;text-underline-offset:3px}
+.nov-dot{position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;background:#E03131;box-shadow:0 0 0 2px var(--paper)}
+dialog.nov-dlg{width:min(920px,calc(100vw - 32px));height:min(640px,calc(100vh - 48px));max-height:90vh;padding:0;border:1px solid var(--line);border-radius:18px;background:var(--card);color:var(--ink);box-shadow:0 24px 64px rgba(15,23,42,.34);overflow:hidden}
 dialog.nov-dlg[open]{display:flex;flex-direction:column}
-dialog.nov-dlg::backdrop{background:rgba(11,17,32,.52);backdrop-filter:blur(2px)}
-.nov-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+dialog.nov-dlg::backdrop{background:rgba(11,17,32,.56);backdrop-filter:blur(3px)}
+.nov-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line);background:var(--surface)}
 .nov-head h3{margin:0;font:700 20px/1.2 var(--display)}
-.nov-head p{margin:4px 0 0;font-size:13.5px;color:var(--ink2)}
-.nov-x{border:1px solid var(--line);background:var(--surface);color:var(--ink2);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:15px;line-height:1;display:grid;place-items:center;flex-shrink:0}
+.nov-head p{margin:3px 0 0;font-size:13.5px;color:var(--ink2)}
+.nov-x{border:1px solid var(--line);background:var(--card);color:var(--ink2);width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:15px;line-height:1;display:grid;place-items:center;flex-shrink:0}
 .nov-x:hover{border-color:var(--blue);color:var(--blue-dk)}
-.nov-body{padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
-.nov-latest{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.nov-split{display:grid;grid-template-columns:260px minmax(0,1fr);flex:1;min-height:0;overflow:hidden}
+.nov-side{border-right:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.nov-side-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)}
+.nov-ver-list{flex:1;overflow-y:auto;padding:8px}
+.nov-ver-item{position:relative;width:100%;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;padding:11px 12px;cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:background .15s,border-color .15s}
+.nov-ver-item+.nov-ver-item{margin-top:4px}
+.nov-ver-item:hover{background:var(--card);border-color:var(--line)}
+.nov-ver-item.is-sel{background:var(--blue-soft);border-color:var(--blue);padding-left:15px}
+.nov-ver-item.is-sel::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3.5px;border-radius:0 4px 4px 0;background:var(--blue)}
+.nov-ver-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.nov-ver-tag{font:700 12px var(--display);color:var(--ink2)}
+.nov-ver-item.is-sel .nov-ver-tag{color:var(--blue-dk)}
+.nov-ver-new{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--blue);color:#fff}
+.nov-ver-title{font-weight:600;font-size:13.5px;line-height:1.3;color:var(--ink)}
+.nov-ver-date{font-size:12px;color:var(--ink2)}
+.nov-side-note{padding:12px 14px;border-top:1px dashed var(--line);font-size:12.5px;line-height:1.45;color:var(--ink2)}
+.nov-detail{flex:1;min-width:0;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+.nov-hero{background:linear-gradient(135deg,var(--blue-soft) 0%,transparent 80%);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
 .nov-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.nov-badge{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--blue-soft);color:var(--blue-dk)}
+.nov-badge{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--blue);color:#fff}
 .nov-date{font-size:12.5px;color:var(--ink2);font-weight:600}
-.nov-latest h4{margin:0 0 6px;font:700 16.5px/1.3 var(--display)}
-.nov-sum{margin:0 0 10px;font-size:14px;line-height:1.5;color:var(--ink2)}
-.nov-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;font-size:14px;line-height:1.45}
-.nov-past h4{margin:0 0 8px;font:700 13px/1.2 var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)}
-.nov-empty{margin:0;font-size:13.5px;color:var(--ink2);background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
-details.nov-old{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}
-details.nov-old+details.nov-old{margin-top:8px}
-details.nov-old summary{cursor:pointer;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center}
-details.nov-old summary::-webkit-details-marker{display:none}
-details.nov-old[open] summary{margin-bottom:8px}
-.nov-foot{padding:12px 20px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
-.nov-foot .btn{width:auto;min-height:40px;padding:0 20px;font-size:14.5px}
+.nov-hero h4{margin:0 0 8px;font:700 22px/1.2 var(--display);letter-spacing:-.015em}
+.nov-sum{margin:0;font-size:14.5px;line-height:1.55;color:var(--ink2)}
+.nov-items{display:flex;flex-direction:column;gap:10px}
+.nov-item{display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:start;padding:13px 15px;border-radius:12px;border:1px solid var(--line);background:var(--surface)}
+.nov-ico{width:40px;height:40px;border-radius:10px;background:var(--blue-soft);display:grid;place-items:center;font-size:19px;flex-shrink:0}
+.nov-item b{display:block;font-size:14.5px;line-height:1.3;margin-bottom:3px;color:var(--ink)}
+.nov-item p{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink2)}
+.nov-foot{padding:12px 22px;border-top:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.nov-foot-hint{font-size:13px;color:var(--ink2)}
+.nov-foot-hint a{color:var(--blue-dk);font-weight:600;text-decoration:none}
+.nov-foot-hint a:hover{text-decoration:underline}
+.nov-foot .btn{width:auto;min-height:40px;padding:0 22px;font-size:14.5px}
 .out{background:none;border:0;color:var(--ink2);font-weight:600;cursor:pointer;padding:6px 0;margin-right:16px;text-decoration:underline;text-underline-offset:3px}
+@media (max-width:720px){
+  dialog.nov-dlg{height:min(86vh,680px)}
+  .nov-split{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+  .nov-side{border-right:0;border-bottom:1px solid var(--line)}
+  .nov-ver-list{display:flex;gap:6px;overflow-x:auto;padding:8px 12px}
+  .nov-ver-item{min-width:190px;flex:0 0 auto}
+  .nov-ver-item+.nov-ver-item{margin-top:0}
+  .nov-side-note{display:none}
+  .nov-detail{padding:16px}
+}
 
 @media (max-width:900px){
   .page{grid-template-columns:1fr}
@@ -156,7 +187,10 @@ details.nov-old[open] summary{margin-bottom:8px}
   </section>
 
   <main class="side">
-    <button class="theme-toggle" type="button" id="qzThemeBtn" aria-pressed="false" title="Tema atual: Claro. Clique para mudar para Escuro">☀️ Tema: Claro</button>
+    <div class="top-tools">
+      <button class="tool-pill" type="button" id="homeNovBtn" hidden>✨ Novidades<span class="nov-dot" id="homeNovDot" hidden aria-hidden="true"></span></button>
+      <button class="theme-toggle" type="button" id="qzThemeBtn" aria-pressed="false" title="Tema atual: Claro. Clique para mudar para Escuro">☀️ Tema: Claro</button>
+    </div>
     <div class="card" id="loginBox">
       <h2>Entrar</h2>
       <p class="lead">Use seu e-mail da Quinze e a senha do e-mail, ou o usuário e a senha que a gestão te passou.</p>
@@ -192,17 +226,23 @@ details.nov-old[open] summary{margin-bottom:8px}
       </div>
       <p class="lead" id="homeLead">Escolha o módulo.</p>
       <div class="apps" id="apps"></div>
+      <div class="quick-lbl">Acesso rápido</div>
       <div class="quick">
         <a href="/pop">Meu POP</a>
         <a href="https://chatt.inteligentte.com.br/" target="_blank" rel="noopener">CRM WhatsApp ↗</a>
         <a href="https://webmail-seguro.com.br/" target="_blank" rel="noopener">Webmail ↗</a>
         <a href="https://appsocial.mlabs.io/" target="_blank" rel="noopener">mLabs ↗</a>
-        <a id="homeSupLink" href="/suporte?origem=inicio_navegacao&url=%2F">Suporte</a>
-        <button type="button" id="homeNovBtn">Novidades<span class="nov-dot" id="homeNovDot" hidden aria-hidden="true"></span></button>
-        <a id="homeDevLink" href="/dev" hidden>Painel Dev</a>
       </div>
-      <button class="out" type="button" id="myPwd" hidden>Trocar minha senha</button>
-      <button class="out" type="button" id="out">Sair</button>
+      <div class="home-foot">
+        <div class="foot-links">
+          <button class="foot-link" type="button" id="myPwd" hidden>Trocar senha</button>
+          <button class="foot-link" type="button" id="out">Sair</button>
+        </div>
+        <div class="foot-links">
+          <a class="foot-link" id="homeSupLink" href="/suporte?origem=inicio_navegacao&url=%2F">Suporte</a>
+          <a class="foot-link" id="homeDevLink" href="/dev" hidden>Painel Dev</a>
+        </div>
+      </div>
     </div>
 
     <div class="card" id="profileBox" hidden>
@@ -232,14 +272,22 @@ details.nov-old[open] summary{margin-bottom:8px}
 <dialog id="novDlg" class="nov-dlg" aria-labelledby="novTitle">
   <div class="nov-head">
     <div>
-      <h3 id="novTitle">Novidades da Central</h3>
-      <p>O que mudou recentemente por aqui</p>
+      <h3 id="novTitle">✨ Novidades da Central</h3>
+      <p>Tudo o que acabou de chegar para deixar seu dia a dia mais leve</p>
     </div>
     <button class="nov-x" type="button" id="novClose" aria-label="Fechar novidades">✕</button>
   </div>
-  <div class="nov-body" id="novBody"></div>
+  <div class="nov-split">
+    <aside class="nov-side">
+      <div class="nov-side-head"><span>Versões</span><span id="novCount"></span></div>
+      <div class="nov-ver-list" id="novList" role="tablist" aria-label="Versões de novidades"></div>
+      <div class="nov-side-note" id="novSideNote">As próximas atualizações vão aparecer nesta lista.</div>
+    </aside>
+    <section class="nov-detail" id="novBody" role="tabpanel"></section>
+  </div>
   <div class="nov-foot">
-    <button class="btn" type="button" id="novOk">Entendi</button>
+    <span class="nov-foot-hint">Sentiu falta de algo? <a href="/suporte?origem=inicio_navegacao&url=%2F">Conte no Suporte</a></span>
+    <button class="btn" type="button" id="novOk">Legal, entendi!</button>
   </div>
 </dialog>
 
@@ -274,16 +322,19 @@ details.nov-old[open] summary{margin-bottom:8px}
   const NOVIDADES = [
     {
       id: "2026-11-27",
+      versao: "Edição #01",
       data: "27/11/2026",
-      titulo: "Novo painel de novidades e melhorias na Central",
-      resumo: "Este é o novo painel de novidades da Central Quinze. Sempre que entrar algo novo no ar, uma bolinha vermelha aparece no botão Novidades e some assim que você abrir para conferir.",
+      dataCurta: "27 nov 2026",
+      tituloCurto: "Estreia das Novidades & casa arrumada",
+      titulo: "Chegou o painel de Novidades — e a Central ficou ainda mais leve!",
+      resumo: "Boas-vindas ao nosso novo cantinho de novidades! Toda vez que algo legal entrar no ar, uma bolinha vermelha aparece ali em cima no botão Novidades — é só abrir para conferir o que mudou e já sair usando.",
       itens: [
-        "Novo painel de Novidades: mostra as mudanças mais recentes e vai guardar aqui a lista de atualizações passadas.",
-        "Novo canal de Suporte: agora você pode enviar dúvidas, sugestões ou avisar sobre algum problema direto pela Central e acompanhar o retorno.",
-        "Minhas tarefas agora é Meu to-do: o nome mudou no menu e no resumo diário das 20h para deixar claro que é a sua lista pessoal, separada das tarefas de produção.",
-        "NPS Média e Reclamações em Atendimento: essas abas passaram para dentro de Atendimento, deixando a tela inicial mais limpa e tudo dos clientes num só lugar.",
-        "Aprovação de peças mais prática: os botões de aprovar, pedir ajuste e reprovar ficaram maiores e mais fáceis de usar.",
-        "Administrativo mais enxuto: a aba Assinatura de documentos saiu do menu para deixar só o que a equipe usa hoje — todos os documentos antigos continuam guardados com segurança."
+        { emoji: "🎉", titulo: "Um cantinho só para novidades", texto: "Este painel estreou hoje! Agora ninguém fica no escuro quando a Central ganha recursos novos — e todas as próximas edições ficam guardadas aqui na esquerda para você consultar quando quiser." },
+        { emoji: "🆘", titulo: "Suporte direto dentro da Central", texto: "Travou alguma coisa, pintou uma ideia boa ou quer sugerir uma melhoria? Agora dá para abrir um pedido de suporte direto pela Central e acompanhar tudinho até ser resolvido." },
+        { emoji: "✅", titulo: "\"Minhas tarefas\" agora é \"Meu to-do\"", texto: "Nome novo no menu e no resumo das 20h no WhatsApp! Assim fica fácil saber que ali é a sua listinha pessoal do dia, separada das tarefas de produção." },
+        { emoji: "💛", titulo: "NPS e Reclamações dentro de Atendimento", texto: "Menos voltas para trabalhar! Trouxemos NPS Média e Reclamações para dentro de Atendimento, deixando a tela inicial mais limpa e tudo sobre clientes no mesmo lugar." },
+        { emoji: "🚀", titulo: "Aprovação de peças mais gostosa de usar", texto: "Os botões de aprovar, pedir ajuste e reprovar ficaram maiores e mais diretos — menos esforço no clique e mais velocidade na fila." },
+        { emoji: "🧹", titulo: "Administrativo mais enxuto", texto: "Tiramos Assinatura de documentos do menu para deixar só o que a equipe usa no dia a dia. E pode ficar tranquilo: todos os documentos antigos seguem guardados com segurança." }
       ]
     }
   ];
@@ -299,8 +350,13 @@ details.nov-old[open] summary{margin-bottom:8px}
     financeiro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   };
   let ME = null;
+  let novSelId = NOVIDADES[0]?.id || null;
 
-  function show(id){ ["#loginBox","#pwdBox","#homeBox","#profileBox"].forEach(s => $(s).hidden = s !== id); }
+  function show(id){
+    ["#loginBox","#pwdBox","#homeBox","#profileBox"].forEach(s => $(s).hidden = s !== id);
+    const nb = $("#homeNovBtn");
+    if (nb) nb.hidden = id !== "#homeBox";
+  }
 
   function initials(nome, login){
     const txt = String(nome || login || "").trim().replace(/@.*$/, "").replace(/[._-]/g, " ").trim();
@@ -331,7 +387,6 @@ details.nov-old[open] summary{margin-bottom:8px}
     $("#myPwd").hidden = ME.auth !== "senha";
     const isDev = !!ME.isDev;
     $("#homeDevLink").hidden = !isDev;
-    $("#homeDevLink").classList.toggle("full", isDev);
     atualizarBotaoNovidades();
     $("#apps").innerHTML = areas.map(a => a.emBreve
       ? `<div class="app soon" aria-disabled="true"><span class="ic">${ICON[a.id] || esc(a.nome.charAt(0))}</span><span><b>${esc(a.nome)}</b><small>${esc(a.descricao || "")}</small></span><span class="badge">Em breve</span></div>`
@@ -486,24 +541,41 @@ details.nov-old[open] summary{margin-bottom:8px}
     btn.setAttribute("aria-label", rotulo);
   }
   function renderNovidades(){
-    const box = $("#novBody");
+    const list = $("#novList"), box = $("#novBody"), cnt = $("#novCount"), note = $("#novSideNote");
     if (!box) return;
-    const rec = novidadeMaisRecente();
+    if (cnt) cnt.textContent = `${NOVIDADES.length} ${NOVIDADES.length === 1 ? "edição" : "edições"}`;
+    if (note) note.hidden = NOVIDADES.length > 1;
+    const rec = NOVIDADES.find(n => n.id === novSelId) || novidadeMaisRecente();
+    if (list) {
+      list.innerHTML = NOVIDADES.map((n, idx) => {
+        const sel = rec && n.id === rec.id;
+        return `<button type="button" class="nov-ver-item${sel ? " is-sel" : ""}" data-nov-id="${esc(n.id)}" role="tab" aria-selected="${sel ? "true" : "false"}">
+          <div class="nov-ver-top"><span class="nov-ver-tag">${esc(n.versao || `Edição #${NOVIDADES.length - idx}`)}</span>${idx === 0 ? `<span class="nov-ver-new">Novo</span>` : ""}</div>
+          <div class="nov-ver-title">${esc(n.tituloCurto || n.titulo)}</div>
+          <div class="nov-ver-date">${esc(n.dataCurta || n.data)}</div>
+        </button>`;
+      }).join("");
+    }
     if (!rec) { box.innerHTML = `<p class="nov-empty">Nenhuma novidade registrada por enquanto.</p>`; return; }
-    const anteriores = NOVIDADES.slice(1);
-    const blocoRecente = `<div class="nov-latest">
-      <div class="nov-meta"><span class="nov-badge">Mais recente</span><span class="nov-date">${esc(rec.data)}</span></div>
+    const ehMaisRecente = NOVIDADES[0]?.id === rec.id;
+    const itensHtml = (rec.itens || []).map(item => {
+      const obj = typeof item === "string" ? { emoji: "✨", titulo: "", texto: item } : item;
+      return `<div class="nov-item">
+        <div class="nov-ico" aria-hidden="true">${esc(obj.emoji || "✨")}</div>
+        <div>${obj.titulo ? `<b>${esc(obj.titulo)}</b>` : ""}<p>${esc(obj.texto || "")}</p></div>
+      </div>`;
+    }).join("");
+    box.innerHTML = `<div class="nov-hero">
+      <div class="nov-meta">${ehMaisRecente ? `<span class="nov-badge">✨ Mais recente</span>` : `<span class="nov-badge">${esc(rec.versao || "Edição anterior")}</span>`}<span class="nov-date">${esc(rec.data)}</span></div>
       <h4>${esc(rec.titulo)}</h4>
       ${rec.resumo ? `<p class="nov-sum">${esc(rec.resumo)}</p>` : ""}
-      <ul class="nov-list">${(rec.itens || []).map(i => `<li>${esc(i)}</li>`).join("")}</ul>
-    </div>`;
-    const blocoPassadas = `<div class="nov-past">
-      <h4>Atualizações anteriores</h4>
-      ${anteriores.length
-        ? anteriores.map(n => `<details class="nov-old"><summary><span>${esc(n.titulo)}</span><span class="nov-date">${esc(n.data)}</span></summary>${n.resumo ? `<p class="nov-sum">${esc(n.resumo)}</p>` : ""}<ul class="nov-list">${(n.itens || []).map(i => `<li>${esc(i)}</li>`).join("")}</ul></details>`).join("")
-        : `<p class="nov-empty">Esta é a primeira edição do painel. As próximas atualizações vão ficando registradas aqui.</p>`}
-    </div>`;
-    box.innerHTML = blocoRecente + blocoPassadas;
+    </div>
+    <div class="nov-items">${itensHtml}</div>`;
+  }
+  function selecionarNovidade(id){
+    if (!NOVIDADES.some(n => n.id === id)) return;
+    novSelId = id;
+    renderNovidades();
   }
   function fecharNovidades(){
     const dlg = $("#novDlg");
@@ -512,6 +584,7 @@ details.nov-old[open] summary{margin-bottom:8px}
     else dlg.removeAttribute("open");
   }
   function abrirNovidades(){
+    novSelId = novidadeMaisRecente()?.id || null;
     renderNovidades();
     const rec = novidadeMaisRecente();
     if (rec) { try { localStorage.setItem(chaveNovidades(), rec.id); } catch {} }
@@ -522,10 +595,14 @@ details.nov-old[open] summary{margin-bottom:8px}
     else dlg.setAttribute("open", "");
   }
   $("#homeNovBtn")?.addEventListener("click", abrirNovidades);
+  $("#novList")?.addEventListener("click", ev => {
+    const b = ev.target?.closest ? ev.target.closest("[data-nov-id]") : null;
+    if (b?.dataset?.novId) selecionarNovidade(b.dataset.novId);
+  });
   $("#novClose")?.addEventListener("click", fecharNovidades);
   $("#novOk")?.addEventListener("click", fecharNovidades);
   $("#novDlg")?.addEventListener("click", ev => { if (ev.target === $("#novDlg")) fecharNovidades(); });
-  window.__qzNovidades = { NOVIDADES, chaveNovidades, temNovidadeNaoLida, atualizarBotaoNovidades, abrirNovidades, fecharNovidades };
+  window.__qzNovidades = { NOVIDADES, chaveNovidades, temNovidadeNaoLida, atualizarBotaoNovidades, selecionarNovidade, abrirNovidades, fecharNovidades };
 
   fetch("/api/me", {credentials:"same-origin"}).then(r => {
     if (r.ok) showHome();

@@ -19,7 +19,7 @@ function criarDomMock() {
   };
   const mkEl = (id) => ({
     id,
-    hidden: false,
+    hidden: id === "#homeNovBtn",
     open: false,
     innerHTML: "",
     textContent: "",
@@ -39,10 +39,11 @@ function criarDomMock() {
   });
 
   const ids = [
-    "#homeNovBtn", "#homeNovDot", "#novDlg", "#novBody", "#novClose", "#novOk",
-    "#qzThemeBtn", "#profHomeCancel", "#profHomePick", "#profHomeRm", "#profHomeFile",
+    "#homeNovBtn", "#homeNovDot", "#novDlg", "#novList", "#novCount", "#novSideNote",
+    "#novBody", "#novClose", "#novOk", "#qzThemeBtn", "#loginBox", "#pwdBox", "#homeBox",
+    "#profileBox", "#profHomeCancel", "#profHomePick", "#profHomeRm", "#profHomeFile",
     "#frmHomeProfile", "#frmPwd", "#pwCancel", "#myPwd", "#myProfile", "#show", "#frm", "#out",
-    "#pass", "#user",
+    "#pass", "#user", "#homeDevLink", "#homeSupLink",
   ];
   const mapa = Object.fromEntries(ids.map(s => [s, mkEl(s)]));
   const doc = {
@@ -61,11 +62,15 @@ function criarDomMock() {
   return { mapa, doc, win, storage, storageMap };
 }
 
-test("index.html possui botão, bolinha de notificação e pop-up de Novidades com a edição de hoje em linguagem simples", () => {
+test("index.html organiza botões limpos e entrega pop-up Master-Detail de Novidades em linguagem leve", () => {
   const { html, script } = extrairScriptIndex();
-  for (const id of ["homeNovBtn", "homeNovDot", "novDlg", "novBody", "novClose", "novOk"]) {
+  for (const id of ["homeNovBtn", "homeNovDot", "novDlg", "novList", "novCount", "novBody", "novClose", "novOk"]) {
     assert.match(html, new RegExp(`id="${id}"`), `index.html deve conter #${id}`);
   }
+  assert.match(html, /class="top-tools"[\s\S]*?id="homeNovBtn"[\s\S]*?id="qzThemeBtn"/);
+  const quickMatch = /<div class="quick">([\s\S]*?)<\/div>/.exec(html);
+  assert.ok(quickMatch, "grade .quick deve existir");
+  assert.equal((quickMatch[1].match(/<a /g) || []).length, 4, "grade .quick deve conter apenas os 4 atalhos de trabalho");
 
   const dom = criarDomMock();
   const ctx = vm.createContext({
@@ -86,11 +91,16 @@ test("index.html possui botão, bolinha de notificação e pop-up de Novidades c
 
   const atual = nov.NOVIDADES[0];
   assert.equal(atual.id, "2026-11-27");
+  assert.equal(atual.versao, "Edição #01");
   assert.equal(atual.data, "27/11/2026");
-  assert.match(atual.titulo, /novidades/i);
-  assert.match(atual.resumo, /painel de novidades/i);
+  assert.ok(atual.tituloCurto);
+  assert.match(atual.titulo, /Novidades/i);
+  assert.match(atual.resumo, /cantinho de novidades|bolinha vermelha/i);
   assert.ok(Array.isArray(atual.itens) && atual.itens.length >= 4);
-  const texto = [atual.titulo, atual.resumo, ...atual.itens].join(" ");
+  for (const item of atual.itens) {
+    assert.ok(item.emoji && item.titulo && item.texto, "cada item precisa de emoji, título e texto");
+  }
+  const texto = [atual.titulo, atual.resumo, ...atual.itens.map(i => `${i.titulo} ${i.texto}`)].join(" ");
   assert.match(texto, /Meu to-do/);
   assert.match(texto, /Suporte/);
   assert.doesNotMatch(texto, /\b(PR|commit|API|JSONB|SO_API|endpoint)\b/);
@@ -100,16 +110,38 @@ test("index.html possui botão, bolinha de notificação e pop-up de Novidades c
   assert.equal(nov.temNovidadeNaoLida(), true);
   assert.equal(dom.mapa["#homeNovDot"].hidden, false);
 
-  // Ao clicar para abrir: marca como lido, esconde a bolinha e renderiza histórico
+  // Ao clicar para abrir: marca como lido, esconde a bolinha e renderiza Master-Detail
   dom.mapa["#homeNovBtn"].click();
   assert.equal(nov.temNovidadeNaoLida(), false);
   assert.equal(dom.mapa["#homeNovDot"].hidden, true);
   assert.equal(dom.mapa["#novDlg"].open, true);
+  assert.equal(dom.mapa["#novCount"].textContent, "1 edição");
+  assert.match(dom.mapa["#novList"].innerHTML, /Edição #01/);
+  assert.match(dom.mapa["#novList"].innerHTML, /is-sel/);
+  assert.match(dom.mapa["#novList"].innerHTML, /aria-selected="true"/);
   assert.match(dom.mapa["#novBody"].innerHTML, /Mais recente/);
-  assert.match(dom.mapa["#novBody"].innerHTML, /Atualizações anteriores/);
-  assert.match(dom.mapa["#novBody"].innerHTML, /primeira edição do painel/);
+  assert.match(dom.mapa["#novBody"].innerHTML, /nov-item/);
+  assert.match(dom.mapa["#novBody"].innerHTML, /🎉/);
 
-  // Fecha pelo botão "Entendi"
+  // Simula 2ª versão na lista para testar troca no Master-Detail
+  nov.NOVIDADES.push({
+    id: "2026-11-10",
+    versao: "Edição #00",
+    data: "10/11/2026",
+    dataCurta: "10 nov 2026",
+    tituloCurto: "Edição de teste",
+    titulo: "Título edição anterior",
+    resumo: "Resumo anterior",
+    itens: [{ emoji: "🌟", titulo: "Item antigo", texto: "Descrição antiga" }],
+  });
+  nov.selecionarNovidade("2026-11-10");
+  assert.match(dom.mapa["#novBody"].innerHTML, /Título edição anterior/);
+  assert.match(dom.mapa["#novBody"].innerHTML, /Item antigo/);
+  assert.equal(dom.mapa["#novCount"].textContent, "2 edições");
+  assert.equal(dom.mapa["#novSideNote"].hidden, true);
+  nov.NOVIDADES.pop();
+
+  // Fecha pelo botão "Legal, entendi!"
   dom.mapa["#novOk"].click();
   assert.equal(dom.mapa["#novDlg"].open, false);
 
