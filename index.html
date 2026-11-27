@@ -92,9 +92,35 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
 .app.soon .ic{background:var(--muted-bg);color:var(--ink2)}
 .app .badge{font-size:12px;font-weight:600;color:var(--ink2);background:var(--muted-bg);border-radius:20px;padding:3px 10px;white-space:nowrap}
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:-8px 0 18px}
-.quick a{text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center}
-.quick a.full{grid-column:1 / -1}
-.quick a:hover{border-color:var(--blue);color:var(--blue-dk)}
+.quick a,.quick button{text-align:center;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--card);color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;position:relative;transition:border-color .15s,color .15s}
+.quick .full{grid-column:1 / -1}
+.quick a:hover,.quick button:hover{border-color:var(--blue);color:var(--blue-dk)}
+.nov-dot{position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:#E03131;box-shadow:0 0 0 2px var(--card)}
+dialog.nov-dlg{width:min(520px,calc(100vw - 28px));max-height:min(82vh,660px);padding:0;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);box-shadow:0 20px 50px rgba(15,23,42,.28);overflow:hidden}
+dialog.nov-dlg[open]{display:flex;flex-direction:column}
+dialog.nov-dlg::backdrop{background:rgba(11,17,32,.52);backdrop-filter:blur(2px)}
+.nov-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.nov-head h3{margin:0;font:700 20px/1.2 var(--display)}
+.nov-head p{margin:4px 0 0;font-size:13.5px;color:var(--ink2)}
+.nov-x{border:1px solid var(--line);background:var(--surface);color:var(--ink2);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:15px;line-height:1;display:grid;place-items:center;flex-shrink:0}
+.nov-x:hover{border-color:var(--blue);color:var(--blue-dk)}
+.nov-body{padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.nov-latest{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.nov-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.nov-badge{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--blue-soft);color:var(--blue-dk)}
+.nov-date{font-size:12.5px;color:var(--ink2);font-weight:600}
+.nov-latest h4{margin:0 0 6px;font:700 16.5px/1.3 var(--display)}
+.nov-sum{margin:0 0 10px;font-size:14px;line-height:1.5;color:var(--ink2)}
+.nov-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;font-size:14px;line-height:1.45}
+.nov-past h4{margin:0 0 8px;font:700 13px/1.2 var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)}
+.nov-empty{margin:0;font-size:13.5px;color:var(--ink2);background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
+details.nov-old{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}
+details.nov-old+details.nov-old{margin-top:8px}
+details.nov-old summary{cursor:pointer;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center}
+details.nov-old summary::-webkit-details-marker{display:none}
+details.nov-old[open] summary{margin-bottom:8px}
+.nov-foot{padding:12px 20px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
+.nov-foot .btn{width:auto;min-height:40px;padding:0 20px;font-size:14.5px}
 .out{background:none;border:0;color:var(--ink2);font-weight:600;cursor:pointer;padding:6px 0;margin-right:16px;text-decoration:underline;text-underline-offset:3px}
 
 @media (max-width:900px){
@@ -172,6 +198,7 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
         <a href="https://webmail-seguro.com.br/" target="_blank" rel="noopener">Webmail ↗</a>
         <a href="https://appsocial.mlabs.io/" target="_blank" rel="noopener">mLabs ↗</a>
         <a id="homeSupLink" href="/suporte?origem=inicio_navegacao&url=%2F">Suporte</a>
+        <button type="button" id="homeNovBtn">Novidades<span class="nov-dot" id="homeNovDot" hidden aria-hidden="true"></span></button>
         <a id="homeDevLink" href="/dev" hidden>Painel Dev</a>
       </div>
       <button class="out" type="button" id="myPwd" hidden>Trocar minha senha</button>
@@ -202,6 +229,20 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
   </main>
 </div>
 
+<dialog id="novDlg" class="nov-dlg" aria-labelledby="novTitle">
+  <div class="nov-head">
+    <div>
+      <h3 id="novTitle">Novidades da Central</h3>
+      <p>O que mudou recentemente por aqui</p>
+    </div>
+    <button class="nov-x" type="button" id="novClose" aria-label="Fechar novidades">✕</button>
+  </div>
+  <div class="nov-body" id="novBody"></div>
+  <div class="nov-foot">
+    <button class="btn" type="button" id="novOk">Entendi</button>
+  </div>
+</dialog>
+
 <script>
 (function(){
   const $ = s => document.querySelector(s);
@@ -225,8 +266,27 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     try { localStorage.setItem("qz-theme", next); } catch {}
     paintTheme(next);
   });
-  window.addEventListener("storage", ev => { if (!ev || ev.key === "qz-theme") paintTheme(ev?.newValue); });
+  window.addEventListener("storage", ev => {
+    if (!ev || ev.key === "qz-theme") paintTheme(ev?.newValue);
+    if (ev && typeof ev.key === "string" && ev.key.startsWith("qz-novidades-visto:")) atualizarBotaoNovidades();
+  });
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const NOVIDADES = [
+    {
+      id: "2026-11-27",
+      data: "27/11/2026",
+      titulo: "Novo painel de novidades e melhorias na Central",
+      resumo: "Este é o novo painel de novidades da Central Quinze. Sempre que entrar algo novo no ar, uma bolinha vermelha aparece no botão Novidades e some assim que você abrir para conferir.",
+      itens: [
+        "Novo painel de Novidades: mostra as mudanças mais recentes e vai guardar aqui a lista de atualizações passadas.",
+        "Novo canal de Suporte: agora você pode enviar dúvidas, sugestões ou avisar sobre algum problema direto pela Central e acompanhar o retorno.",
+        "Minhas tarefas agora é Meu to-do: o nome mudou no menu e no resumo diário das 20h para deixar claro que é a sua lista pessoal, separada das tarefas de produção.",
+        "NPS Média e Reclamações em Atendimento: essas abas passaram para dentro de Atendimento, deixando a tela inicial mais limpa e tudo dos clientes num só lugar.",
+        "Aprovação de peças mais prática: os botões de aprovar, pedir ajuste e reprovar ficaram maiores e mais fáceis de usar.",
+        "Administrativo mais enxuto: a aba Assinatura de documentos saiu do menu para deixar só o que a equipe usa hoje — todos os documentos antigos continuam guardados com segurança."
+      ]
+    }
+  ];
   const qs = new URLSearchParams(location.search);
   const next = qs.get("next");
   const safeNext = next && /^\/[A-Za-z0-9/_#?=&-]*$/.test(next) && !next.startsWith("//") ? next : null;
@@ -271,7 +331,8 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     $("#myPwd").hidden = ME.auth !== "senha";
     const isDev = !!ME.isDev;
     $("#homeDevLink").hidden = !isDev;
-    $("#homeSupLink").classList.toggle("full", !isDev);
+    $("#homeDevLink").classList.toggle("full", isDev);
+    atualizarBotaoNovidades();
     $("#apps").innerHTML = areas.map(a => a.emBreve
       ? `<div class="app soon" aria-disabled="true"><span class="ic">${ICON[a.id] || esc(a.nome.charAt(0))}</span><span><b>${esc(a.nome)}</b><small>${esc(a.descricao || "")}</small></span><span class="badge">Em breve</span></div>`
       : `<a class="app" href="${esc(a.entrada)}"><span class="ic">${ICON[a.id] || esc(a.nome.charAt(0))}</span><span><b>${esc(a.nome)}</b><small data-sum="${esc(a.id)}">${esc(a.descricao || "")}</small></span><span class="go" aria-hidden="true">→</span></a>`).join("");
@@ -403,6 +464,68 @@ input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 4px var(--blu
     try { await fetch("/api/logout", {method:"POST", credentials:"same-origin"}); } catch {}
     show("#loginBox"); $("#user").focus();
   });
+
+  function chaveNovidades(){
+    return `qz-novidades-visto:${String(ME?.login || "anon").toLowerCase()}`;
+  }
+  function novidadeMaisRecente(){
+    return NOVIDADES[0] || null;
+  }
+  function temNovidadeNaoLida(){
+    const rec = novidadeMaisRecente();
+    if (!rec) return false;
+    try { return localStorage.getItem(chaveNovidades()) !== rec.id; } catch { return true; }
+  }
+  function atualizarBotaoNovidades(){
+    const btn = $("#homeNovBtn"), dot = $("#homeNovDot");
+    if (!btn || !dot) return;
+    const naoLida = temNovidadeNaoLida();
+    dot.hidden = !naoLida;
+    const rotulo = naoLida ? "Ver novidades (há atualizações novas)" : "Ver novidades";
+    btn.title = rotulo;
+    btn.setAttribute("aria-label", rotulo);
+  }
+  function renderNovidades(){
+    const box = $("#novBody");
+    if (!box) return;
+    const rec = novidadeMaisRecente();
+    if (!rec) { box.innerHTML = `<p class="nov-empty">Nenhuma novidade registrada por enquanto.</p>`; return; }
+    const anteriores = NOVIDADES.slice(1);
+    const blocoRecente = `<div class="nov-latest">
+      <div class="nov-meta"><span class="nov-badge">Mais recente</span><span class="nov-date">${esc(rec.data)}</span></div>
+      <h4>${esc(rec.titulo)}</h4>
+      ${rec.resumo ? `<p class="nov-sum">${esc(rec.resumo)}</p>` : ""}
+      <ul class="nov-list">${(rec.itens || []).map(i => `<li>${esc(i)}</li>`).join("")}</ul>
+    </div>`;
+    const blocoPassadas = `<div class="nov-past">
+      <h4>Atualizações anteriores</h4>
+      ${anteriores.length
+        ? anteriores.map(n => `<details class="nov-old"><summary><span>${esc(n.titulo)}</span><span class="nov-date">${esc(n.data)}</span></summary>${n.resumo ? `<p class="nov-sum">${esc(n.resumo)}</p>` : ""}<ul class="nov-list">${(n.itens || []).map(i => `<li>${esc(i)}</li>`).join("")}</ul></details>`).join("")
+        : `<p class="nov-empty">Esta é a primeira edição do painel. As próximas atualizações vão ficando registradas aqui.</p>`}
+    </div>`;
+    box.innerHTML = blocoRecente + blocoPassadas;
+  }
+  function fecharNovidades(){
+    const dlg = $("#novDlg");
+    if (!dlg) return;
+    if (typeof dlg.close === "function" && dlg.open) dlg.close();
+    else dlg.removeAttribute("open");
+  }
+  function abrirNovidades(){
+    renderNovidades();
+    const rec = novidadeMaisRecente();
+    if (rec) { try { localStorage.setItem(chaveNovidades(), rec.id); } catch {} }
+    atualizarBotaoNovidades();
+    const dlg = $("#novDlg");
+    if (!dlg) return;
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "");
+  }
+  $("#homeNovBtn")?.addEventListener("click", abrirNovidades);
+  $("#novClose")?.addEventListener("click", fecharNovidades);
+  $("#novOk")?.addEventListener("click", fecharNovidades);
+  $("#novDlg")?.addEventListener("click", ev => { if (ev.target === $("#novDlg")) fecharNovidades(); });
+  window.__qzNovidades = { NOVIDADES, chaveNovidades, temNovidadeNaoLida, atualizarBotaoNovidades, abrirNovidades, fecharNovidades };
 
   fetch("/api/me", {credentials:"same-origin"}).then(r => {
     if (r.ok) showHome();
