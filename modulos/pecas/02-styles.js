@@ -85,12 +85,11 @@
       .pc-dec textarea{width:100%;min-height:66px;border-radius:8px}
       .pc-stamps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
       @media(max-width:560px){.pc-stamps{grid-template-columns:1fr}}
-      .pc-stamp{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:94px;padding:14px 10px;border-radius:11px;border:2.5px solid currentColor;cursor:pointer;text-align:center;font-family:var(--display);transition:transform .12s ease,box-shadow .12s ease,background-color .15s ease,color .15s ease,border-color .15s ease;user-select:none}
+      .pc-stamp{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:94px;padding:16px 12px;border-radius:11px;border:2.5px solid currentColor;cursor:pointer;text-align:center;font-family:var(--display);transition:transform .12s ease,box-shadow .12s ease,background-color .15s ease,color .15s ease,border-color .15s ease;user-select:none}
       .pc-stamp>*{pointer-events:none}
-      .pc-stamp-ico{width:26px;height:26px;display:flex;align-items:center;justify-content:center}
-      .pc-stamp-ico svg{width:24px;height:24px;display:block}
-      .pc-stamp-lbl{font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1.15}
-      .pc-stamp-sub{font-family:var(--body);font-size:11.5px;font-weight:600;opacity:.82;line-height:1.2}
+      .pc-stamp-ico{width:34px;height:34px;display:flex;align-items:center;justify-content:center}
+      .pc-stamp-ico svg{width:32px;height:32px;display:block}
+      .pc-stamp-lbl{font-size:18px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1.15}
       .pc-stamp:hover:not(:disabled){transform:translateY(-2px)}
       .pc-stamp:active:not(:disabled){transform:translateY(2px) scale(.985)}
       .pc-stamp:disabled{opacity:.55;cursor:wait;transform:none}

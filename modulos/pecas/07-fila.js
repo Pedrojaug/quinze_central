@@ -107,17 +107,14 @@
               <button class="pc-stamp aprovar" type="button" data-d="aprovada">
                 <span class="pc-stamp-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.8-5.2"/></svg></span>
                 <span class="pc-stamp-lbl">Aprovar</span>
-                <span class="pc-stamp-sub">Liberar material</span>
               </button>
               <button class="pc-stamp alterar" type="button" data-d="alteracao_solicitada">
                 <span class="pc-stamp-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
                 <span class="pc-stamp-lbl">Alteração</span>
-                <span class="pc-stamp-sub">Solicitar ajuste</span>
               </button>
               <button class="pc-stamp reprovar" type="button" data-d="reprovada">
                 <span class="pc-stamp-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg></span>
                 <span class="pc-stamp-lbl">Reprovar</span>
-                <span class="pc-stamp-sub">Recusar peça</span>
               </button>
             </div>
             <div class="pc-dec-msg" data-c="msg" role="alert"></div>
