@@ -1,6 +1,7 @@
 // Regras puras do módulo de Suporte e Esteira Dev (sem acesso direto ao banco).
 
-export const DEV_LOGIN_PADRAO = "equipe.inteligentte";
+export const DEV_LOGIN_PADRAO = "inteligentte";
+export const DEV_LOGINS_PADRAO = ["inteligentte", "equipe.inteligentte"];
 
 export const TIPOS_SUPORTE = [
   { id: "bug", rotulo: "Bug / erro" },
@@ -50,13 +51,13 @@ const rotuloDe = (lista, id) => lista.find(item => item.id === id)?.rotulo || St
 
 export function listarLoginsDev(env = process.env) {
   const bruto = String(env?.DEV_LOGINS || "").trim();
-  if (!bruto) return [DEV_LOGIN_PADRAO];
+  if (!bruto) return [...DEV_LOGINS_PADRAO];
   const out = [];
   for (const parte of bruto.split(/[,;\n]+/)) {
     const lg = parte.trim().toLowerCase();
     if (lg && !out.includes(lg)) out.push(lg);
   }
-  return out.length ? out : [DEV_LOGIN_PADRAO];
+  return out.length ? out : [...DEV_LOGINS_PADRAO];
 }
 
 export function ehDev(u, env = process.env) {
